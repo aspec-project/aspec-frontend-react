@@ -1,6 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import PlaceholderPage from '../pages/PlaceholderPage'
-import MainLayout from '../components/layout/MainLayout'
+import RegisterPage from '../pages/RegisterPage'
 
 /**
  * Centraliza todas as rotas da aplicação.
@@ -10,21 +10,20 @@ import MainLayout from '../components/layout/MainLayout'
 function AppRouter() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
-        {/* Rotas públicas */}
-        <Route path="/" element={<PlaceholderPage title="Página inicial" />} />
-        <Route path="/login" element={<PlaceholderPage title="Iniciar sessão" />} />
-        <Route path="/registo" element={<PlaceholderPage title="Criar conta" />} />
-        <Route path="/membros" element={<PlaceholderPage title="Diretório de membros" />} />
-        <Route
-          path="/membros/:membroId"
-          element={<PlaceholderPage title="Perfil do membro" />}
-        />
-        <Route path="/eventos" element={<PlaceholderPage title="Eventos" />} />
-        <Route
-          path="/eventos/:eventoId"
-          element={<PlaceholderPage title="Detalhe do evento" />}
-        />
+      {/* Rotas públicas */}
+      <Route path="/" element={<PlaceholderPage title="Página inicial" />} />
+      <Route path="/login" element={<PlaceholderPage title="Iniciar sessão" />} />
+      <Route path="/registo" element={<RegisterPage />} />
+      <Route path="/membros" element={<PlaceholderPage title="Diretório de membros" />} />
+      <Route
+        path="/membros/:membroId"
+        element={<PlaceholderPage title="Perfil do membro" />}
+      />
+      <Route path="/eventos" element={<PlaceholderPage title="Eventos" />} />
+      <Route
+        path="/eventos/:eventoId"
+        element={<PlaceholderPage title="Detalhe do evento" />}
+      />
 
         {/* Rotas do membro autenticado */}
         <Route path="/dashboard" element={<PlaceholderPage title="Dashboard" />} />
