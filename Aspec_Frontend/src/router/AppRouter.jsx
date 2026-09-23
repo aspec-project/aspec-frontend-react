@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import PlaceholderPage from '../pages/PlaceholderPage'
+import RegisterPage from '../pages/RegisterPage'
 
 /**
  * Centraliza todas as rotas da aplicação.
@@ -12,7 +13,7 @@ function AppRouter() {
       {/* Rotas públicas */}
       <Route path="/" element={<PlaceholderPage title="Página inicial" />} />
       <Route path="/login" element={<PlaceholderPage title="Iniciar sessão" />} />
-      <Route path="/registo" element={<PlaceholderPage title="Criar conta" />} />
+      <Route path="/registo" element={<RegisterPage />} />
       <Route path="/membros" element={<PlaceholderPage title="Diretório de membros" />} />
       <Route
         path="/membros/:membroId"
