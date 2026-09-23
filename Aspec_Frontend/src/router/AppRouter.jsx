@@ -25,40 +25,41 @@ function AppRouter() {
         element={<PlaceholderPage title="Detalhe do evento" />}
       />
 
-      {/* Rotas do membro autenticado */}
-      <Route path="/dashboard" element={<PlaceholderPage title="Dashboard" />} />
-      <Route path="/perfil" element={<PlaceholderPage title="O meu perfil" />} />
-      <Route
-        path="/perfil/editar"
-        element={<PlaceholderPage title="Editar perfil" />}
-      />
-      <Route
-        path="/perfil/inscricoes-eventos"
-        element={<PlaceholderPage title="Inscrições em eventos" />}
-      />
-      <Route
-        path="/perfil/portefolio"
-        element={<PlaceholderPage title="Portefólio" />}
-      />
-      <Route path="/pendente" element={<PlaceholderPage title="Conta pendente" />} />
+        {/* Rotas do membro autenticado */}
+        <Route path="/dashboard" element={<PlaceholderPage title="Dashboard" />} />
+        <Route path="/perfil" element={<PlaceholderPage title="O meu perfil" />} />
+        <Route
+          path="/perfil/editar"
+          element={<PlaceholderPage title="Editar perfil" />}
+        />
+        <Route
+          path="/perfil/inscricoes-eventos"
+          element={<PlaceholderPage title="Inscrições em eventos" />}
+        />
+        <Route
+          path="/perfil/portefolio"
+          element={<PlaceholderPage title="Portefólio" />}
+        />
+        <Route path="/pendente" element={<PlaceholderPage title="Conta pendente" />} />
 
-      {/* Rotas de administração */}
-      <Route path="/admin" element={<PlaceholderPage title="Administração" />} />
-      <Route
-        path="/admin/utilizadores"
-        element={<PlaceholderPage title="Gestão de utilizadores" />}
-      />
-      <Route
-        path="/admin/eventos"
-        element={<PlaceholderPage title="Gestão de eventos" />}
-      />
-      <Route
-        path="/admin/moderacao"
-        element={<PlaceholderPage title="Moderação" />}
-      />
+        {/* Rotas de administração */}
+        <Route path="/admin" element={<PlaceholderPage title="Administração" />} />
+        <Route
+          path="/admin/utilizadores"
+          element={<PlaceholderPage title="Gestão de utilizadores" />}
+        />
+        <Route
+          path="/admin/eventos"
+          element={<PlaceholderPage title="Gestão de eventos" />}
+        />
+        <Route
+          path="/admin/moderacao"
+          element={<PlaceholderPage title="Moderação" />}
+        />
 
-      {/* Rota para URLs que não existem */}
-      <Route path="*" element={<PlaceholderPage title="Página não encontrada" />} />
+        {/* Rota para URLs que não existem */}
+        <Route path="*" element={<PlaceholderPage title="Página não encontrada" />} />
+      </Route>
     </Routes>
   )
 }
