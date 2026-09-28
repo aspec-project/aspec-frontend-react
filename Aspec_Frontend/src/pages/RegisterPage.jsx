@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   CheckCircle,
   ChevronRight,
@@ -11,35 +11,18 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-const SECTORS = [
-  "Construção Civil",
-  "Tecnologia & Software",
-  "Serviços Jurídicos",
-  "Alimentação & Restauração",
-  "Saúde & Bem-estar",
-  "Contabilidade & Finanças",
-  "Educação & Formação",
-  "Imobiliário",
-  "Comércio a Retalho",
-  "Consultoria",
-  "Marketing & Comunicação",
-  "Outro",
-];
+// ─── Configuração da API (se a equipa mudar algo, é só aqui) ───────────────
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
+const ENDPOINTS = {
+  sectors: `${API_URL}/sectors`,
+  locations: `${API_URL}/locations`,
+  register: `${API_URL}/auth/register`,
+};
+// Sem "Accept: application/json" o Laravel responde a erros com redirect (302) e não 422.
+const JSON_HEADERS = { "Content-Type": "application/json", Accept: "application/json" };
 
-const NUCLEOS = [
-  "Lisboa",
-  "Porto",
-  "Braga",
-  "Coimbra",
-  "Aveiro",
-  "Setúbal",
-  "Faro",
-  "Évora",
-  "Viseu",
-  "Leiria",
-  "Santarém",
-  "Viana do Castelo",
-];
+// false = payload plano (igual ao FormRequest) | true = formato do Postman (dentro de "profile")
+const NESTED_PROFILE = false;
 
 const STEPS = [
   { label: "Dados Pessoais", icon: User },
@@ -49,35 +32,146 @@ const STEPS = [
   { label: "Acesso", icon: Lock },
 ];
 
+// Passo em que cada campo aparece (para saltar ao passo com erro devolvido pelo servidor)
+const FIELD_STEP = {
+  firstName: 0,
+  lastName: 0,
+  email: 0,
+  phone: 0,
+  business_name: 1,
+  sector_id: 1,
+  description: 1,
+  website_url: 1,
+  location_id: 2,
+  address: 2,
+  congregation: 3,
+  role_in_congregation: 3,
+  password: 4,
+  password_confirmation: 4,
+  acceptTerms: 4,
+};
+
+const PASSWORD_RULES = [
+  ["minLength", "8 caracteres"],
+  ["hasUpper", "1 maiúscula"],
+  ["hasLower", "1 minúscula"],
+  ["hasNumber", "1 número"],
+  ["hasSpecial", "1 símbolo"],
+];
+
+const inputCls =
+  "w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition";
+
+// Aceita [{id, name}] ou { data: [{id, name}] }
+const toList = (json) => (Array.isArray(json) ? json : json?.data ?? []);
+
+// Converte o formulário no que o backend espera (nomes iguais ao RegisterMemberRequest)
+const buildPayload = (f) => {
+  const account = {
+    email: f.email.trim(),
+    password: f.password,
+    password_confirmation: f.password_confirmation,
+    phone: f.phone.replace(/[\s\-()]/g, ""),
+  };
+  const profile = {
+    name: `${f.firstName.trim()} ${f.lastName.trim()}`,
+    business_name: f.business_name.trim(),
+    sector_id: f.sector_id,
+    location_id: f.location_id,
+    congregation: f.congregation.trim(),
+    role_in_congregation: f.role_in_congregation.trim(),
+    address: f.address.trim(),
+  };
+  if (f.description.trim()) profile.description = f.description.trim();
+  if (f.website_url.trim()) profile.website_url = f.website_url.trim();
+
+  return NESTED_PROFILE ? { ...account, profile } : { ...account, ...profile };
+};
+
+// Erros 422 do Laravel: { errors: { campo: ["msg"] } } → { campo: "msg" } com os nomes do formulário
+const mapServerErrors = (serverErrors = {}) => {
+  const mapped = {};
+  Object.entries(serverErrors).forEach(([key, msgs]) => {
+    let field = key.replace(/^profile\./, "");
+    if (field === "name") field = "firstName"; // o backend só tem "name"
+    mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+  });
+  return mapped;
+};
+
+function Field({ label, error, children }) {
+  return (
+    <div>
+      <label className="text-xs text-gray-500 block mb-1">{label}</label>
+      {children}
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </div>
+  );
+}
+
 export default function RegisterPage({ onNavigate }) {
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const [sectors, setSectors] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [listsLoading, setListsLoading] = useState(true);
+  const [listsError, setListsError] = useState("");
 
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    businessName: "",
-    sector: "",
+    business_name: "",
+    sector_id: "",
     description: "",
-    website: "",
-    nucleo: "",
+    website_url: "",
+    location_id: "",
     address: "",
-    churchName: "",
-    churchRole: "",
+    congregation: "",
+    role_in_congregation: "",
     password: "",
-    confirmPassword: "",
+    password_confirmation: "",
     acceptTerms: false,
   });
 
   const [errors, setErrors] = useState({});
 
-  const validateEmail = (email) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // Carrega setores e núcleos da base de dados
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const load = async (url) => {
+      const res = await fetch(url, { headers: JSON_HEADERS, signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return toList(await res.json());
+    };
+
+    Promise.all([load(ENDPOINTS.sectors), load(ENDPOINTS.locations)])
+      .then(([s, l]) => {
+        setSectors(s);
+        setLocations(l);
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError")
+          setListsError(
+            "Não foi possível carregar os setores e núcleos. Recarregue a página."
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setListsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const validatePhone = (phone) => {
-    const cleanPhone = phone.replace(/[\s\-\(\)]/g, "");
+    const cleanPhone = phone.replace(/[\s\-()]/g, "");
     return /^(\+351)?(9[1236]\d{7}|2\d{8}|30\d{7})$/.test(cleanPhone);
   };
 
@@ -89,36 +183,36 @@ export default function RegisterPage({ onNavigate }) {
     hasSpecial: /[^A-Za-z0-9]/.test(pwd),
   });
 
-  const isPasswordValid = (pwd) => {
-    const c = getPasswordCriteria(pwd);
-    return c.minLength && c.hasUpper && c.hasLower && c.hasNumber && c.hasSpecial;
-  };
+  const isPasswordValid = (pwd) => Object.values(getPasswordCriteria(pwd)).every(Boolean);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const val = type === "checkbox" ? checked : value;
 
     setFormData((prev) => ({ ...prev, [name]: val }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (submitError) setSubmitError("");
   };
+
+  // Props comuns dos inputs: name, value, onChange e cor da borda
+  const bind = (name) => ({
+    name,
+    value: formData[name],
+    onChange: handleChange,
+    style: { borderColor: errors[name] ? "#ef4444" : "#d4d8e3" },
+  });
 
   const validateStep = (currentStep) => {
     const newErrors = {};
 
     if (currentStep === 0) {
-      if (!formData.firstName.trim())
-        newErrors.firstName = "O primeiro nome é obrigatório.";
-      if (!formData.lastName.trim())
-        newErrors.lastName = "O apelido é obrigatório.";
+      if (!formData.firstName.trim()) newErrors.firstName = "O primeiro nome é obrigatório.";
+      if (!formData.lastName.trim()) newErrors.lastName = "O apelido é obrigatório.";
       if (!formData.email.trim()) {
         newErrors.email = "O e-mail é obrigatório.";
       } else if (!validateEmail(formData.email)) {
         newErrors.email = "Introduza um e-mail válido.";
       }
-
       if (!formData.phone.trim()) {
         newErrors.phone = "O contacto telefónico é obrigatório.";
       } else if (!validatePhone(formData.phone)) {
@@ -128,46 +222,37 @@ export default function RegisterPage({ onNavigate }) {
     }
 
     if (currentStep === 1) {
-      if (!formData.businessName.trim())
-        newErrors.businessName = "O nome do negócio é obrigatório.";
-      if (!formData.sector)
-        newErrors.sector = "Selecione o setor de atividade.";
-      if (
-        formData.website.trim() &&
-        !/^https?:\/\/.+/i.test(formData.website)
-      ) {
-        newErrors.website =
-          "Introduza um URL válido (ex: https://meusite.pt).";
+      if (!formData.business_name.trim())
+        newErrors.business_name = "O nome do negócio é obrigatório.";
+      if (!formData.sector_id) newErrors.sector_id = "Selecione o setor de atividade.";
+      if (formData.website_url.trim() && !/^https?:\/\/.+/i.test(formData.website_url)) {
+        newErrors.website_url = "Introduza um URL válido (ex: https://meusite.pt).";
       }
     }
 
     if (currentStep === 2) {
-      if (!formData.nucleo) newErrors.nucleo = "Selecione o núcleo regional.";
+      if (!formData.location_id) newErrors.location_id = "Selecione o núcleo regional.";
       if (!formData.address.trim()) newErrors.address = "A morada é obrigatória.";
     }
 
     if (currentStep === 3) {
-      if (!formData.churchName.trim())
-        newErrors.churchName = "O nome da congregação/igreja é obrigatório.";
-      if (!formData.churchRole.trim())
-        newErrors.churchRole = "O cargo ou função na igreja é obrigatório.";
+      if (!formData.congregation.trim())
+        newErrors.congregation = "O nome da congregação/igreja é obrigatório.";
+      if (!formData.role_in_congregation.trim())
+        newErrors.role_in_congregation = "O cargo ou função na igreja é obrigatório.";
     }
 
     if (currentStep === 4) {
       if (!formData.password) {
         newErrors.password = "A password é obrigatória.";
       } else if (!isPasswordValid(formData.password)) {
-        newErrors.password =
-          "A password não cumpre os requisitos mínimos de segurança.";
+        newErrors.password = "A password não cumpre os requisitos mínimos de segurança.";
       }
-
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = "As passwords não coincidem.";
+      if (formData.password !== formData.password_confirmation) {
+        newErrors.password_confirmation = "As passwords não coincidem.";
       }
-
       if (!formData.acceptTerms) {
-        newErrors.acceptTerms =
-          "Tem de concordar com os Termos e Condições para continuar.";
+        newErrors.acceptTerms = "Tem de concordar com os Termos e Condições para continuar.";
       }
     }
 
@@ -176,16 +261,54 @@ export default function RegisterPage({ onNavigate }) {
   };
 
   const handleNextStep = () => {
-    if (validateStep(step)) {
-      setStep((prev) => prev + 1);
-    }
+    if (validateStep(step)) setStep((prev) => prev + 1);
   };
 
-  const handleSubmit = () => {
-    if (!validateStep(step)) return;
+  // Mostra os erros do servidor nos campos e salta ao primeiro passo com erro
+  const handleServerErrors = (data) => {
+    const known = {};
+    const extra = [];
+    Object.entries(mapServerErrors(data.errors)).forEach(([field, msg]) => {
+      if (FIELD_STEP[field] !== undefined) known[field] = msg;
+      else extra.push(msg);
+    });
 
-    setSubmitted(true);
-    setTimeout(() => onNavigate("pending"), 2500);
+    setErrors(known);
+    const firstStep = Math.min(...Object.keys(known).map((f) => FIELD_STEP[f]));
+    if (Number.isFinite(firstStep)) setStep(firstStep);
+
+    if (extra.length) setSubmitError(extra.join(" "));
+    else if (!Object.keys(known).length)
+      setSubmitError(data.message ?? "Os dados enviados não são válidos.");
+  };
+
+  const handleSubmit = async () => {
+    if (submitting || !validateStep(step)) return;
+
+    setSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const res = await fetch(ENDPOINTS.register, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify(buildPayload(formData)),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setSubmitted(true);
+        setTimeout(() => onNavigate("pending"), 2500);
+      } else if (res.status === 422) {
+        handleServerErrors(data);
+      } else {
+        setSubmitError(data.message ?? `Erro do servidor (${res.status}). Tente novamente.`);
+      }
+    } catch {
+      setSubmitError("Não foi possível contactar o servidor. Tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const passCriteria = getPasswordCriteria(formData.password);
@@ -206,9 +329,7 @@ export default function RegisterPage({ onNavigate }) {
           <h2 style={{ color: "#0d1f35" }} className="mb-3 text-2xl font-bold">
             Candidatura enviada!
           </h2>
-          <p className="text-sm text-gray-500">
-            A redirecionar para a confirmação...
-          </p>
+          <p className="text-sm text-gray-500">A redirecionar para a confirmação...</p>
         </div>
       </div>
     );
@@ -219,9 +340,7 @@ export default function RegisterPage({ onNavigate }) {
       {/* Painel Esquerdo */}
       <div
         className="w-5/12 flex flex-col justify-between p-12 relative overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, #0d1f35 0%, #060f1a 100%)",
-        }}
+        style={{ background: "linear-gradient(135deg, #0d1f35 0%, #060f1a 100%)" }}
       >
         <div className="relative z-10">
           <button onClick={() => onNavigate("home")} className="cursor-pointer">
@@ -233,19 +352,16 @@ export default function RegisterPage({ onNavigate }) {
           </button>
         </div>
         <div className="relative z-10">
-          <h2
-            className="text-white mb-4 font-bold"
-            style={{ fontSize: "1.6rem" }}
-          >
+          <h2 className="text-white mb-4 font-bold" style={{ fontSize: "1.6rem" }}>
             Junte-se à rede de confiança ASPEC
           </h2>
           <p
             className="text-sm mb-8"
             style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}
           >
-            Ao tornar-se membro, ganha acesso ao diretório completo, pode
-            participar em eventos exclusivos e fazer parte de uma comunidade de
-            profissionais cristãos comprometidos com a excelência.
+            Ao tornar-se membro, ganha acesso ao diretório completo, pode participar em
+            eventos exclusivos e fazer parte de uma comunidade de profissionais cristãos
+            comprometidos com a excelência.
           </p>
           <div className="space-y-3">
             {[
@@ -264,10 +380,7 @@ export default function RegisterPage({ onNavigate }) {
             ))}
           </div>
         </div>
-        <div
-          className="relative z-10 text-xs"
-          style={{ color: "rgba(255,255,255,0.4)" }}
-        >
+        <div className="relative z-10 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
           A sua candidatura será revista por um administrador antes da aprovação.
         </div>
       </div>
@@ -300,11 +413,7 @@ export default function RegisterPage({ onNavigate }) {
                       className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
                       style={{
                         backgroundColor:
-                          i < step
-                            ? "#8a7043"
-                            : i === step
-                            ? "#0d1f35"
-                            : "#e8eef5",
+                          i < step ? "#8a7043" : i === step ? "#0d1f35" : "#e8eef5",
                         color: i <= step ? "white" : "#999",
                       }}
                     >
@@ -320,9 +429,7 @@ export default function RegisterPage({ onNavigate }) {
                   {i < STEPS.length - 1 && (
                     <div
                       className="flex-1 h-0.5 mx-1.5 mt-[-10px]"
-                      style={{
-                        backgroundColor: i < step ? "#8a7043" : "#e8eef5",
-                      }}
+                      style={{ backgroundColor: i < step ? "#8a7043" : "#e8eef5" }}
                     />
                   )}
                 </div>
@@ -333,314 +440,146 @@ export default function RegisterPage({ onNavigate }) {
           {/* PASSO 0 — Dados Pessoais */}
           {step === 0 && (
             <div className="space-y-4">
-              <h3
-                className="text-base font-semibold mb-4"
-                style={{ color: "#0d1f35" }}
-              >
+              <h3 className="text-base font-semibold mb-4" style={{ color: "#0d1f35" }}>
                 1. Dados Pessoais
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">
-                    Primeiro nome *
-                  </label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    placeholder="João"
-                    className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                    style={{
-                      borderColor: errors.firstName ? "#ef4444" : "#d4d8e3",
-                    }}
-                  />
-                  {errors.firstName && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.firstName}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">
-                    Apelido *
-                  </label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    placeholder="Silva"
-                    className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                    style={{
-                      borderColor: errors.lastName ? "#ef4444" : "#d4d8e3",
-                    }}
-                  />
-                  {errors.lastName && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.lastName}
-                    </p>
-                  )}
-                </div>
+                <Field label="Primeiro nome *" error={errors.firstName}>
+                  <input type="text" {...bind("firstName")} maxLength={120} placeholder="João" className={inputCls} />
+                </Field>
+                <Field label="Apelido *" error={errors.lastName}>
+                  <input type="text" {...bind("lastName")} maxLength={120} placeholder="Silva" className={inputCls} />
+                </Field>
               </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="joao.silva@email.pt"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{ borderColor: errors.email ? "#ef4444" : "#d4d8e3" }}
-                />
-                {errors.email && (
-                  <p className="text-xs text-red-500 mt-1">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Contacto telefónico *
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="+351 9xx xxx xxx"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{ borderColor: errors.phone ? "#ef4444" : "#d4d8e3" }}
-                />
-                {errors.phone && (
-                  <p className="text-xs text-red-500 mt-1">{errors.phone}</p>
-                )}
-              </div>
+              <Field label="Email *" error={errors.email}>
+                <input type="email" {...bind("email")} maxLength={255} placeholder="joao.silva@email.pt" className={inputCls} />
+              </Field>
+              <Field label="Contacto telefónico *" error={errors.phone}>
+                <input type="tel" {...bind("phone")} maxLength={20} placeholder="+351 9xx xxx xxx" className={inputCls} />
+              </Field>
             </div>
           )}
 
           {/* PASSO 1 — Negócio */}
           {step === 1 && (
             <div className="space-y-4">
-              <h3
-                className="text-base font-semibold mb-4"
-                style={{ color: "#0d1f35" }}
-              >
+              <h3 className="text-base font-semibold mb-4" style={{ color: "#0d1f35" }}>
                 2. Informação do Negócio
               </h3>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Nome do Negócio / Empresa *
-                </label>
+              <Field label="Nome do Negócio / Empresa *" error={errors.business_name}>
                 <input
                   type="text"
-                  name="businessName"
-                  value={formData.businessName}
-                  onChange={handleChange}
+                  {...bind("business_name")}
+                  maxLength={255}
                   placeholder="Ex: Construções Silva & Filhos"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.businessName ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.businessName && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.businessName}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Setor de Atividade *
-                </label>
+              </Field>
+              <Field label="Setor de Atividade *" error={errors.sector_id || listsError}>
                 <select
-                  name="sector"
-                  value={formData.sector}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none bg-white transition"
-                  style={{
-                    borderColor: errors.sector ? "#ef4444" : "#d4d8e3",
-                  }}
+                  {...bind("sector_id")}
+                  disabled={listsLoading || !!listsError}
+                  className={`${inputCls} bg-white`}
                 >
-                  <option value="">Selecionar setor...</option>
-                  {SECTORS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+                  <option value="">
+                    {listsLoading ? "A carregar..." : "Selecionar setor..."}
+                  </option>
+                  {sectors.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
                   ))}
                 </select>
-                {errors.sector && (
-                  <p className="text-xs text-red-500 mt-1">{errors.sector}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Descrição breve do negócio
-                </label>
+              </Field>
+              <Field label="Descrição breve do negócio" error={errors.description}>
                 <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none resize-none"
-                  style={{ borderColor: "#d4d8e3" }}
+                  {...bind("description")}
+                  maxLength={1000}
                   rows={3}
                   placeholder="Descreve brevemente os teus produtos/serviços..."
+                  className={`${inputCls} resize-none`}
                 />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Website (opcional)
-                </label>
+              </Field>
+              <Field label="Website (opcional)" error={errors.website_url}>
                 <input
                   type="url"
-                  name="website"
-                  value={formData.website}
-                  onChange={handleChange}
+                  {...bind("website_url")}
+                  maxLength={255}
                   placeholder="https://www.meusite.pt"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.website ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.website && (
-                  <p className="text-xs text-red-500 mt-1">{errors.website}</p>
-                )}
-              </div>
+              </Field>
             </div>
           )}
 
           {/* PASSO 2 — Localização */}
           {step === 2 && (
             <div className="space-y-4">
-              <h3
-                className="text-base font-semibold mb-4"
-                style={{ color: "#0d1f35" }}
-              >
+              <h3 className="text-base font-semibold mb-4" style={{ color: "#0d1f35" }}>
                 3. Localização e Núcleo Regional
               </h3>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Núcleo Regional / Delegação *
-                </label>
+              <Field label="Núcleo Regional / Delegação *" error={errors.location_id || listsError}>
                 <select
-                  name="nucleo"
-                  value={formData.nucleo}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none bg-white transition"
-                  style={{
-                    borderColor: errors.nucleo ? "#ef4444" : "#d4d8e3",
-                  }}
+                  {...bind("location_id")}
+                  disabled={listsLoading || !!listsError}
+                  className={`${inputCls} bg-white`}
                 >
-                  <option value="">Selecionar núcleo...</option>
-                  {NUCLEOS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
+                  <option value="">
+                    {listsLoading ? "A carregar..." : "Selecionar núcleo..."}
+                  </option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
                     </option>
                   ))}
                 </select>
-                {errors.nucleo && (
-                  <p className="text-xs text-red-500 mt-1">{errors.nucleo}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Morada *
-                </label>
+              </Field>
+              <Field label="Morada *" error={errors.address}>
                 <input
                   type="text"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
+                  {...bind("address")}
+                  maxLength={255}
                   placeholder="Ex: Rua das Flores, 11 - 3.º Esquerdo"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.address ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.address && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.address}
-                  </p>
-                )}
-              </div>
+              </Field>
             </div>
           )}
 
           {/* PASSO 3 — Congregação */}
           {step === 3 && (
             <div className="space-y-4">
-              <h3
-                className="text-base font-semibold mb-4"
-                style={{ color: "#0d1f35" }}
-              >
+              <h3 className="text-base font-semibold mb-4" style={{ color: "#0d1f35" }}>
                 4. Informação da Congregação
               </h3>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Nome da Igreja / Congregação *
-                </label>
+              <Field label="Nome da Igreja / Congregação *" error={errors.congregation}>
                 <input
                   type="text"
-                  name="churchName"
-                  value={formData.churchName}
-                  onChange={handleChange}
+                  {...bind("congregation")}
+                  maxLength={255}
                   placeholder="Ex: Igreja Evangélica da Graça / Comunidade Cristã de Lisboa"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.churchName ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.churchName && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.churchName}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Cargo / Função na Igreja *
-                </label>
+              </Field>
+              <Field label="Cargo / Função na Igreja *" error={errors.role_in_congregation}>
                 <input
                   type="text"
-                  name="churchRole"
-                  value={formData.churchRole}
-                  onChange={handleChange}
+                  {...bind("role_in_congregation")}
+                  maxLength={255}
                   placeholder="Ex: Membro, Diácono, Líder de Jovens, Pastor, Voluntário"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.churchRole ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.churchRole && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.churchRole}
-                  </p>
-                )}
-              </div>
-
+              </Field>
               <div
                 className="rounded-xl p-4 text-sm mt-2"
-                style={{
-                  backgroundColor: "#f5f3ee",
-                  border: "1px solid #d4d8e3",
-                }}
+                style={{ backgroundColor: "#f5f3ee", border: "1px solid #d4d8e3" }}
               >
                 <p className="font-medium mb-1" style={{ color: "#0d1f35" }}>
                   Aprovação da candidatura
                 </p>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  A ASPEC valoriza o testemunho local. Estas informações servem
-                  para garantir a autenticidade e ligação à comunidade cristã.
+                  A ASPEC valoriza o testemunho local. Estas informações servem para
+                  garantir a autenticidade e ligação à comunidade cristã.
                 </p>
               </div>
             </div>
@@ -649,29 +588,17 @@ export default function RegisterPage({ onNavigate }) {
           {/* PASSO 4 — Acesso */}
           {step === 4 && (
             <div className="space-y-4">
-              <h3
-                className="text-base font-semibold mb-4"
-                style={{ color: "#0d1f35" }}
-              >
+              <h3 className="text-base font-semibold mb-4" style={{ color: "#0d1f35" }}>
                 5. Criar Acesso
               </h3>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Password *
-                </label>
+                <label className="text-xs text-gray-500 block mb-1">Password *</label>
                 <input
                   type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
+                  {...bind("password")}
                   placeholder="Mínimo 8 caracteres"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.password ? "#ef4444" : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-
-                {/* Validações visuais da Password */}
                 <div
                   className="mt-2 p-3 bg-white rounded-xl border text-xs space-y-1"
                   style={{ borderColor: "#d4d8e3" }}
@@ -680,51 +607,14 @@ export default function RegisterPage({ onNavigate }) {
                     A password deve conter no mínimo:
                   </p>
                   <div className="grid grid-cols-2 gap-1 text-gray-400">
-                    <span
-                      className={
-                        passCriteria.minLength
-                          ? "text-green-600 font-medium"
-                          : ""
-                      }
-                    >
-                      {passCriteria.minLength ? "✓" : "•"} 8 caracteres
-                    </span>
-                    <span
-                      className={
-                        passCriteria.hasUpper
-                          ? "text-green-600 font-medium"
-                          : ""
-                      }
-                    >
-                      {passCriteria.hasUpper ? "✓" : "•"} 1 maiúscula 
-                    </span>
-                    <span
-                      className={
-                        passCriteria.hasLower
-                          ? "text-green-600 font-medium"
-                          : ""
-                      }
-                    >
-                      {passCriteria.hasLower ? "✓" : "•"} 1 minúscula
-                    </span>
-                    <span
-                      className={
-                        passCriteria.hasNumber
-                          ? "text-green-600 font-medium"
-                          : ""
-                      }
-                    >
-                      {passCriteria.hasNumber ? "✓" : "•"} 1 número
-                    </span>
-                    <span
-                      className={
-                        passCriteria.hasSpecial
-                          ? "text-green-600 font-medium"
-                          : ""
-                      }
-                    >
-                      {passCriteria.hasSpecial ? "✓" : "•"} 1 símbolo
-                    </span>
+                    {PASSWORD_RULES.map(([key, text]) => (
+                      <span
+                        key={key}
+                        className={passCriteria[key] ? "text-green-600 font-medium" : ""}
+                      >
+                        {passCriteria[key] ? "✓" : "•"} {text}
+                      </span>
+                    ))}
                   </div>
                 </div>
                 {errors.password && (
@@ -732,37 +622,20 @@ export default function RegisterPage({ onNavigate }) {
                 )}
               </div>
 
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">
-                  Confirmar password *
-                </label>
+              <Field label="Confirmar password *" error={errors.password_confirmation}>
                 <input
                   type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
+                  {...bind("password_confirmation")}
                   placeholder="Repetir a password"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition"
-                  style={{
-                    borderColor: errors.confirmPassword
-                      ? "#ef4444"
-                      : "#d4d8e3",
-                  }}
+                  className={inputCls}
                 />
-                {errors.confirmPassword && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.confirmPassword}
-                  </p>
-                )}
-              </div>
+              </Field>
 
               <div
                 className="flex items-start gap-3 p-4 rounded-xl"
                 style={{
                   backgroundColor: "#f5f3ee",
-                  border: errors.acceptTerms
-                    ? "1px solid #ef4444"
-                    : "1px solid #d4d8e3",
+                  border: errors.acceptTerms ? "1px solid #ef4444" : "1px solid #d4d8e3",
                 }}
               >
                 <input
@@ -785,8 +658,8 @@ export default function RegisterPage({ onNavigate }) {
                   <span className="underline" style={{ color: "#0d1f35" }}>
                     Código de Conduta
                   </span>{" "}
-                  da ASPEC, comprometendo-me a agir com integridade e princípios
-                  cristãos nas minhas relações dentro da associação.
+                  da ASPEC, comprometendo-me a agir com integridade e princípios cristãos
+                  nas minhas relações dentro da associação.
                 </label>
               </div>
               {errors.acceptTerms && (
@@ -798,13 +671,22 @@ export default function RegisterPage({ onNavigate }) {
             </div>
           )}
 
+          {/* Erro geral do servidor / rede */}
+          {submitError && (
+            <div className="flex items-center gap-1 text-xs text-red-500 mt-4">
+              <AlertCircle size={13} />
+              <span>{submitError}</span>
+            </div>
+          )}
+
           {/* Botões de Navegação */}
           <div className="flex gap-3 mt-8">
             {step > 0 && (
               <button
                 type="button"
+                disabled={submitting}
                 onClick={() => setStep(step - 1)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium cursor-pointer border text-sm transition hover:bg-gray-100 text-gray-700"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium cursor-pointer border text-sm transition hover:bg-gray-100 text-gray-700 disabled:opacity-60"
                 style={{ borderColor: "#d4d8e3" }}
               >
                 <ChevronLeft size={15} /> Anterior
@@ -813,15 +695,14 @@ export default function RegisterPage({ onNavigate }) {
 
             <button
               type="button"
-              onClick={
-                step === STEPS.length - 1 ? handleSubmit : handleNextStep
-              }
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium cursor-pointer text-sm transition-opacity hover:opacity-90"
+              disabled={submitting}
+              onClick={step === STEPS.length - 1 ? handleSubmit : handleNextStep}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium cursor-pointer text-sm transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ backgroundColor: "#0d1f35", color: "white" }}
             >
               {step === STEPS.length - 1 ? (
                 <>
-                  <CheckCircle size={15} /> Submeter Candidatura
+                  <CheckCircle size={15} /> {submitting ? "A enviar..." : "Submeter Candidatura"}
                 </>
               ) : (
                 <>
