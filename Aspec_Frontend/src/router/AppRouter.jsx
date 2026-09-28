@@ -59,7 +59,6 @@ function AppRouter() {
 
         {/* Rota para URLs que não existem */}
         <Route path="*" element={<PlaceholderPage title="Página não encontrada" />} />
-      </Route>
     </Routes>
   )
 }
