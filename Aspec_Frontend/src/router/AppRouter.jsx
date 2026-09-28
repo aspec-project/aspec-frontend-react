@@ -1,4 +1,5 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes } from 'react-router-dom'
+import { LoginPage } from '../pages/LoginPage'
 import MemberDashboardLayout from "../components/layout/MemberDashboardLayout";
 import PlaceholderPage from "../pages/PlaceholderPage";
 import RegisterPage from "../pages/RegisterPage";
@@ -14,10 +15,7 @@ function AppRouter() {
     <Routes>
       {/* Rotas públicas */}
       <Route path="/" element={<PlaceholderPage title="Página inicial" />} />
-      <Route
-        path="/login"
-        element={<PlaceholderPage title="Iniciar sessão" />}
-      />
+      <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route
         path="/membros"
