@@ -63,7 +63,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           
-          {/* Marca / Logo em Código */}
+          {/* Logo */}
           <div className="md:col-span-1">
           <div className="mb-4">
             <img
