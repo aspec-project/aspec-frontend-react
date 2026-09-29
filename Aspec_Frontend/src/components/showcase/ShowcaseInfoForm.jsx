@@ -271,8 +271,6 @@ function ShowcaseInfoForm() {
                 className={inputClassName}
               />
             </div>
-          </div>
-        </section>
 
             <div>
               <label
@@ -292,6 +290,9 @@ function ShowcaseInfoForm() {
                 className={inputClassName}
               />
             </div>
+
+          </div>
+        </section>
 
         <div className="flex flex-wrap items-center gap-4">
           <button
