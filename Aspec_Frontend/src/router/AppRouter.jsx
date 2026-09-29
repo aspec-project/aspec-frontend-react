@@ -1,14 +1,11 @@
 import { Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
-import MemberDashboardLayout from "../components/layout/MemberDashboardLayout";
-import PlaceholderPage from "../pages/PlaceholderPage";
-import RegisterPage from "../pages/RegisterPage";
+import PlaceholderPage from "../pages/PlaceholderPage"
+import RegisterPage from "../pages/RegisterPage"
+import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
 
 /**
  * Centraliza as rotas da aplicação.
- *
- * A rota de portefólio usa temporariamente o MemberDashboardLayout
- * para podermos validar a estrutura visual da ASPEC-33.
  */
 function AppRouter() {
   return (
@@ -49,15 +46,9 @@ function AppRouter() {
         element={<PlaceholderPage title="Inscrições em eventos" />}
       />
 
-      {/* ASPEC-33: apresentação temporária do layout da área de membro. */}
       <Route
-        path="/perfil/portefolio"
-        element={
-          <MemberDashboardLayout>
-            <PlaceholderPage title="Montra digital e portefólio" />
-          </MemberDashboardLayout>
-        }
-      />
+       path="/perfil/portefolio" 
+       element={<ShowcaseInfoPage />} />
 
       <Route
         path="/pendente"
