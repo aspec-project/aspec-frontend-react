@@ -1,6 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
+import MainLayout from '../components/layout/MainLayout'
 import PlaceholderPage from '../pages/PlaceholderPage'
 import RegisterPage from '../pages/RegisterPage'
+import HomePage from '../pages/HomePage';
 
 /**
  * Centraliza todas as rotas da aplicação.
@@ -11,7 +13,8 @@ function AppRouter() {
   return (
     <Routes>
       {/* Rotas públicas */}
-      <Route path="/" element={<PlaceholderPage title="Página inicial" />} />
+      <Route element={<MainLayout />}>
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<PlaceholderPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route path="/membros" element={<PlaceholderPage title="Diretório de membros" />} />
@@ -59,7 +62,7 @@ function AppRouter() {
 
         {/* Rota para URLs que não existem */}
         <Route path="*" element={<PlaceholderPage title="Página não encontrada" />} />
-      </Route>
+        </Route>
     </Routes>
   )
 }
