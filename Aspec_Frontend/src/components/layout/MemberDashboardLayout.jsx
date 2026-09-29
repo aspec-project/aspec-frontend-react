@@ -52,7 +52,7 @@ export default function MemberDashboardLayout({ children }) {
         </aside>
 
         {/* Área onde as próximas subtarefas colocam o respetivo conteúdo. */}
-        <main className="min-h-[620px] flex-1 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <main className="min-h-[620px] flex-1 rounded-2xl border border-slate-200 bg-white p-8 text-black shadow-sm">
           {children}
         </main>
       </div>
