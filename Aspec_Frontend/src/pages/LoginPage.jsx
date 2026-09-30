@@ -2,8 +2,8 @@ import LoginSidebar from "../components/login/LoginSidebar";
 import LoginForm from "../components/login/LoginForm";
 import { useLoginForm } from "../hooks/useLoginForm";
 
-export function LoginPage({ onLogin }) {
-  const formStateAndActions = useLoginForm(onLogin);
+export function LoginPage() {
+  const formStateAndActions = useLoginForm();
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#f8f7f2" }}>
