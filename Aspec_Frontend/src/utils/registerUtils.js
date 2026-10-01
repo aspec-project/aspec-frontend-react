@@ -67,14 +67,11 @@ export const validateStepForm = (currentStep, formData) => {
   };
 };
 
-export const buildPayload = (f, isNestedProfile = false) => {
-  const account = {
+export const buildPayload = (f) => {
+  const payload = {
     email: f.email.trim(),
     password: f.password,
-    password_confirmation: f.password_confirmation,
     phone: f.phone.replace(/[\s\-()]/g, ""),
-  };
-  const profile = {
     name: `${f.firstName.trim()} ${f.lastName.trim()}`,
     business_name: f.business_name.trim(),
     sector_id: f.sector_id,
@@ -83,11 +80,11 @@ export const buildPayload = (f, isNestedProfile = false) => {
     role_in_congregation: f.role_in_congregation.trim(),
     address: f.address.trim(),
   };
-  
-  if (f.description.trim()) profile.description = f.description.trim();
-  if (f.website_url.trim()) profile.website_url = f.website_url.trim();
 
-  return isNestedProfile ? { ...account, profile } : { ...account, ...profile };
+  if (f.description.trim()) payload.description = f.description.trim();
+  if (f.website_url.trim()) payload.website_url = f.website_url.trim();
+
+  return payload;
 };
 
 export const mapServerErrors = (serverErrors = {}) => {

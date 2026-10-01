@@ -1,21 +1,14 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Import do React Router
-import { 
-  FIELD_STEP, 
-  validateStepForm, 
-  buildPayload, 
-  mapServerErrors 
+import { useNavigate } from "react-router-dom";
+import { api, normalizeError, extractList } from "../services/api";
+import {
+  FIELD_STEP,
+  validateStepForm,
+  buildPayload,
+  mapServerErrors
 } from "../utils/registerUtils";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
-const ENDPOINTS = {
-  sectors: `${API_URL}/sectors`,
-  locations: `${API_URL}/locations`,
-  register: `${API_URL}/auth/register`,
-};
-const JSON_HEADERS = { "Content-Type": "application/json", Accept: "application/json" };
-
-export function useRegisterForm(onNavigate) {
+export function useRegisterForm() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
@@ -40,17 +33,17 @@ export function useRegisterForm(onNavigate) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const load = async (url) => {
-      const res = await fetch(url, { headers: JSON_HEADERS, signal: controller.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      return Array.isArray(json) ? json : json?.data ?? [];
-    };
 
-    Promise.all([load(ENDPOINTS.sectors), load(ENDPOINTS.locations)])
-      .then(([s, l]) => { setSectors(s); setLocations(l); })
+    Promise.all([
+      api.get("/sectors", { signal: controller.signal }),
+      api.get("/locations", { signal: controller.signal }),
+    ])
+      .then(([sRes, lRes]) => {
+        setSectors(extractList(sRes.data.data));
+        setLocations(extractList(lRes.data.data));
+      })
       .catch((err) => {
-        if (err.name !== "AbortError") setListsError("Não foi possível carregar os dados.");
+        if (err.code !== "ERR_CANCELED") setListsError("Não foi possível carregar os dados.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setListsLoading(false);
@@ -82,19 +75,18 @@ export function useRegisterForm(onNavigate) {
   const handleNextStep = () => {
     if (processStepValidation(step)) setStep((prev) => prev + 1);
   };
-  
+
   const handlePrevStep = () => {
     setStep((prev) => prev - 1);
   };
 
-  // Navegação
   const goToHome = () => navigate("/");
   const goToLogin = () => navigate("/login");
 
-  const handleServerErrors = (data) => {
+  const handleServerErrors = (fieldErrors, fallbackMessage) => {
     const known = {};
     const extra = [];
-    Object.entries(mapServerErrors(data.errors)).forEach(([field, msg]) => {
+    Object.entries(mapServerErrors(fieldErrors)).forEach(([field, msg]) => {
       if (FIELD_STEP[field] !== undefined) known[field] = msg;
       else extra.push(msg);
     });
@@ -104,7 +96,7 @@ export function useRegisterForm(onNavigate) {
     if (Number.isFinite(firstStep)) setStep(firstStep);
 
     if (extra.length) setSubmitError(extra.join(" "));
-    else if (!Object.keys(known).length) setSubmitError(data.message ?? "Dados inválidos.");
+    else if (!Object.keys(known).length) setSubmitError(fallbackMessage ?? "Dados inválidos.");
   };
 
   const handleSubmit = async () => {
@@ -113,23 +105,14 @@ export function useRegisterForm(onNavigate) {
     setSubmitError("");
 
     try {
-      const res = await fetch(ENDPOINTS.register, {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(buildPayload(formData, false)),
-      });
-      const data = await res.json().catch(() => ({}));
+      await api.post("/auth/register", buildPayload(formData));
 
-      if (res.ok) {
-        setSubmitted(true);
-        setTimeout(() => navigate("/pending"), 2500);
-      } else if (res.status === 422) {
-        handleServerErrors(data);
-      } else {
-        setSubmitError(data.message ?? `Erro do servidor (${res.status}).`);
-      }
-    } catch {
-      setSubmitError("Falha na rede.");
+      setSubmitted(true);
+      setTimeout(() => navigate("/pendente"), 2500);
+    } catch (err) {
+      const { status, message, fieldErrors } = normalizeError(err);
+      if (status === 422) handleServerErrors(fieldErrors, message);
+      else setSubmitError(message);
     } finally {
       setSubmitting(false);
     }

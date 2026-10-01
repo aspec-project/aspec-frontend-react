@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye, EyeOff, LogIn, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react";
 
 export default function LoginForm({
   email,
@@ -8,12 +8,19 @@ export default function LoginForm({
   setPassword,
   showPassword,
   togglePassword,
+  submitting,
+  formError,
   handleLogin,
   goToRegister
 }) {
+  const onSubmit = (e) => {
+    e.preventDefault();
+    handleLogin();
+  };
+
   return (
     <div className="w-full max-w-md">
-      <div className="space-y-5">
+      <form className="space-y-5" onSubmit={onSubmit}>
         <div>
           <label className="text-xs text-gray-500 block mb-1">
             Email *
@@ -27,8 +34,7 @@ export default function LoginForm({
             style={{ borderColor: "#d4d8e3", backgroundColor: "white" }}
           />
         </div>
-        
-        {/* Input Password */}
+
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="text-xs text-gray-500 block">
@@ -57,17 +63,22 @@ export default function LoginForm({
           </div>
         </div>
 
-        {/* Submissão Principal */}
+        {formError && (
+          <div className="flex items-center gap-1.5 text-xs text-red-500">
+            <AlertCircle size={13} />
+            <span>{formError}</span>
+          </div>
+        )}
+
         <button
-          type="button"
-          onClick={() => handleLogin("member")}
-          className="w-full py-2.5 rounded-xl font-medium cursor-pointer flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          type="submit"
+          disabled={submitting}
+          className="w-full py-2.5 rounded-xl font-medium cursor-pointer flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ backgroundColor: "#0d1f35", color: "white" }}
         >
-          <LogIn size={16} /> Entrar
+          <LogIn size={16} /> {submitting ? "A entrar..." : "Entrar"}
         </button>
 
-        {/* Link Registo */}
         <p className="text-sm text-gray-500 mb-8">
           Não é membro?{" "}
           <button
@@ -79,30 +90,7 @@ export default function LoginForm({
             Candidate-se aqui
           </button>
         </p>
-
-        {/* Acessos Rápidos de Demonstração */}
-        <div className="pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-400 mb-3 text-center">Acesso rápido para demonstração:</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleLogin("member")}
-              className="py-2 px-3 rounded-lg text-xs cursor-pointer border font-medium flex items-center justify-center gap-1 transition-colors hover:bg-gray-50"
-              style={{ borderColor: "#0d1f35", color: "#0d1f35" }}
-            >
-              <ArrowRight size={12} /> Entrar como Membro
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLogin("admin")}
-              className="py-2 px-3 rounded-lg text-xs cursor-pointer border font-medium flex items-center justify-center gap-1 transition-colors hover:opacity-90"
-              style={{ borderColor: "#8a7043", color: "#6b5427", backgroundColor: "#f5f2e8" }}
-            >
-              <ArrowRight size={12} /> Entrar como Admin
-            </button>
-          </div>
-        </div>
-      </div>
+      </form>
     </div>
   );
 }
