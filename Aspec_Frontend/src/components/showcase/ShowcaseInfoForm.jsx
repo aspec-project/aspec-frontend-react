@@ -1,38 +1,136 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { normalizeError } from '../../services/api'
+import {
+  getMemberProfile,
+  updateMemberProfile,
+  uploadMemberLogo,
+  uploadPortfolioImages,
+  deletePortfolioImage,
+} from '../../services/memberProfile'
+import BusinessHoursEditor, {
+  createBusinessHours,
+} from './BusinessHoursEditor'
 import LogoUploader from './LogoUploader'
 import PortfolioGallery from './PortfolioGallery'
+import SocialLinksEditor, {
+  createSocialLinks,
+} from './SocialLinksEditor'
 
 /*
- * Estado inicial do formulário.
- * Cada propriedade corresponde ao atributo "name" de um campo.
- * Mais tarde, na ASPEC-37, estes dados serão enviados para a API.
+ * Estado inicial dos campos textuais.
+ *
+ * Os nomes usados aqui são próprios do frontend. No envio, são convertidos
+ * para os nomes esperados pelo backend, como business_name e website_url.
  */
 const initialFormData = {
+  businessName: '',
   description: '',
-  services: '',
-  openingHours: '',
-  email: '',
+  commercialContacts: '',
   phone: '',
   website: '',
-  instagram: '',
-  facebook: '',
-  linkedin: '',
-  youtube: '',
 }
 
 function ShowcaseInfoForm() {
-  /*
-   * formData guarda aquilo que o utilizador escreve nos campos.
-   * isPrepared serve apenas para mostrar uma mensagem local após submeter.
-   */
   const [formData, setFormData] = useState(initialFormData)
-  const [isPrepared, setIsPrepared] = useState(false)
+  const [businessHours, setBusinessHours] = useState(() =>
+    createBusinessHours(),
+  )
+  const [socialLinks, setSocialLinks] = useState(() =>
+    createSocialLinks(),
+  )
 
   /*
-   * Esta função é reutilizada por todos os campos.
-   * Usa o "name" do input para atualizar apenas o valor correto.
+   * Estes estados guardam os ficheiros selecionados pelos componentes filhos.
+   * Os próprios componentes continuam responsáveis pela seleção e pré-visualização.
    */
-  function handleChange(event) {
+  const [logoFile, setLogoFile] = useState(null)
+  const [portfolioFiles, setPortfolioFiles] = useState([])
+
+  /*
+   * Guardam os ficheiros que já foram enviados nesta sessão.
+   * Assim, clicar novamente em "Guardar alterações" não cria cópias.
+   */
+  const [uploadedLogoFile, setUploadedLogoFile] = useState(null)
+  const [uploadedPortfolioFiles, setUploadedPortfolioFiles] = useState([])
+
+  /*
+ * Guardam os ficheiros que já existem no backend.
+ * Estes dados são usados para reconstruir a pré-visualização após F5.
+ */
+const [savedLogoUrl, setSavedLogoUrl] = useState('')
+const [savedPortfolio, setSavedPortfolio] = useState([])
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [status, setStatus] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  /*
+   * Estes estados permitem enviar horários e redes sociais apenas quando
+   * o utilizador os altera. A API substitui listas completas destes dados.
+   */
+  const [hoursChanged, setHoursChanged] = useState(false)
+  const [socialLinksChanged, setSocialLinksChanged] = useState(false)
+
+  /*
+   * Ao abrir a página, obtemos o perfil do membro autenticado.
+   * Os dados recebidos preenchem os campos e fornecem os IDs das redes
+   * sociais que já estão associadas ao perfil.
+   */
+  useEffect(() => {
+    let componentIsMounted = true
+
+    async function loadProfile() {
+      try {
+        const profile = await getMemberProfile()
+
+        if (!componentIsMounted) {
+          return
+        }
+
+        setFormData({
+          businessName: profile.business_name ?? '',
+          description: profile.description ?? '',
+          commercialContacts: profile.commercial_contacts ?? '',
+          phone: profile.phone ?? '',
+          website: profile.website_url ?? '',
+        })
+
+        setBusinessHours(createBusinessHours(profile.business_hours ?? []))
+        setSocialLinks(createSocialLinks(profile.social_links ?? []))
+        /*
+        * O serviço já converteu os URLs relativos do Laravel em URLs completos.
+        * Guardamos estes valores para os passar aos componentes visuais.
+        */
+        setSavedLogoUrl(profile.logo_url ?? '')
+        setSavedPortfolio(profile.portfolio ?? [])
+      } catch (error) {
+        if (!componentIsMounted) {
+          return
+        }
+
+        const normalisedError = normalizeError(error)
+
+        setLoadError(normalisedError.message)
+      } finally {
+        if (componentIsMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadProfile()
+
+    return () => {
+      componentIsMounted = false
+    }
+  }, [])
+
+  /*
+   * Atualiza os campos de texto reutilizando o atributo "name".
+   */
+  function handleTextChange(event) {
     const { name, value } = event.target
 
     setFormData((currentData) => ({
@@ -40,27 +138,225 @@ function ShowcaseInfoForm() {
       [name]: value,
     }))
 
-    // Se o utilizador voltar a editar, escondemos a mensagem anterior.
-    setIsPrepared(false)
+    setStatus(null)
+    setFieldErrors({})
   }
 
   /*
-   * Por agora impedimos o comportamento normal do formulário
-   * (recarregar a página) e mostramos apenas uma confirmação visual.
-   *
-   * O pedido à API será adicionado na ASPEC-37.
+   * Recebe a lista atualizada de horários do BusinessHoursEditor.
    */
-  function handleSubmit(event) {
+  function handleBusinessHoursChange(updatedHours) {
+    setBusinessHours(updatedHours)
+    setHoursChanged(true)
+    setStatus(null)
+    setFieldErrors({})
+  }
+
+  /*
+   * Recebe a lista atualizada de redes sociais do SocialLinksEditor.
+   */
+  function handleSocialLinksChange(updatedLinks) {
+    setSocialLinks(updatedLinks)
+    setSocialLinksChanged(true)
+    setStatus(null)
+    setFieldErrors({})
+  }
+
+  /*
+   * useCallback mantém a mesma referência entre renderizações.
+   * Isto evita que os componentes de ficheiros executem efeitos desnecessários.
+   */
+  const handleLogoChange = useCallback((selectedLogo) => {
+    setLogoFile(selectedLogo)
+    setStatus(null)
+  }, [])
+
+  const handlePortfolioImagesChange = useCallback((selectedImages) => {
+    setPortfolioFiles(selectedImages)
+    setStatus(null)
+  }, [])
+
+  /*
+ * Remove uma imagem que já existe no backend e atualiza a lista
+ * usada pela galeria, sem ser necessário recarregar a página.
+ */
+const handleDeleteSavedPortfolioImage = useCallback(
+  async (portfolioImageId) => {
+    await deletePortfolioImage(portfolioImageId)
+
+    setSavedPortfolio((currentPortfolio) =>
+      currentPortfolio.filter((image) => image.id !== portfolioImageId),
+    )
+  },
+  [],
+)
+
+  /*
+   * Constrói o objeto JSON para PUT /member-profile.
+   *
+   * Não enviamos campos vazios que sejam obrigatórios quando presentes,
+   * como business_name e phone.
+   */
+  function buildProfilePayload() {
+    const profilePayload = {
+      description: formData.description.trim() || null,
+      commercial_contacts: formData.commercialContacts.trim() || null,
+      website_url: formData.website.trim() || null,
+    }
+
+    if (formData.businessName.trim()) {
+      profilePayload.business_name = formData.businessName.trim()
+    }
+
+    if (formData.phone.trim()) {
+      profilePayload.phone = formData.phone.trim()
+    }
+
+    /*
+     * A API recebe horários como uma lista de objetos.
+     * Apenas enviamos os dias que foram marcados como abertos.
+     */
+    if (hoursChanged) {
+      profilePayload.business_hours = businessHours
+        .filter((hour) => hour.isOpen)
+        .map((hour) => ({
+          week_day_id: hour.weekDayId,
+          open_time: hour.openTime,
+          close_time: hour.closeTime,
+        }))
+    }
+
+    /*
+     * A API exige platform_id para cada rede social.
+     *
+     * Não inventamos IDs: se o backend não devolveu o ID de uma rede,
+     * interrompemos o envio e explicamos o motivo ao utilizador.
+     */
+    if (socialLinksChanged) {
+      const linksWithUrl = socialLinks.filter((link) => link.url.trim())
+
+      const linksWithoutPlatformId = linksWithUrl.filter(
+        (link) => !link.platformId,
+      )
+
+      if (linksWithoutPlatformId.length > 0) {
+        const platformNames = linksWithoutPlatformId
+          .map((link) => link.name)
+          .join(', ')
+
+        throw new Error(
+          `A API ainda não disponibilizou o identificador para: ${platformNames}.`,
+        )
+      }
+
+      profilePayload.social_links = linksWithUrl.map((link) => ({
+        platform_id: link.platformId,
+        url: link.url.trim(),
+      }))
+    }
+
+    return profilePayload
+  }
+
+  /*
+   * Envia primeiro os dados textuais e, de seguida, os ficheiros.
+   *
+   * O envio das imagens é sequencial dentro de uploadPortfolioImages,
+   * pois a API recebe uma imagem por pedido.
+   */
+  async function handleSubmit(event) {
     event.preventDefault()
-    setIsPrepared(true)
+
+    setIsSaving(true)
+    setStatus(null)
+    setFieldErrors({})
+
+    try {
+      const profilePayload = buildProfilePayload()
+
+      await updateMemberProfile(profilePayload)
+
+      const shouldUploadLogo =
+        logoFile && logoFile !== uploadedLogoFile
+
+      if (shouldUploadLogo) {
+        await uploadMemberLogo(logoFile)
+        setUploadedLogoFile(logoFile)
+      }
+
+      /*
+       * Selecionamos apenas imagens ainda não enviadas nesta sessão.
+       */
+      const newPortfolioFiles = portfolioFiles.filter(
+        (file) => !uploadedPortfolioFiles.includes(file),
+      )
+
+      if (newPortfolioFiles.length > 0) {
+        await uploadPortfolioImages(newPortfolioFiles)
+
+        setUploadedPortfolioFiles((currentFiles) => [
+          ...currentFiles,
+          ...newPortfolioFiles,
+        ])
+      }
+
+      setStatus({
+        type: 'success',
+        message: 'Alterações guardadas com sucesso.',
+      })
+    } catch (error) {
+      const normalisedError = normalizeError(error)
+
+      /*
+       * Erros criados no próprio frontend, como um platform_id em falta,
+       * não têm resposta HTTP. Por isso usamos diretamente error.message.
+       */
+      const message =
+        error instanceof Error && !error.response
+          ? error.message
+          : normalisedError.message
+
+      setFieldErrors(normalisedError.fieldErrors)
+
+      setStatus({
+        type: 'error',
+        message: `Não foi possível concluir o envio. ${message}`,
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   /*
    * Classe Tailwind reutilizada pelos inputs de uma linha.
-   * Ajuda a manter todos os campos visualmente consistentes.
    */
   const inputClassName =
     'mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#8a7043] focus:ring-2 focus:ring-[#8a7043]/20'
+
+  if (isLoading) {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <p className="text-slate-600">A carregar informação da montra...</p>
+      </section>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <section className="rounded-xl border border-red-200 bg-red-50 p-6">
+        <h1 className="text-xl font-semibold text-red-900">
+          Não foi possível carregar a montra
+        </h1>
+
+        <p className="mt-2 text-red-800">{loadError}</p>
+
+        <p className="mt-3 text-sm text-red-700">
+          Confirma se o backend está ligado e se existe uma sessão iniciada
+          com uma conta de membro ativa.
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section>
@@ -74,19 +370,43 @@ function ShowcaseInfoForm() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-slate-600">
-          Preenche a informação que será apresentada aos visitantes na tua
-          montra digital.
+          Atualiza a informação apresentada aos visitantes na tua montra
+          digital.
         </p>
       </div>
 
       <form className="mt-8 space-y-8" onSubmit={handleSubmit}>
-        {/* Secção: apresentação principal da empresa */}
         <section className="rounded-xl border border-slate-200 p-6">
           <h2 className="text-xl font-semibold text-[#0d1f35]">
             Apresentação
           </h2>
 
           <div className="mt-6 space-y-6">
+            <div>
+              <label
+                htmlFor="businessName"
+                className="text-sm font-medium text-slate-700"
+              >
+                Nome da empresa
+              </label>
+
+              <input
+                id="businessName"
+                name="businessName"
+                type="text"
+                value={formData.businessName}
+                onChange={handleTextChange}
+                placeholder="Nome da empresa"
+                className={inputClassName}
+              />
+
+              {fieldErrors.business_name && (
+                <p className="mt-2 text-sm text-red-700">
+                  {fieldErrors.business_name}
+                </p>
+              )}
+            </div>
+
             <div>
               <label
                 htmlFor="description"
@@ -99,221 +419,151 @@ function ShowcaseInfoForm() {
                 id="description"
                 name="description"
                 value={formData.description}
-                onChange={handleChange}
+                onChange={handleTextChange}
                 rows="5"
-                placeholder="Apresenta a tua empresa, missão e principais pontos fortes."
+                placeholder="Apresenta a empresa, os serviços e os seus principais pontos fortes."
                 className={`${inputClassName} resize-y`}
               />
-            </div>
 
-            <div>
-              <label
-                htmlFor="services"
-                className="text-sm font-medium text-slate-700"
-              >
-                Serviços / Produtos
-              </label>
-
-              <textarea
-                id="services"
-                name="services"
-                value={formData.services}
-                onChange={handleChange}
-                rows="4"
-                placeholder="Exemplo: desenvolvimento web, design gráfico, consultoria..."
-                className={`${inputClassName} resize-y`}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="openingHours"
-                className="text-sm font-medium text-slate-700"
-              >
-                Horários
-              </label>
-
-              <textarea
-                id="openingHours"
-                name="openingHours"
-                value={formData.openingHours}
-                onChange={handleChange}
-                rows="3"
-                placeholder="Exemplo: Segunda a sexta, das 09:00 às 18:00."
-                className={`${inputClassName} resize-y`}
-              />
+              {fieldErrors.description && (
+                <p className="mt-2 text-sm text-red-700">
+                  {fieldErrors.description}
+                </p>
+              )}
             </div>
           </div>
         </section>
 
-        {/* Secção: formas diretas de contacto */}
-        <section className="rounded-xl border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold text-[#0d1f35]">Contactos</h2>
-
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="email"
-                className="text-sm font-medium text-slate-700"
-              >
-                Email
-              </label>
-
-              <input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="empresa@exemplo.pt"
-                className={inputClassName}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="phone"
-                className="text-sm font-medium text-slate-700"
-              >
-                Telefone
-              </label>
-
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={handleChange}
-                placeholder="+351 912 345 678"
-                className={inputClassName}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label
-                htmlFor="website"
-                className="text-sm font-medium text-slate-700"
-              >
-                Website
-              </label>
-
-              <input
-                id="website"
-                name="website"
-                type="url"
-                value={formData.website}
-                onChange={handleChange}
-                placeholder="https://www.exemplo.pt"
-                className={inputClassName}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Secção: ligações para as redes sociais da empresa */}
         <section className="rounded-xl border border-slate-200 p-6">
           <h2 className="text-xl font-semibold text-[#0d1f35]">
-            Redes sociais
+            Contactos
           </h2>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
+          <div className="mt-6 space-y-6">
             <div>
               <label
-                htmlFor="instagram"
+                htmlFor="commercialContacts"
                 className="text-sm font-medium text-slate-700"
               >
-                Instagram
+                Contactos comerciais
               </label>
 
-              <input
-                id="instagram"
-                name="instagram"
-                type="url"
-                value={formData.instagram}
-                onChange={handleChange}
-                placeholder="https://instagram.com/empresa"
-                className={inputClassName}
+              <textarea
+                id="commercialContacts"
+                name="commercialContacts"
+                value={formData.commercialContacts}
+                onChange={handleTextChange}
+                rows="3"
+                placeholder="Exemplo: email comercial, contacto alternativo ou outras indicações."
+                className={`${inputClassName} resize-y`}
               />
+
+              {fieldErrors.commercial_contacts && (
+                <p className="mt-2 text-sm text-red-700">
+                  {fieldErrors.commercial_contacts}
+                </p>
+              )}
             </div>
 
-            <div>
-              <label
-                htmlFor="facebook"
-                className="text-sm font-medium text-slate-700"
-              >
-                Facebook
-              </label>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="phone"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Telefone
+                </label>
 
-              <input
-                id="facebook"
-                name="facebook"
-                type="url"
-                value={formData.facebook}
-                onChange={handleChange}
-                placeholder="https://facebook.com/empresa"
-                className={inputClassName}
-              />
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleTextChange}
+                  placeholder="+351 912 345 678"
+                  className={inputClassName}
+                />
+
+                {fieldErrors.phone && (
+                  <p className="mt-2 text-sm text-red-700">
+                    {fieldErrors.phone}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="website"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Website
+                </label>
+
+                <input
+                  id="website"
+                  name="website"
+                  type="url"
+                  value={formData.website}
+                  onChange={handleTextChange}
+                  placeholder="https://www.exemplo.pt"
+                  className={inputClassName}
+                />
+
+                {fieldErrors.website_url && (
+                  <p className="mt-2 text-sm text-red-700">
+                    {fieldErrors.website_url}
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="linkedin"
-                className="text-sm font-medium text-slate-700"
-              >
-                LinkedIn
-              </label>
-
-              <input
-                id="linkedin"
-                name="linkedin"
-                type="url"
-                value={formData.linkedin}
-                onChange={handleChange}
-                placeholder="https://linkedin.com/company/empresa"
-                className={inputClassName}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="youtube"
-                className="text-sm font-medium text-slate-700"
-              >
-                Youtube
-              </label>
-
-              <input
-                id="youtube"
-                name="youtube"
-                type="url"
-                value={formData.youtube}
-                onChange={handleChange}
-                placeholder="https://youtube.com/@empresa"
-                className={inputClassName}
-              />
-            </div>
-
+            <p className="text-sm text-slate-500">
+              O email de acesso é alterado nas definições da conta, porque a
+              API exige a password atual para o modificar.
+            </p>
           </div>
         </section>
 
-        {/* Secção de carregamento do logótipo da montra digital. */}
-        <LogoUploader />
+        <BusinessHoursEditor
+          businessHours={businessHours}
+          onChange={handleBusinessHoursChange}
+        />
 
-        {/* Galeria de imagens do portefólio — ASPEC-36. */}
-        <PortfolioGallery />
+        <SocialLinksEditor
+          socialLinks={socialLinks}
+          onChange={handleSocialLinksChange}
+        />
+
+        <LogoUploader
+          initialLogoUrl={savedLogoUrl}
+          onLogoChange={handleLogoChange}
+        />
+
+        <PortfolioGallery
+          initialImages={savedPortfolio}
+          onImagesChange={handlePortfolioImagesChange}
+          onDeleteSavedImage={handleDeleteSavedPortfolioImage}
+        />
 
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="submit"
-            className="rounded-lg bg-[#8a7043] px-6 py-3 font-semibold text-white transition hover:bg-[#705b36] focus:outline-none focus:ring-2 focus:ring-[#8a7043] focus:ring-offset-2"
+            disabled={isSaving}
+            className="rounded-lg bg-[#8a7043] px-6 py-3 font-semibold text-white transition hover:bg-[#705b36] focus:outline-none focus:ring-2 focus:ring-[#8a7043] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar alterações
+            {isSaving ? 'A guardar...' : 'Guardar alterações'}
           </button>
 
-          {/* A mensagem é anunciada também a tecnologias de apoio. */}
-          {isPrepared && (
-            <p className="text-sm font-medium text-emerald-700" aria-live="polite">
-              Alterações preparadas. O envio para a API será feito na ASPEC-37.
+          {status && (
+            <p
+              className={
+                status.type === 'success'
+                  ? 'text-sm font-medium text-emerald-700'
+                  : 'text-sm font-medium text-red-700'
+              }
+              aria-live="polite"
+            >
+              {status.message}
             </p>
           )}
         </div>

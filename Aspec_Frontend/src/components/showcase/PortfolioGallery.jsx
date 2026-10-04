@@ -2,62 +2,93 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, GripVertical, ImagePlus, Upload, X } from 'lucide-react'
 
 /*
- * Tipos de imagem aceites no portefólio.
- * O atributo "accept" do input filtra a escolha, mas validamos também
- * em JavaScript para garantir que ficheiros inválidos não entram na galeria.
+ * Tipos de imagem aceites pelo frontend e pelo backend.
  */
 const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
 
 /* Tamanho máximo permitido por imagem: 5 MB. */
 const maximumFileSize = 5 * 1024 * 1024
 
-/* Número máximo de imagens que uma montra pode ter nesta fase. */
+/* Número máximo de imagens permitidas no portefólio. */
 const maximumImages = 8
 
-/*
- * Função vazia usada por defeito enquanto a ASPEC-37 ainda não envia
- * as imagens para a API.
- */
+/* Evita criar um novo array vazio em cada renderização. */
+const emptyInitialImages = []
+
 function noop() {}
 
 /*
- * Componente responsável apenas pelas imagens do portefólio.
- *
- * Mais tarde, a página pai poderá receber os ficheiros através de
- * "onImagesChange" e enviá-los para a API juntamente com o formulário.
+ * initialImages recebe as imagens já guardadas no backend.
+ * onImagesChange entrega ao formulário pai apenas ficheiros novos.
  */
-function PortfolioGallery({ onImagesChange = noop }) {
-  /* Lista de imagens escolhidas, cada uma com o ficheiro e a pré-visualização. */
+function PortfolioGallery({
+  initialImages = emptyInitialImages,
+  onImagesChange = noop,
+  onDeleteSavedImage = noop,
+}) {
+  /*
+   * Cada item pode ser:
+   * - uma imagem guardada: isSaved: true e file: null;
+   * - uma imagem nova: isSaved: false e file com o ficheiro escolhido.
+   */
   const [images, setImages] = useState([])
-
-  /* Mensagem apresentada quando existe um ficheiro inválido. */
   const [error, setError] = useState('')
-
-  /* Controla o aspeto visual da zona quando um ficheiro está a ser arrastado. */
   const [isDropZoneActive, setIsDropZoneActive] = useState(false)
-
-  /* Guarda o identificador da imagem que está a ser arrastada para reordenar. */
   const [draggedImageId, setDraggedImageId] = useState(null)
 
-  /* Permite abrir e limpar o input de ficheiros através de JavaScript. */
+  /*
+   * Guarda a imagem que está a ser apagada para impedir cliques repetidos.
+   */
+  const [deletingImageId, setDeletingImageId] = useState(null)
+
   const fileInputRef = useRef(null)
 
   /*
-   * Guarda os URLs temporários criados com URL.createObjectURL().
-   * Estes URLs são libertados quando a página deixa de existir,
-   * evitando ocupar memória sem necessidade.
+   * Guarda apenas URLs temporários criados para ficheiros novos.
+   * URLs vindos da API não são object URLs e não devem ser libertados.
    */
   const previewUrlsRef = useRef(new Set())
 
   /*
-   * Envia a lista atual de ficheiros ao componente pai.
-   * Nesta tarefa o pai ainda não faz nada com eles; será útil na ASPEC-37.
+   * Sempre que o perfil é carregado, convertemos as imagens da API
+   * para o formato que a galeria utiliza.
    */
   useEffect(() => {
-    onImagesChange(images.map((image) => image.file))
+    const savedImages = initialImages.map((image) => ({
+      id: `saved-${image.id}`,
+      portfolioImageId: image.id,
+      file: null,
+      name: `Imagem guardada ${image.id}`,
+      previewUrl: image.image_url,
+      isSaved: true,
+    }))
+
+    setImages((currentImages) => {
+      /*
+       * Mantém imagens novas que tenham sido selecionadas enquanto
+       * o componente recebeu uma atualização dos dados guardados.
+       */
+      const newImages = currentImages.filter((image) => !image.isSaved)
+
+      return [...savedImages, ...newImages].slice(0, maximumImages)
+    })
+  }, [initialImages])
+
+  /*
+   * O formulário pai só deve receber ficheiros que ainda não existem
+   * no backend. As imagens guardadas não têm objeto File para reenviar.
+   */
+  useEffect(() => {
+    const newFiles = images
+      .filter((image) => !image.isSaved && image.file)
+      .map((image) => image.file)
+
+    onImagesChange(newFiles)
   }, [images, onImagesChange])
 
-  /* Liberta todas as pré-visualizações temporárias ao sair da página. */
+  /*
+   * Ao sair da página, libertamos as pré-visualizações temporárias.
+   */
   useEffect(() => {
     return () => {
       previewUrlsRef.current.forEach((previewUrl) => {
@@ -66,17 +97,12 @@ function PortfolioGallery({ onImagesChange = noop }) {
     }
   }, [])
 
-  /* Permite selecionar novamente o mesmo ficheiro depois de o remover. */
   function resetFileInput() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
 
-  /*
-   * Valida cada ficheiro individualmente.
-   * Devolve uma mensagem se houver erro ou uma string vazia se for válido.
-   */
   function getFileError(file) {
     if (!acceptedImageTypes.includes(file.type)) {
       return `"${file.name}" não é uma imagem JPEG, PNG ou WebP.`
@@ -89,10 +115,6 @@ function PortfolioGallery({ onImagesChange = noop }) {
     return ''
   }
 
-  /*
-   * Recebe ficheiros escolhidos pelo input ou largados na zona de upload.
-   * Cria um URL temporário para mostrar cada imagem sem a enviar ainda ao servidor.
-   */
   function addImages(fileList) {
     const selectedFiles = Array.from(fileList)
 
@@ -121,10 +143,6 @@ function PortfolioGallery({ onImagesChange = noop }) {
       return
     }
 
-    /*
-     * Se o utilizador escolher mais imagens do que o permitido,
-     * apenas são adicionadas as que ainda cabem na galeria.
-     */
     const filesToAdd = validFiles.slice(0, remainingSlots)
 
     if (filesToAdd.length === 0) {
@@ -133,25 +151,25 @@ function PortfolioGallery({ onImagesChange = noop }) {
       return
     }
 
+    /*
+     * Cria o formato usado pela galeria para cada imagem nova.
+     */
     const newImages = filesToAdd.map((file, index) => {
       const previewUrl = URL.createObjectURL(file)
 
-      /* Guardamos o URL para o podermos libertar posteriormente. */
       previewUrlsRef.current.add(previewUrl)
 
       return {
-        id: `${file.name}-${file.lastModified}-${Date.now()}-${index}`,
+        id: `new-${file.name}-${file.lastModified}-${Date.now()}-${index}`,
         file,
+        name: file.name,
         previewUrl,
+        isSaved: false,
       }
     })
 
     setImages((currentImages) => [...currentImages, ...newImages])
 
-    /*
-     * Mostra um aviso caso alguns ficheiros tenham sido ignorados,
-     * mas mantém na galeria os ficheiros que eram válidos.
-     */
     if (validFiles.length > remainingSlots) {
       validationErrors.push(
         `Só foram adicionadas ${remainingSlots} imagem(ns), pois o limite é ${maximumImages}.`,
@@ -162,26 +180,22 @@ function PortfolioGallery({ onImagesChange = noop }) {
     resetFileInput()
   }
 
-  /* Trata as imagens selecionadas através da janela de ficheiros. */
   function handleFileChange(event) {
     addImages(event.target.files)
   }
 
-  /* Mantém a zona de upload ativa enquanto um ficheiro está sobre ela. */
   function handleDropZoneDragOver(event) {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
     setIsDropZoneActive(true)
   }
 
-  /* Remove o estado visual quando o ficheiro sai da zona de upload. */
   function handleDropZoneDragLeave(event) {
     if (!event.currentTarget.contains(event.relatedTarget)) {
       setIsDropZoneActive(false)
     }
   }
 
-  /* Trata as imagens largadas na zona de upload. */
   function handleDropZoneDrop(event) {
     event.preventDefault()
     setIsDropZoneActive(false)
@@ -189,12 +203,13 @@ function PortfolioGallery({ onImagesChange = noop }) {
   }
 
   /*
-   * Remove uma imagem e liberta o URL temporário associado a ela.
+   * Remove apenas imagens ainda não enviadas.
+   * As imagens guardadas precisam de um pedido DELETE à API.
    */
-  function removeImage(imageId) {
+  function removeNewImage(imageId) {
     const imageToRemove = images.find((image) => image.id === imageId)
 
-    if (imageToRemove) {
+    if (imageToRemove?.previewUrl) {
       URL.revokeObjectURL(imageToRemove.previewUrl)
       previewUrlsRef.current.delete(imageToRemove.previewUrl)
     }
@@ -206,16 +221,32 @@ function PortfolioGallery({ onImagesChange = noop }) {
     setError('')
   }
 
-  /* Inicia o arrastar de uma imagem para alterar a ordem. */
+  /*
+   * Remove uma imagem que já existe no backend.
+   * A imagem só desaparece da lista quando a API confirma a eliminação.
+   */
+  async function removeSavedImage(image) {
+    setError('')
+    setDeletingImageId(image.id)
+
+    try {
+      await onDeleteSavedImage(image.portfolioImageId)
+    } catch (error) {
+      setError(
+        error.response?.data?.message ??
+          'Não foi possível remover a imagem do portefólio.',
+      )
+    } finally {
+      setDeletingImageId(null)
+    }
+  }
+
   function handleImageDragStart(event, imageId) {
     setDraggedImageId(imageId)
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', imageId)
   }
 
-  /*
-   * Move a imagem arrastada para a posição da imagem onde foi largada.
-   */
   function handleImageDrop(event, targetImageId) {
     event.preventDefault()
 
@@ -256,6 +287,7 @@ function PortfolioGallery({ onImagesChange = noop }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Portefólio</h2>
+
           <p className="mt-1 text-sm text-slate-600">
             Adiciona imagens dos teus trabalhos, projetos ou serviços.
           </p>
@@ -340,7 +372,7 @@ function PortfolioGallery({ onImagesChange = noop }) {
               <div className="relative aspect-video bg-slate-100">
                 <img
                   src={image.previewUrl}
-                  alt={`Pré-visualização ${index + 1}: ${image.file.name}`}
+                  alt={`Imagem do portefólio ${index + 1}: ${image.name}`}
                   className="h-full w-full object-cover"
                 />
 
@@ -350,9 +382,17 @@ function PortfolioGallery({ onImagesChange = noop }) {
 
                 <button
                   type="button"
-                  onClick={() => removeImage(image.id)}
-                  className="absolute right-3 top-3 rounded-full bg-white p-2 text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-700"
-                  aria-label={`Remover ${image.file.name}`}
+                  onClick={() => {
+                    if (image.isSaved) {
+                      removeSavedImage(image)
+                      return
+                    }
+
+                    removeNewImage(image.id)
+                  }}
+                  disabled={deletingImageId === image.id}
+                  className="absolute right-3 top-3 rounded-full bg-white p-2 text-slate-700 shadow-sm transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label={`Remover ${image.name}`}
                 >
                   <X size={16} />
                 </button>
@@ -360,8 +400,9 @@ function PortfolioGallery({ onImagesChange = noop }) {
 
               <div className="flex items-center gap-2 p-3 text-sm text-slate-600">
                 <GripVertical size={18} className="shrink-0 text-slate-400" />
-                <p className="truncate" title={image.file.name}>
-                  {image.file.name}
+
+                <p className="truncate" title={image.name}>
+                  {image.name}
                 </p>
               </div>
             </li>

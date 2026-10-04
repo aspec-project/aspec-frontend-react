@@ -2,48 +2,66 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ImagePlus, X } from 'lucide-react'
 
 /*
- * Formatos aceites nesta fase.
- * Se o grupo definir outras regras mais tarde, basta alterar esta constante.
+ * Formatos aceites pelo frontend e pelo backend.
  */
 const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
 
 /*
- * Limite de 5 MB para evitar que uma imagem demasiado pesada
- * prejudique o carregamento da montra digital.
+ * Cada logótipo pode ter, no máximo, 5 MB.
  */
 const maximumFileSize = 5 * 1024 * 1024
 
 /*
- * Este componente permite selecionar um logótipo, validá-lo e apresentá-lo
- * imediatamente antes de o enviar para o servidor.
- *
- * onLogoChange será usado mais tarde para entregar o ficheiro selecionado
- * ao componente pai, que o enviará através de FormData na ASPEC-37.
+ * Função vazia usada como valor padrão da callback.
  */
-function LogoUploader({ onLogoChange = () => {} }) {
+function noop() {}
+
+/*
+ * initialLogoUrl representa o logótipo já guardado no backend.
+ * onLogoChange entrega ao componente pai apenas um novo ficheiro escolhido.
+ */
+function LogoUploader({
+  initialLogoUrl = '',
+  onLogoChange = noop,
+}) {
   const [selectedFile, setSelectedFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState('')
+  const [previewUrl, setPreviewUrl] = useState(initialLogoUrl)
   const [error, setError] = useState('')
 
-  /*
-   * A referência permite limpar o input de ficheiro após remover o logótipo.
-   * Sem isto, o utilizador poderia ter dificuldade em escolher o mesmo ficheiro
-   * novamente depois de o remover.
-   */
   const fileInputRef = useRef(null)
 
   /*
-   * URL.createObjectURL cria um URL temporário para mostrar a imagem local.
-   * Quando o URL deixa de ser necessário, libertamo-lo para evitar desperdício
-   * de memória no browser.
+   * Guarda apenas URLs temporários criados com URL.createObjectURL().
+   * URLs vindos do backend não devem ser libertados desta forma.
+   */
+  const objectUrlRef = useRef('')
+
+  /*
+   * Quando o perfil termina de carregar, apresenta o logótipo devolvido
+   * pela API. Não substitui uma seleção nova que o utilizador esteja
+   * a visualizar localmente.
+   */
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(initialLogoUrl)
+    }
+  }, [initialLogoUrl, selectedFile])
+
+  /*
+   * Ao sair da página, libertamos a pré-visualização temporária, se existir.
    */
   useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
-      }
+      revokeObjectUrl()
     }
-  }, [previewUrl])
+  }, [])
+
+  function revokeObjectUrl() {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = ''
+    }
+  }
 
   function resetFileInput() {
     if (fileInputRef.current) {
@@ -54,7 +72,7 @@ function LogoUploader({ onLogoChange = () => {} }) {
   function handleFileChange(event) {
     const file = event.target.files?.[0]
 
-    // O utilizador pode fechar a janela de seleção sem escolher um ficheiro.
+    // O utilizador pode fechar a janela sem selecionar um ficheiro.
     if (!file) {
       return
     }
@@ -71,24 +89,40 @@ function LogoUploader({ onLogoChange = () => {} }) {
       return
     }
 
-    // O ficheiro é válido: guardamos os dados e criamos a pré-visualização.
+    /*
+     * Se existia uma pré-visualização local anterior, libertamo-la
+     * antes de criar uma nova.
+     */
+    revokeObjectUrl()
+
+    const nextPreviewUrl = URL.createObjectURL(file)
+
+    objectUrlRef.current = nextPreviewUrl
+
     setError('')
     setSelectedFile(file)
-    setPreviewUrl(URL.createObjectURL(file))
+    setPreviewUrl(nextPreviewUrl)
 
-    // Prepara a comunicação com o componente pai para a futura API.
+    // Entrega o novo ficheiro ao formulário pai para ser enviado à API.
     onLogoChange(file)
   }
 
-  function handleRemoveLogo() {
+  function handleCancelSelection() {
+    /*
+     * Esta ação cancela apenas uma nova seleção que ainda não foi guardada.
+     * Se já existir um logótipo na API, voltamos a mostrá-lo.
+     */
+    revokeObjectUrl()
+
     setSelectedFile(null)
-    setPreviewUrl('')
+    setPreviewUrl(initialLogoUrl)
     setError('')
     resetFileInput()
 
-    // Informa o componente pai de que já não existe logótipo selecionado.
     onLogoChange(null)
   }
+
+  const hasLogoPreview = Boolean(previewUrl)
 
   return (
     <section className="rounded-xl border border-slate-200 p-6">
@@ -102,10 +136,14 @@ function LogoUploader({ onLogoChange = () => {} }) {
 
       <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
-          {previewUrl ? (
+          {hasLogoPreview ? (
             <img
               src={previewUrl}
-              alt={`Pré-visualização do logótipo ${selectedFile.name}`}
+              alt={
+                selectedFile
+                  ? `Pré-visualização do logótipo ${selectedFile.name}`
+                  : 'Logótipo atual da empresa'
+              }
               className="h-full w-full object-contain p-3"
             />
           ) : (
@@ -121,10 +159,6 @@ function LogoUploader({ onLogoChange = () => {} }) {
         </div>
 
         <div className="flex-1">
-          {/*
-           * O input fica visualmente escondido, mas continua acessível.
-           * A label funciona como botão para abrir o seletor de ficheiros.
-           */}
           <input
             ref={fileInputRef}
             id="company-logo"
@@ -142,17 +176,17 @@ function LogoUploader({ onLogoChange = () => {} }) {
               className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#8a7043] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#705b36] focus-within:ring-2 focus-within:ring-[#8a7043] focus-within:ring-offset-2"
             >
               <ImagePlus size={18} aria-hidden="true" />
-              {selectedFile ? 'Substituir logótipo' : 'Escolher logótipo'}
+              {hasLogoPreview ? 'Substituir logótipo' : 'Escolher logótipo'}
             </label>
 
             {selectedFile && (
               <button
                 type="button"
-                onClick={handleRemoveLogo}
+                onClick={handleCancelSelection}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
               >
                 <X size={18} aria-hidden="true" />
-                Remover
+                Cancelar seleção
               </button>
             )}
           </div>
