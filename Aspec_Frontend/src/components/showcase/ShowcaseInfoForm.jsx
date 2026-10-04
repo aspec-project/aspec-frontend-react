@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import LogoUploader from './LogoUploader'
 
 /*
  * Estado inicial do formulário.
@@ -293,6 +294,9 @@ function ShowcaseInfoForm() {
 
           </div>
         </section>
+
+        {/* Secção de carregamento do logótipo da montra digital. */}
+        <LogoUploader />
 
         <div className="flex flex-wrap items-center gap-4">
           <button
