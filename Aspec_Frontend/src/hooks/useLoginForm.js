@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, setAuthToken, normalizeError } from "../services/api";
-
-const LOGIN_ENDPOINT = "/auth/login";
+import { useAuthStore } from "../store/authStore";
 
 export function useLoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
   const navigate = useNavigate();
+  const login = useAuthStore((state) => state.login);
+  const status = useAuthStore((state) => state.status);
+  const submitting = status === "loading";
 
   const togglePassword = () => setShowPassword((prev) => !prev);
 
@@ -24,20 +24,12 @@ export function useLoginForm() {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      const res = await api.post(LOGIN_ENDPOINT, { email: email.trim(), password });
-      const { token } = res.data.data;
-
-      setAuthToken(token);
-
+    const result = await login(email.trim(), password);
+    if (result.success) {
       navigate("/dashboard", { replace: true });
-    } catch (err) {
-
-      const { message } = normalizeError(err);
-      setFormError(message);
-    } finally {
-      setSubmitting(false);
+    } else {
+      // já vem em pt-PT certo do backend (401 credenciais, 403 pendente/inativa)
+      setFormError(result.error.message);
     }
   };
 
