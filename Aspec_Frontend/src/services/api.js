@@ -31,6 +31,17 @@ if (existingToken) {
   api.defaults.headers.common.Authorization = `Bearer ${existingToken}`;
 }
 
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const { useAuthStore } = await import("../store/authStore");
+      useAuthStore.getState().clearSession();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function normalizeError(error) {
   const status = error.response?.status;
   const body = error.response?.data;
