@@ -1,48 +1,99 @@
 import { create } from "zustand";
-import { api, setAuthToken, clearAuthToken, getStoredToken, normalizeError } from "../services/api";
+import {
+  api,
+  ensureCsrfCookie,
+  normalizeError,
+} from "../services/api";
 
 const LOGIN_ENDPOINT = "/auth/login";
 const LOGOUT_ENDPOINT = "/auth/logout";
-const USER_KEY = "aspec_user";
+const CURRENT_USER_ENDPOINT = "/auth/me";
 
-function getStoredUser() {
-  try {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+function setAuthenticatedUser(set, user) {
+  set({
+    user,
+    role: user.role ?? null,
+    status: "authenticated",
+    error: null,
+  });
 }
-
-function persistUser(user) {
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
-  else localStorage.removeItem(USER_KEY);
-}
-
-
-const initialUser = getStoredToken() ? getStoredUser() : null;
 
 export const useAuthStore = create((set, get) => ({
-  user: initialUser,
-  role: initialUser?.role ?? null, 
-  status: initialUser ? "authenticated" : "idle", 
+  /*
+   * A aplicação começa a confirmar a sessão guardada no cookie.
+   * Enquanto isso, as rotas protegidas mantêm-se em loading.
+   */
+  user: null,
+  role: null,
+  status: "loading",
   error: null,
 
   isAuthenticated: () => !!get().user,
 
+  /*
+   * Obtém o utilizador da sessão atual através do cookie Sanctum.
+   * Um visitante sem sessão é normal e não deve ser redirecionado.
+   */
+  fetchUser: async () => {
+    try {
+      const response = await api.get(CURRENT_USER_ENDPOINT, {
+        skipAuthRedirect: true,
+      });
+
+      const user = response.data.data;
+      setAuthenticatedUser(set, user);
+
+      return { success: true, user };
+    } catch (error) {
+      set({
+        user: null,
+        role: null,
+        status: "idle",
+        error: null,
+      });
+
+      return {
+        success: false,
+        error: normalizeError(error),
+      };
+    }
+  },
+
+  /*
+   * É chamado quando a aplicação arranca para restaurar uma sessão
+   * que continue válida no browser.
+   */
+  initialize: async () => get().fetchUser(),
+
   login: async (email, password) => {
     set({ status: "loading", error: null });
-    try {
-      const res = await api.post(LOGIN_ENDPOINT, { email, password });
-      const { token, user } = res.data.data;
 
-      setAuthToken(token);
-      persistUser(user);
-      set({ user, role: user.role, status: "authenticated", error: null });
+    try {
+      /*
+       * O cookie CSRF tem de ser pedido antes do POST de login.
+       */
+      await ensureCsrfCookie();
+
+      const response = await api.post(
+        LOGIN_ENDPOINT,
+        { email, password },
+        { skipAuthRedirect: true }
+      );
+
+      const user = response.data.data;
+      setAuthenticatedUser(set, user);
+
       return { success: true };
-    } catch (err) {
-      const normalized = normalizeError(err);
-      set({ status: "error", error: normalized.message });
+    } catch (error) {
+      const normalized = normalizeError(error);
+
+      set({
+        user: null,
+        role: null,
+        status: "error",
+        error: normalized.message,
+      });
+
       return { success: false, error: normalized };
     }
   },
@@ -51,15 +102,21 @@ export const useAuthStore = create((set, get) => ({
     try {
       await api.post(LOGOUT_ENDPOINT);
     } catch {
-
+      /*
+       * Mesmo que a sessão já tenha expirado no servidor,
+       * a aplicação termina sempre a sessão localmente.
+       */
     } finally {
       get().clearSession();
     }
   },
 
   clearSession: () => {
-    clearAuthToken();
-    persistUser(null);
-    set({ user: null, role: null, status: "idle", error: null });
+    set({
+      user: null,
+      role: null,
+      status: "idle",
+      error: null,
+    });
   },
 }));

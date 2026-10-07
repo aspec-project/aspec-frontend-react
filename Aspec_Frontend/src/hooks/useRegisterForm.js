@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, normalizeError, extractList } from "../services/api";
+import {
+  api,
+  ensureCsrfCookie,
+  normalizeError,
+  extractList,
+} from "../services/api";
 import {
   FIELD_STEP,
   validateStepForm,
@@ -105,6 +110,11 @@ export function useRegisterForm() {
     setSubmitError("");
 
     try {
+      /*
+       * Obtém o cookie CSRF do Sanctum antes de enviar o formulário.
+       */
+      await ensureCsrfCookie();
+
       await api.post("/auth/register", buildPayload(formData));
 
       setSubmitted(true);
