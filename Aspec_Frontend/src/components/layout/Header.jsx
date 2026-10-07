@@ -42,6 +42,7 @@ export default function Header() {
    */
   const roleName = user?.role?.name?.toLowerCase() ?? ''
   const isMember = roleName === 'member'
+  const isAdmin = roleName === 'admin'
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -147,7 +148,7 @@ export default function Header() {
               </Link>
             )}
 
-            {isMember && (
+            {user && (
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -162,18 +163,41 @@ export default function Header() {
 
                 {userMenuOpen && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
-                    <button
-                      onClick={() => { navigate("/dashboard"); setUserMenuOpen(false); }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                    >
-                      <User size={14} /> O meu perfil
-                    </button>
-                    <button
-                      onClick={() => { navigate("/perfil/editar"); setUserMenuOpen(false); }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                    >
-                      <Settings size={14} /> Editar perfil
-                    </button>
+                    {isMember && (
+                      <>
+                        <button
+                          onClick={() => {
+                            navigate('/dashboard')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <User size={14} /> O meu perfil
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            navigate('/perfil/editar')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <Settings size={14} /> Editar perfil
+                        </button>
+                      </>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          navigate('/admin')
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                      >
+                        <Settings size={14} /> Administração
+                      </button>
+                    )}
                     <hr className="my-1 border-border" />
                     <button
                       type="button"
@@ -251,26 +275,41 @@ export default function Header() {
             )}
 
             {/*
-            * Para membros autenticados, mostramos os acessos ao respetivo perfil.
-            * O término de sessão será tratado separadamente na ASPEC-118.
+            * Qualquer utilizador autenticado pode terminar sessão.
+            * Os atalhos restantes são mostrados conforme o respetivo papel.
             */}
-            {isMember && (
+            {user && (
               <>
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileOpen(false)}
-                  className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
-                >
-                  O meu perfil
-                </Link>
+                {isMember && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                    >
+                      O meu perfil
+                    </Link>
 
-                <Link
-                  to="/perfil/editar"
-                  onClick={() => setMobileOpen(false)}
-                  className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
-                >
-                  Editar perfil
-                </Link>
+                    <Link
+                      to="/perfil/editar"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      Editar perfil
+                    </Link>
+                  </>
+                )}
+
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                  >
+                    Administração
+                  </Link>
+                )}
+
                 <button
                   type="button"
                   onClick={handleLogout}
