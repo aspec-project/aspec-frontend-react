@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Menu, X, ChevronDown, User, LogOut, Settings, Users, CalendarDays, ShieldCheck, Images } from "lucide-react";
+import { Menu, X, ChevronDown, User, LogOut, Settings } from "lucide-react";
 import { useAuthStore } from '../../store/authStore'
 
 export default function Header() {
@@ -10,6 +10,7 @@ export default function Header() {
    */
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+
 
   /*
    * A API devolve o perfil como member_profile. Mantemos também
@@ -49,15 +50,15 @@ export default function Header() {
   const accountLinks = isAdmin
     ? [
         { to: "/admin", label: "Administração", Icon: Settings },
-        { to: "/admin/utilizadores", label: "Utilizadores", Icon: Users },
-        { to: "/admin/eventos", label: "Gestão de eventos", Icon: CalendarDays },
-        { to: "/admin/moderacao", label: "Moderação", Icon: ShieldCheck },
+        { to: "/admin/utilizadores", label: "Utilizadores", Icon: User },
+        { to: "/admin/eventos", label: "Gestão de eventos", Icon: Menu },
+        { to: "/admin/moderacao", label: "Moderação", Icon: Settings },
       ]
     : isMember
       ? [
           { to: "/dashboard", label: "O meu perfil", Icon: User },
           { to: "/perfil/editar", label: "Editar perfil", Icon: Settings },
-          { to: "/perfil/portefolio", label: "Portefólio", Icon: Images },
+          { to: "/perfil/portefolio", label: "Portefólio", Icon: Settings },
         ]
       : [];
 
@@ -66,10 +67,6 @@ export default function Header() {
     setUserMenuOpen(false);
   };
 
-  /*
-   * Termina a sessão no backend, limpa a store e impede voltar
-   * a uma rota privada através do histórico do browser (replace).
-   */
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
@@ -77,12 +74,7 @@ export default function Header() {
     try {
       await logout();
       closeMenus();
-      navigate("/", { replace: true });
-    } catch {
-      /*
-       * A store já trata os erros do pedido e limpa sempre a sessão local.
-       * Se mesmo assim falhar, o utilizador fica na página e pode tentar de novo.
-       */
+      navigate("/");
     } finally {
       setIsLoggingOut(false);
     }
@@ -127,7 +119,6 @@ export default function Header() {
 
             <NavLink
               to="/eventos"
-              onClick={closeMenus}
               className={({ isActive }) =>
                 `px-4 py-2 rounded-md text-sm transition-colors ${
                   isActive
@@ -141,7 +132,6 @@ export default function Header() {
 
             <NavLink
               to="/membros"
-              onClick={closeMenus}
               className={({ isActive }) =>
                 `px-4 py-2 rounded-md text-sm transition-colors ${
                   isActive
@@ -159,7 +149,6 @@ export default function Header() {
             {!user && (
               <Link
                 to="/login"
-                onClick={closeMenus}
                 className="px-4 py-2 text-sm rounded-md transition-colors text-white/85 hover:text-primary hover:bg-primary/15"
               >
                 Entrar
@@ -185,17 +174,42 @@ export default function Header() {
                 </button>
 
                 {userMenuOpen && (
-                  <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
-                    {accountLinks.map(({ to, label, Icon }) => (
-                      <Link
-                        key={to}
-                        to={to}
-                        onClick={closeMenus}
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
+                    {isMember && (
+                      <>
+                        <button
+                          onClick={() => {
+                            navigate('/dashboard')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <User size={14} /> O meu perfil
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            navigate('/perfil/editar')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <Settings size={14} /> Editar perfil
+                        </button>
+                      </>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          navigate('/admin')
+                          setUserMenuOpen(false)
+                        }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
                       >
-                        <Icon size={14} aria-hidden="true" /> {label}
-                      </Link>
-                    ))}
+                        <Settings size={14} /> Administração
+                      </button>
+                    )}
                     <hr className="my-1 border-border" />
                     <button
                       type="button"
@@ -203,7 +217,7 @@ export default function Header() {
                       disabled={isLoggingOut}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <LogOut size={14} aria-hidden="true" />
+                      <LogOut size={14} />
                       {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                     </button>
                   </div>
@@ -240,14 +254,14 @@ export default function Header() {
             </Link>
             <Link
               to="/eventos"
-              onClick={closeMenus}
+              onClick={() => setMobileOpen(false)}
               className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
             >
               Eventos
             </Link>
             <Link
               to="/membros"
-              onClick={closeMenus}
+              onClick={() => setMobileOpen(false)}
               className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
             >
               Diretório
@@ -261,7 +275,7 @@ export default function Header() {
               <>
                 <Link
                   to="/login"
-                  onClick={closeMenus}
+                  onClick={() => setMobileOpen(false)}
                   className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
                 >
                   Entrar
@@ -269,7 +283,7 @@ export default function Header() {
 
                 <Link
                   to="/registo"
-                  onClick={closeMenus}
+                  onClick={() => setMobileOpen(false)}
                   className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                 >
                   Candidatar-me
@@ -283,16 +297,35 @@ export default function Header() {
             */}
             {user && (
               <>
-                {accountLinks.map(({ to, label }) => (
+                {isMember && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                    >
+                      O meu perfil
+                    </Link>
+
+                    <Link
+                      to="/perfil/editar"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      Editar perfil
+                    </Link>
+                  </>
+                )}
+
+                {isAdmin && (
                   <Link
-                    key={to}
-                    to={to}
-                    onClick={closeMenus}
-                    className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                    to="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                   >
-                    {label}
+                    Administração
                   </Link>
-                ))}
+                )}
 
                 <button
                   type="button"
@@ -300,7 +333,7 @@ export default function Header() {
                   disabled={isLoggingOut}
                   className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <LogOut size={14} aria-hidden="true" />
+                  <LogOut size={14} />
                   {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                 </button>
               </>
