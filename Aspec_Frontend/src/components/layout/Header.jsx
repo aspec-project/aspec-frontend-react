@@ -9,6 +9,7 @@ export default function Header() {
    * Assim, o Header não depende de props passadas pelos layouts.
    */
   const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
 
 
   /*
@@ -66,6 +67,18 @@ export default function Header() {
     setUserMenuOpen(false);
   };
 
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    try {
+      await logout();
+      closeMenus();
+      navigate("/");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const handleMenuKeyDown = (event) => {
     if (event.key !== "Escape") return;
