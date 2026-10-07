@@ -1,17 +1,32 @@
 import { useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown, User, LogOut, Settings } from "lucide-react";
 
 export default function Header({ userRole = null }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const navLinks = [
-    { label: "Sobre a ASPEC", to: "/" },
-    { label: "Eventos", to: "/eventos" },
-    { label: "Diretório", to: "/membros" },
-  ];
+  // Função para fazer scroll suave até ao bloco "Quem Somos / Sobre a ASPEC"
+  const handleSobreClick = (e) => {
+    e.preventDefault();
+    if (location.pathname === "/") {
+      const sobreElement = document.getElementById("sobre");
+      if (sobreElement) {
+        sobreElement.scrollIntoView({ behavior: "smooth" });
+      }
+    } else {
+      navigate("/");
+      setTimeout(() => {
+        const sobreElement = document.getElementById("sobre");
+        if (sobreElement) {
+          sobreElement.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    }
+    setMobileOpen(false);
+  };
 
   return (
     <nav className="bg-[#0d1f35] sticky top-0 z-50 shadow-lg border-b border-white/10">
@@ -28,21 +43,39 @@ export default function Header({ userRole = null }) {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.label}
-                to={link.to}
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-md text-sm transition-colors ${
-                    isActive
-                      ? "text-primary bg-primary/15 font-medium"
-                      : "text-white/85 hover:text-white hover:bg-white/5"
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
+            <a
+              href="#sobre"
+              onClick={handleSobreClick}
+              className="px-4 py-2 rounded-md text-sm transition-colors text-white/85 hover:text-white hover:bg-white/5 cursor-pointer"
+            >
+              Sobre a ASPEC
+            </a>
+
+            <NavLink
+              to="/eventos"
+              className={({ isActive }) =>
+                `px-4 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? "text-primary bg-primary/15 font-medium"
+                    : "text-white/85 hover:text-white hover:bg-white/5"
+                }`
+              }
+            >
+              Eventos
+            </NavLink>
+
+            <NavLink
+              to="/membros"
+              className={({ isActive }) =>
+                `px-4 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? "text-primary bg-primary/15 font-medium"
+                    : "text-white/85 hover:text-white hover:bg-white/5"
+                }`
+              }
+            >
+              Diretório
+            </NavLink>
           </div>
 
           {/* Área de Autenticação */}
@@ -110,16 +143,27 @@ export default function Header({ userRole = null }) {
       {mobileOpen && (
         <div className="md:hidden bg-[#0a1826] border-t border-white/10">
           <div className="px-4 py-3 space-y-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                to={link.to}
-                onClick={() => setMobileOpen(false)}
-                className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
-              >
-                {link.label}
-              </Link>
-            ))}
+            <a
+              href="#sobre"
+              onClick={handleSobreClick}
+              className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+            >
+              Sobre a ASPEC
+            </a>
+            <Link
+              to="/eventos"
+              onClick={() => setMobileOpen(false)}
+              className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+            >
+              Eventos
+            </Link>
+            <Link
+              to="/membros"
+              onClick={() => setMobileOpen(false)}
+              className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+            >
+              Diretório
+            </Link>
             <hr className="border-white/10 my-2" />
             <Link
               to="/login"
