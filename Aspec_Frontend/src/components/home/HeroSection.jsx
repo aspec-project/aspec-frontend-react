@@ -6,7 +6,7 @@ export default function HeroSection() {
     <div className="w-full">
       {/* Hero Section */}
       <section
-        className="relative overflow-hidden min-h-[520px] py-16 md:py-28 lg:py-36 flex items-center"
+        className="relative overflow-hidden min-h-[calc(100dvh_-_4rem_-_1px)] py-16 md:py-28 lg:py-36 flex items-center"
         style={{
           background:
             "linear-gradient(135deg, #0d1f35 0%, #060f1a 60%, #162c47 100%)",
