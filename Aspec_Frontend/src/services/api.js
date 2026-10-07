@@ -11,6 +11,14 @@ export const api = axios.create({
 
 const TOKEN_KEY = "aspec_token";
 
+/*
+ * Mensagens de reserva para erros que precisam de uma explicação clara,
+ * mesmo quando a resposta da API não inclui o campo message.
+ */
+const CLIENT_FALLBACK_MESSAGES = {
+  429: "Demasiados pedidos. Tente novamente mais tarde.",
+};
+
 export function setAuthToken(token) {
   localStorage.setItem(TOKEN_KEY, token);
   api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -84,7 +92,10 @@ export function normalizeError(error) {
     status,
     message:
       body?.message ??
-      (status ? `Erro do servidor (${status}).` : "Não foi possível contactar o servidor."),
+      CLIENT_FALLBACK_MESSAGES[status] ??
+      (status
+        ? `Erro do servidor (${status}).`
+        : "Não foi possível contactar o servidor."),
     fieldErrors,
   };
 }
