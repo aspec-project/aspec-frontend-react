@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin } from "lucide-react";
 
+/*
+ * O ano é calculado uma única vez quando o módulo é carregado.
+ * Assim, o componente não chama new Date durante cada renderização.
+ */
+const currentYear = new Date().getFullYear()
+
 // Ícones de Redes Sociais em SVG nativo
 const FacebookIcon = (props) => (
   <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -171,7 +177,7 @@ export default function Footer() {
         <hr className="border-white/10 mt-10 mb-6" />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center text-xs text-gray-500 text-center md:text-left">
-          <span>© {new Date().getFullYear()} ASPEC — Todos os direitos reservados</span>
+          <span>© {currentYear} ASPEC — Todos os direitos reservados</span>
         </div>
       </div>
     </footer>

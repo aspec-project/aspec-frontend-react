@@ -11,6 +11,14 @@ export const api = axios.create({
 
 const TOKEN_KEY = "aspec_token";
 
+/*
+ * Mensagens de reserva para erros que precisam de uma explicação clara,
+ * mesmo quando a resposta da API não inclui o campo message.
+ */
+const CLIENT_FALLBACK_MESSAGES = {
+  429: "Demasiados pedidos. Tente novamente mais tarde.",
+};
+
 export function setAuthToken(token) {
   localStorage.setItem(TOKEN_KEY, token);
   api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -30,12 +38,40 @@ if (existingToken) {
   api.defaults.headers.common.Authorization = `Bearer ${existingToken}`;
 }
 
+/*
+ * Evita vários redirecionamentos quando mais do que um pedido
+ * recebe 401 ao mesmo tempo, por exemplo numa sessão expirada.
+ */
+let isRedirectingToLogin = false
+
+/*
+ * O serviço Axios não pode usar useNavigate. Por isso usa a
+ * localização do browser para encaminhar para o login.
+ */
+function redirectToLogin() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  /*
+   * Um 401 no próprio login representa credenciais inválidas.
+   * Nesse caso, mantemos a página para o formulário mostrar o erro.
+   */
+  if (window.location.pathname === '/login' || isRedirectingToLogin) {
+    return
+  }
+
+  isRedirectingToLogin = true
+  window.location.replace('/login')
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       const { useAuthStore } = await import("../store/authStore");
       useAuthStore.getState().clearSession();
+      redirectToLogin()
     }
     return Promise.reject(error);
   }
@@ -56,7 +92,10 @@ export function normalizeError(error) {
     status,
     message:
       body?.message ??
-      (status ? `Erro do servidor (${status}).` : "Não foi possível contactar o servidor."),
+      CLIENT_FALLBACK_MESSAGES[status] ??
+      (status
+        ? `Erro do servidor (${status}).`
+        : "Não foi possível contactar o servidor."),
     fieldErrors,
   };
 }

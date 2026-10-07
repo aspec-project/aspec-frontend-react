@@ -12,6 +12,11 @@ export default function Header() {
   const logout = useAuthStore((state) => state.logout)
 
   /*
+   * A store concentra o pedido ao backend e a limpeza da sessão local.
+   */
+  const logout = useAuthStore((state) => state.logout)
+
+  /*
    * A API devolve o perfil como member_profile. Mantemos também
    * memberProfile como alternativa para compatibilidade futura.
    */
@@ -93,6 +98,24 @@ export default function Header() {
     }
   };
 
+  /*
+   * Termina a sessão no backend, limpa a store e impede voltar
+   * a uma rota privada através do histórico do browser.
+   */
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+
+    await logout()
+
+    setUserMenuOpen(false)
+    setMobileOpen(false)
+    navigate("/", { replace: true })
+  }
+
   return (
     <nav onKeyDown={handleMenuKeyDown} className="bg-[#0d1f35] sticky top-0 z-50 shadow-lg border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -173,25 +196,51 @@ export default function Header() {
                 </button>
 
                 {userMenuOpen && (
-                  <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-56 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
-                    {accountLinks.map(({ to, label, Icon }) => (
-                      <Link
-                        key={to}
-                        to={to}
-                        onClick={closeMenus}
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
+                    {isMember && (
+                      <>
+                        <button
+                          onClick={() => {
+                            navigate('/dashboard')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <User size={14} /> O meu perfil
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            navigate('/perfil/editar')
+                            setUserMenuOpen(false)
+                          }}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                        >
+                          <Settings size={14} /> Editar perfil
+                        </button>
+                      </>
+                    )}
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          navigate('/admin')
+                          setUserMenuOpen(false)
+                        }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
                       >
-                        <Icon size={14} aria-hidden="true" /> {label}
-                      </Link>
-                    ))}
+                        <Settings size={14} /> Administração
+                      </button>
+                    )}
                     <hr className="my-1 border-border" />
                     <button
                       type="button"
                       onClick={handleLogout}
                       disabled={isLoggingOut}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:opacity-60"
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <LogOut size={14} aria-hidden="true" /> {isLoggingOut ? "A terminar sessão..." : "Terminar sessão"}
+                      <LogOut size={14} />
+                      {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                     </button>
                   </div>
                 )}
@@ -264,25 +313,50 @@ export default function Header() {
               </>
             )}
 
+            {/*
+            * Qualquer utilizador autenticado pode terminar sessão.
+            * Os atalhos restantes são mostrados conforme o respetivo papel.
+            */}
             {user && (
               <>
-                {accountLinks.map(({ to, label }) => (
+                {isMember && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                    >
+                      O meu perfil
+                    </Link>
+
+                    <Link
+                      to="/perfil/editar"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      Editar perfil
+                    </Link>
+                  </>
+                )}
+
+                {isAdmin && (
                   <Link
-                    key={to}
-                    to={to}
-                    onClick={closeMenus}
-                    className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                    to="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                   >
-                    {label}
+                    Administração
                   </Link>
-                ))}
+                )}
+
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="block w-full text-left px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isLoggingOut ? "A terminar sessão..." : "Terminar sessão"}
+                  <LogOut size={14} />
+                  {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                 </button>
               </>
             )}
