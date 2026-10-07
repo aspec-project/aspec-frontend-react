@@ -8,14 +8,12 @@ import {
   uploadPortfolioImages,
   deletePortfolioImage,
 } from '../../services/memberProfile'
-import BusinessHoursEditor, {
-  createBusinessHours,
-} from './BusinessHoursEditor'
+import BusinessHoursEditor from './BusinessHoursEditor'
+import { createBusinessHours } from '../../utils/businessHours'
 import LogoUploader from './LogoUploader'
 import PortfolioGallery from './PortfolioGallery'
-import SocialLinksEditor, {
-  createSocialLinks,
-} from './SocialLinksEditor'
+import SocialLinksEditor from './SocialLinksEditor'
+import { createSocialLinks } from '../../utils/socialLinks'
 
 /*
  * Estado inicial dos campos textuais.
