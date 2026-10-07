@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { normalizeError } from '../../services/api'
+import { validatePhone } from '../../utils/registerUtils'
 import {
   getMemberProfile,
   updateMemberProfile,
@@ -27,6 +28,7 @@ const initialFormData = {
   description: '',
   commercialContacts: '',
   phone: '',
+  address: '',
   website: '',
 }
 
@@ -94,6 +96,7 @@ const [savedPortfolio, setSavedPortfolio] = useState([])
           description: profile.description ?? '',
           commercialContacts: profile.commercial_contacts ?? '',
           phone: profile.phone ?? '',
+          address: profile.address ?? '',
           website: profile.website_url ?? '',
         })
 
@@ -191,6 +194,33 @@ const handleDeleteSavedPortfolioImage = useCallback(
   [],
 )
 
+/*
+ * Valida no browser os campos que o backend exige no perfil da montra.
+ *
+ * A regra do telefone é a mesma usada no registo. A morada é obrigatória
+ * no endpoint PUT /member-profile, por isso interrompemos o envio antes
+ * de fazer um pedido que resultaria num erro 422.
+ */
+function validateShowcaseFields() {
+  const errors = {}
+  const phone = formData.phone.trim()
+
+  /*
+   * Mantemos o comportamento atual de só enviar telefone quando existe
+   * valor, mas quando é preenchido tem de ser português e válido.
+   */
+  if (phone && !validatePhone(phone)) {
+    errors.phone =
+      'O campo telefone tem de ser um número de telefone português válido.'
+  }
+
+  if (!formData.address.trim()) {
+    errors.address = 'O campo morada é obrigatório.'
+  }
+
+  return errors
+}
+
   /*
    * Constrói o objeto JSON para PUT /member-profile.
    *
@@ -201,6 +231,7 @@ const handleDeleteSavedPortfolioImage = useCallback(
     const profilePayload = {
       description: formData.description.trim() || null,
       commercial_contacts: formData.commercialContacts.trim() || null,
+      address: formData.address.trim(),
       website_url: formData.website.trim() || null,
     }
 
@@ -209,7 +240,9 @@ const handleDeleteSavedPortfolioImage = useCallback(
     }
 
     if (formData.phone.trim()) {
-      profilePayload.phone = formData.phone.trim()
+      profilePayload.phone = formData.phone
+      .trim()
+      .replace(/[\s\-()]/g, '')
     }
 
     /*
@@ -272,6 +305,19 @@ const handleDeleteSavedPortfolioImage = useCallback(
     setFieldErrors({})
 
     try {
+      const clientFieldErrors = validateShowcaseFields()
+
+      if (Object.keys(clientFieldErrors).length > 0) {
+        setFieldErrors(clientFieldErrors)
+
+        setStatus({
+          type: 'error',
+          message: 'Corrige os campos assinalados antes de guardar.',
+        })
+
+        return
+      }
+
       const profilePayload = buildProfilePayload()
 
       await updateMemberProfile(profilePayload)
@@ -292,8 +338,23 @@ const handleDeleteSavedPortfolioImage = useCallback(
       )
 
       if (newPortfolioFiles.length > 0) {
-        await uploadPortfolioImages(newPortfolioFiles)
+        /*
+        * O serviço devolve as imagens já criadas no backend.
+        * Guardamo-las imediatamente para a galeria apresentar a versão
+        * persistida, sem ser necessário atualizar a página.
+        */
+        const uploadedImages = await uploadPortfolioImages(newPortfolioFiles)
 
+        setSavedPortfolio((currentPortfolio) => [
+          ...currentPortfolio,
+          ...uploadedImages,
+        ])
+
+        /*
+        * Mantemos a referência aos objetos File enviados nesta sessão.
+        * A galeria vai usar esta lista para remover as pré-visualizações
+        * locais correspondentes e evitar imagens duplicadas.
+        */
         setUploadedPortfolioFiles((currentFiles) => [
           ...currentFiles,
           ...newPortfolioFiles,
@@ -517,6 +578,32 @@ const handleDeleteSavedPortfolioImage = useCallback(
               </div>
             </div>
 
+            <div>
+                <label
+                  htmlFor="address"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Morada
+                </label>
+
+                <input
+                  id="address"
+                  name="address"
+                  type="text"
+                  value={formData.address}
+                  onChange={handleTextChange}
+                  autoComplete="street-address"
+                  placeholder="Exemplo: Rua Principal, 123, Aveiro"
+                  className={inputClassName}
+                />
+
+                {fieldErrors.address && (
+                  <p className="mt-2 text-sm text-red-700">
+                    {fieldErrors.address}
+                  </p>
+                )}
+              </div>
+
             <p className="text-sm text-slate-500">
               O email de acesso é alterado nas definições da conta, porque a
               API exige a password atual para o modificar.
@@ -541,6 +628,7 @@ const handleDeleteSavedPortfolioImage = useCallback(
 
         <PortfolioGallery
           initialImages={savedPortfolio}
+          uploadedFiles={uploadedPortfolioFiles}
           onImagesChange={handlePortfolioImagesChange}
           onDeleteSavedImage={handleDeleteSavedPortfolioImage}
         />

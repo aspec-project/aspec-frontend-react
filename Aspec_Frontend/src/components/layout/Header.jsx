@@ -1,8 +1,42 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown, User, LogOut, Settings } from "lucide-react";
+import { useAuthStore } from '../../store/authStore'
 
-export default function Header({ userRole = null }) {
+export default function Header() {
+  /*
+   * Obtém o utilizador autenticado diretamente da store global.
+   * Assim, o Header não depende de props passadas pelos layouts.
+   */
+  const user = useAuthStore((state) => state.user)
+
+  /*
+   * A API devolve o perfil como member_profile. Mantemos também
+   * memberProfile como alternativa para compatibilidade futura.
+   */
+  const displayName =
+    user?.member_profile?.name ??
+    user?.memberProfile?.name ??
+    user?.email ??
+    'Utilizador'
+
+  /*
+   * Cria as iniciais a partir do nome real para o avatar.
+   * Exemplo: "João Silva" passa a "JS".
+   */
+  const userInitials = displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((namePart) => namePart.charAt(0).toUpperCase())
+    .join('')
+
+  /*
+   * Normaliza o nome do papel devolvido pela API para podermos
+   * decidir que opções do Header mostrar a cada utilizador.
+   */
+  const roleName = user?.role?.name?.toLowerCase() ?? ''
+  const isMember = roleName === 'member'
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -80,7 +114,7 @@ export default function Header({ userRole = null }) {
 
           {/* Área de Autenticação */}
           <div className="hidden md:flex items-center gap-2">
-            {userRole === null && (
+            {!user && (
               <Link
                 to="/login"
                 className="px-4 py-2 text-sm rounded-md transition-colors text-white/85 hover:text-primary hover:bg-primary/15"
@@ -89,16 +123,16 @@ export default function Header({ userRole = null }) {
               </Link>
             )}
 
-            {userRole === "member" && (
+            {isMember && (
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 px-3 py-2 rounded-md bg-white/10 text-white cursor-pointer"
                 >
                   <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-slate-950">
-                    JS
+                    {userInitials}
                   </div>
-                  <span className="text-sm">João Silva</span>
+                  <span className="text-sm">{displayName}</span>
                   <ChevronDown size={14} />
                 </button>
 
@@ -165,20 +199,53 @@ export default function Header({ userRole = null }) {
               Diretório
             </Link>
             <hr className="border-white/10 my-2" />
-            <Link
-              to="/login"
-              onClick={() => setMobileOpen(false)}
-              className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
-            >
-              Entrar
-            </Link>
-            <Link
-              to="/registo"
-              onClick={() => setMobileOpen(false)}
-              className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
-            >
-              Candidatar-me
-            </Link>
+            {/*
+            * As opções de autenticação só aparecem quando não existe
+            * um utilizador autenticado na store.
+            */}
+            {!user && (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                >
+                  Entrar
+                </Link>
+
+                <Link
+                  to="/registo"
+                  onClick={() => setMobileOpen(false)}
+                  className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                >
+                  Candidatar-me
+                </Link>
+              </>
+            )}
+
+            {/*
+            * Para membros autenticados, mostramos os acessos ao respetivo perfil.
+            * O término de sessão será tratado separadamente na ASPEC-118.
+            */}
+            {isMember && (
+              <>
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
+                >
+                  O meu perfil
+                </Link>
+
+                <Link
+                  to="/perfil/editar"
+                  onClick={() => setMobileOpen(false)}
+                  className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                >
+                  Editar perfil
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
