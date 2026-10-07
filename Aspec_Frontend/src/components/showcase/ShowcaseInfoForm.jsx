@@ -8,6 +8,10 @@ import {
   uploadPortfolioImages,
   deletePortfolioImage,
 } from '../../services/memberProfile'
+import {
+  getSocialPlatforms,
+  getWeekDays,
+} from '../../services/referenceLists'
 import BusinessHoursEditor from './BusinessHoursEditor'
 import { createBusinessHours } from '../../utils/businessHours'
 import LogoUploader from './LogoUploader'
@@ -32,12 +36,8 @@ const initialFormData = {
 
 function ShowcaseInfoForm() {
   const [formData, setFormData] = useState(initialFormData)
-  const [businessHours, setBusinessHours] = useState(() =>
-    createBusinessHours(),
-  )
-  const [socialLinks, setSocialLinks] = useState(() =>
-    createSocialLinks(),
-  )
+  const [businessHours, setBusinessHours] = useState([])
+  const [socialLinks, setSocialLinks] = useState([])
 
   /*
    * Estes estados guardam os ficheiros selecionados pelos componentes filhos.
@@ -83,7 +83,11 @@ const [savedPortfolio, setSavedPortfolio] = useState([])
 
     async function loadProfile() {
       try {
-        const profile = await getMemberProfile()
+        const [profile, socialPlatforms, weekDays] = await Promise.all([
+          getMemberProfile(),
+          getSocialPlatforms(),
+          getWeekDays(),
+        ])
 
         if (!componentIsMounted) {
           return
@@ -98,8 +102,12 @@ const [savedPortfolio, setSavedPortfolio] = useState([])
           website: profile.website_url ?? '',
         })
 
-        setBusinessHours(createBusinessHours(profile.business_hours ?? []))
-        setSocialLinks(createSocialLinks(profile.social_links ?? []))
+        setBusinessHours(
+          createBusinessHours(profile.business_hours ?? [], weekDays),
+        )
+        setSocialLinks(
+          createSocialLinks(profile.social_links ?? [], socialPlatforms),
+        )
         /*
         * O serviço já converteu os URLs relativos do Laravel em URLs completos.
         * Guardamos estes valores para os passar aos componentes visuais.

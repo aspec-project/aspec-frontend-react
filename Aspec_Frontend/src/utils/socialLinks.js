@@ -1,48 +1,34 @@
 /*
- * Plataformas disponíveis atualmente no projeto.
- * O nome tem de coincidir com o nome devolvido pela API.
+ * Cria os campos das redes sociais com base nas plataformas devolvidas
+ * pela API e nos links já associados ao perfil do membro.
  */
-export const SOCIAL_PLATFORMS = [
-  { name: 'Instagram' },
-  { name: 'Facebook' },
-  { name: 'LinkedIn' },
-  { name: 'YouTube' },
-]
-
-/*
- * Cria os campos das redes sociais com base no perfil recebido da API.
- *
- * A API devolve o URL e o platform_id de cada rede já associada
- * ao perfil. Guardamos ambos porque o ID é necessário ao atualizar.
- */
-export function createSocialLinks(savedLinks = []) {
-  const knownLinks = SOCIAL_PLATFORMS.map((platform) => {
+export function createSocialLinks(savedLinks = [], socialPlatforms = []) {
+  const knownLinks = socialPlatforms.map((platform) => {
     const savedLink = savedLinks.find(
-      (link) => link.platform === platform.name,
+      (link) => link.platform_id === platform.id,
     )
 
     return {
       name: platform.name,
-      platformId: savedLink?.platform_id ?? null,
+      platformId: platform.id,
       url: savedLink?.url ?? '',
     }
   })
 
   /*
-   * Preserva futuras plataformas que possam existir na API,
-   * mesmo que ainda não tenham um campo definido no frontend.
+   * Preserva ligações já existentes caso uma plataforma deixe de surgir
+   * temporariamente na lista de referência do backend.
    */
+  const platformIds = new Set(
+    socialPlatforms.map((platform) => platform.id),
+  )
+
   const extraLinks = savedLinks
-    .filter(
-      (savedLink) =>
-        !SOCIAL_PLATFORMS.some(
-          (platform) => platform.name === savedLink.platform,
-        ),
-    )
-    .map((savedLink) => ({
-      name: savedLink.platform,
-      platformId: savedLink.platform_id,
-      url: savedLink.url,
+    .filter((link) => !platformIds.has(link.platform_id))
+    .map((link) => ({
+      name: link.platform,
+      platformId: link.platform_id,
+      url: link.url,
     }))
 
   return [...knownLinks, ...extraLinks]
