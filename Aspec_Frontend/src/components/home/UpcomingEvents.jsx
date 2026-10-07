@@ -167,12 +167,13 @@ export default function UpcomingEvents() {
 
         if (!controller.signal.aborted) {
           setEventos(dados);
+          setAgora(Date.now());
         }
       } catch (err) {
         if (!controller.signal.aborted) {
           setError(
             err instanceof TypeError
-              ? "Sem eventos"
+              ? "Não foi possível ligar à API. Tenta novamente mais tarde."
               : err instanceof Error
                 ? err.message
                 : "Ocorreu um erro ao carregar os eventos."
@@ -207,7 +208,7 @@ export default function UpcomingEvents() {
     }))
     .filter(
       ({ inicio }) =>
-        typeof inicio === "number" && inicio >= agora
+        typeof inicio === "number" && inicio > agora
     )
     .sort((a, b) => a.inicio - b.inicio)
     .slice(0, 3)
@@ -221,7 +222,7 @@ export default function UpcomingEvents() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#9A742F]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#7a5b25]">
               Próximos Eventos
             </p>
 

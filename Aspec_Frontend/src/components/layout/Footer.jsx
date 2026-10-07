@@ -57,11 +57,10 @@ export default function Footer() {
   ];
 
   const associationLinks = [
-    "Missão e Valores",
-    "História",
-    "Delegações Regionais",
-    "Código de Conduta",
-    "Política de Privacidade",
+    { label: "Missão e Valores", to: "/#proposito" },
+    { label: "História", to: "/#sobre" },
+    { label: "Código de Conduta" },
+    { label: "Política de Privacidade" },
   ];
 
   return (
@@ -95,7 +94,7 @@ export default function Footer() {
                 aria-label={social.nome}
                 className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center transition-colors hover:bg-primary/30"
                 >
-                <Icon size={14} className="text-primary" />
+                <Icon width={14} height={14} className="text-primary shrink-0" aria-hidden="true" />
                 </a>
             );
             })}
@@ -128,13 +127,17 @@ export default function Footer() {
             </h4>
             <ul className="space-y-2">
               {associationLinks.map((item) => (
-                <li key={item}>
-                  <Link
-                    to="#"
-                    className="text-sm text-gray-400 hover:text-white transition-colors"
-                  >
-                    {item}
-                  </Link>
+                <li key={item.label}>
+                  {item.to ? (
+                    <Link
+                      to={item.to}
+                      className="text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-gray-400">{item.label}</span>
+                  )}
                 </li>
               ))}
             </ul>
