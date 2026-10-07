@@ -33,7 +33,7 @@ const VALUES = [
 
 export default function AboutSection() {
   return (
-    <section className="bg-white" id="sobre">
+    <section className="bg-white scroll-mt-20" id="sobre">
       
       {/* Sobre a ASPEC */}
       <div className="py-20 border-b border-gray-100">
@@ -61,7 +61,7 @@ export default function AboutSection() {
             </div>
 
             {/* Estatísticas + Versículo */}
-            <div className="grid grid-cols-3 gap-5 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 text-center">
               {[
                 { num: "320+", label: "Membros Ativos" },
                 { num: "18", label: "Delegações em Portugal" },
@@ -69,7 +69,7 @@ export default function AboutSection() {
               ].map((s) => (
                 <div
                   key={s.label}
-                  className="p-6 rounded-2xl"
+                  className="p-4 sm:p-6 md:p-3 lg:p-6 rounded-2xl"
                   style={{ backgroundColor: "#f5f3ee" }}
                 >
                   <div
@@ -85,7 +85,7 @@ export default function AboutSection() {
               ))}
 
               <div
-                className="col-span-3 p-6 rounded-2xl"
+                className="col-span-1 sm:col-span-3 p-6 rounded-2xl"
                 style={{ backgroundColor: "#0d1f35" }}
               >
                 <p
@@ -94,7 +94,7 @@ export default function AboutSection() {
                 >
                   "…enquanto temos oportunidade, façamos o bem a todos, especialmente aos da família da fé."
                 </p>
-                <p className="text-xs mt-3 font-semibold" style={{ color: "#8a7043" }}>
+                <p className="text-xs mt-3 font-semibold" style={{ color: "#c5a46b" }}>
                   Gálatas 6:10
                 </p>
               </div>
@@ -105,7 +105,8 @@ export default function AboutSection() {
 
       {/* O Nosso Propósito */}
       <div
-        className="py-20 border-b border-gray-100"
+        id="proposito"
+        className="py-20 border-b border-gray-100 scroll-mt-20"
         style={{ backgroundColor: "#f8f7f2" }}
       >
         <div className="max-w-7xl mx-auto px-6">
@@ -159,7 +160,7 @@ export default function AboutSection() {
       </div>
 
       {/* A Nossa Missão */}
-      <div className="py-20">
+      <div id="missao" className="py-20 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-14 items-start">
             <div>
