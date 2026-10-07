@@ -11,6 +11,11 @@ export default function Header() {
   const user = useAuthStore((state) => state.user)
 
   /*
+   * A store concentra o pedido ao backend e a limpeza da sessão local.
+   */
+  const logout = useAuthStore((state) => state.logout)
+
+  /*
    * A API devolve o perfil como member_profile. Mantemos também
    * memberProfile como alternativa para compatibilidade futura.
    */
@@ -39,6 +44,7 @@ export default function Header() {
   const isMember = roleName === 'member'
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,6 +67,24 @@ export default function Header() {
     }
     setMobileOpen(false);
   };
+
+  /*
+   * Termina a sessão no backend, limpa a store e impede voltar
+   * a uma rota privada através do histórico do browser.
+   */
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+
+    await logout()
+
+    setUserMenuOpen(false)
+    setMobileOpen(false)
+    navigate("/", { replace: true })
+  }
 
   return (
     <nav className="bg-[#0d1f35] sticky top-0 z-50 shadow-lg border-b border-white/10">
@@ -152,10 +176,13 @@ export default function Header() {
                     </button>
                     <hr className="my-1 border-border" />
                     <button
-                      onClick={() => { navigate("/"); setUserMenuOpen(false); }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer"
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <LogOut size={14} /> Terminar sessão
+                      <LogOut size={14} />
+                      {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                     </button>
                   </div>
                 )}
@@ -244,6 +271,15 @@ export default function Header() {
                 >
                   Editar perfil
                 </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <LogOut size={14} />
+                  {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
+                </button>
               </>
             )}
           </div>
