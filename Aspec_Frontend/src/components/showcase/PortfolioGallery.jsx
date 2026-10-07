@@ -15,6 +15,12 @@ const maximumImages = 8
 /* Evita criar um novo array vazio em cada renderização. */
 const emptyInitialImages = []
 
+/*
+ * Evita criar uma nova lista vazia sempre que a prop uploadedFiles
+ * não é recebida pelo componente.
+ */
+const emptyUploadedFiles = []
+
 function noop() {}
 
 /*
@@ -23,6 +29,7 @@ function noop() {}
  */
 function PortfolioGallery({
   initialImages = emptyInitialImages,
+  uploadedFiles = emptyUploadedFiles,
   onImagesChange = noop,
   onDeleteSavedImage = noop,
 }) {
@@ -49,30 +56,37 @@ function PortfolioGallery({
    */
   const previewUrlsRef = useRef(new Set())
 
-  /*
-   * Sempre que o perfil é carregado, convertemos as imagens da API
-   * para o formato que a galeria utiliza.
-   */
-  useEffect(() => {
-    const savedImages = initialImages.map((image) => ({
-      id: `saved-${image.id}`,
-      portfolioImageId: image.id,
-      file: null,
-      name: `Imagem guardada ${image.id}`,
-      previewUrl: image.image_url,
-      isSaved: true,
-    }))
+/*
+ * Sempre que chegam imagens guardadas — no carregamento inicial,
+ * após um upload ou depois de uma eliminação — convertemo-las para
+ * o formato interno usado pela galeria.
+ */
+useEffect(() => {
+  const savedImages = initialImages.map((image) => ({
+    id: `saved-${image.id}`,
+    portfolioImageId: image.id,
+    file: null,
+    name: `Imagem guardada ${image.id}`,
+    previewUrl: image.image_url,
+    isSaved: true,
+  }))
 
-    setImages((currentImages) => {
-      /*
-       * Mantém imagens novas que tenham sido selecionadas enquanto
-       * o componente recebeu uma atualização dos dados guardados.
-       */
-      const newImages = currentImages.filter((image) => !image.isSaved)
+  setImages((currentImages) => {
+    /*
+     * uploadedFiles contém as mesmas referências File que foram enviadas
+     * nesta sessão. Quando a API já devolveu a imagem persistida,
+     * retiramos a pré-visualização local correspondente para não duplicar
+     * a imagem na galeria.
+     */
+    const uploadedFileSet = new Set(uploadedFiles)
 
-      return [...savedImages, ...newImages].slice(0, maximumImages)
-    })
-  }, [initialImages])
+    const remainingNewImages = currentImages.filter(
+      (image) => !image.isSaved && !uploadedFileSet.has(image.file),
+    )
+
+    return [...savedImages, ...remainingNewImages].slice(0, maximumImages)
+  })
+}, [initialImages, uploadedFiles])
 
   /*
    * O formulário pai só deve receber ficheiros que ainda não existem

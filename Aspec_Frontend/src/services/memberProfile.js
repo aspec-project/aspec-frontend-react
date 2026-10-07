@@ -25,6 +25,19 @@ function createAssetUrl(assetUrl) {
 }
 
 /*
+ * Normaliza uma imagem do portefólio devolvida pela API.
+ *
+ * O upload pode devolver um caminho relativo, como /storage/...,
+ * por isso aplicamos a mesma conversão usada ao carregar o perfil.
+ */
+function normalisePortfolioImage(portfolioImage) {
+  return {
+    ...portfolioImage,
+    image_url: createAssetUrl(portfolioImage.image_url),
+  }
+}
+
+/*
  * Prepara os dados recebidos da API para serem usados diretamente
  * pelos componentes React.
  */
@@ -40,10 +53,7 @@ function normaliseMemberProfile(profile) {
     logo_url: createAssetUrl(profile.logo_url),
 
     // Cada imagem do portefólio também recebe um URL completo.
-    portfolio: (profile.portfolio ?? []).map((portfolioImage) => ({
-      ...portfolioImage,
-      image_url: createAssetUrl(portfolioImage.image_url),
-    })),
+    portfolio: (profile.portfolio ?? []).map(normalisePortfolioImage),
   }
 }
 
@@ -94,7 +104,7 @@ export async function uploadPortfolioImages(imageFiles) {
 
     const response = await api.post('/member-portfolio', formData)
 
-    uploadedImages.push(response.data.data)
+    uploadedImages.push(normalisePortfolioImage(response.data.data))
   }
 
   return uploadedImages

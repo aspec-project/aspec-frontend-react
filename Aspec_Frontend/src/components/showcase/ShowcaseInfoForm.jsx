@@ -292,8 +292,23 @@ const handleDeleteSavedPortfolioImage = useCallback(
       )
 
       if (newPortfolioFiles.length > 0) {
-        await uploadPortfolioImages(newPortfolioFiles)
+        /*
+        * O serviço devolve as imagens já criadas no backend.
+        * Guardamo-las imediatamente para a galeria apresentar a versão
+        * persistida, sem ser necessário atualizar a página.
+        */
+        const uploadedImages = await uploadPortfolioImages(newPortfolioFiles)
 
+        setSavedPortfolio((currentPortfolio) => [
+          ...currentPortfolio,
+          ...uploadedImages,
+        ])
+
+        /*
+        * Mantemos a referência aos objetos File enviados nesta sessão.
+        * A galeria vai usar esta lista para remover as pré-visualizações
+        * locais correspondentes e evitar imagens duplicadas.
+        */
         setUploadedPortfolioFiles((currentFiles) => [
           ...currentFiles,
           ...newPortfolioFiles,
@@ -541,6 +556,7 @@ const handleDeleteSavedPortfolioImage = useCallback(
 
         <PortfolioGallery
           initialImages={savedPortfolio}
+          uploadedFiles={uploadedPortfolioFiles}
           onImagesChange={handlePortfolioImagesChange}
           onDeleteSavedImage={handleDeleteSavedPortfolioImage}
         />
