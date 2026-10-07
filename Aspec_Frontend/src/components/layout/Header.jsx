@@ -10,10 +10,6 @@ export default function Header() {
    */
   const user = useAuthStore((state) => state.user)
 
-  /*
-   * A store concentra o pedido ao backend e a limpeza da sessão local.
-   */
-  const logout = useAuthStore((state) => state.logout)
 
   /*
    * A API devolve o perfil como member_profile. Mantemos também
@@ -84,24 +80,6 @@ export default function Header() {
       event.preventDefault();
     }
   };
-
-  /*
-   * Termina a sessão no backend, limpa a store e impede voltar
-   * a uma rota privada através do histórico do browser.
-   */
-  const handleLogout = async () => {
-    if (isLoggingOut) {
-      return
-    }
-
-    setIsLoggingOut(true)
-
-    await logout()
-
-    setUserMenuOpen(false)
-    setMobileOpen(false)
-    navigate("/", { replace: true })
-  }
 
   return (
     <nav onKeyDown={handleMenuKeyDown} className="bg-[#0d1f35] sticky top-0 z-50 shadow-lg border-b border-white/10">
