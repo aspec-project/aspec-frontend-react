@@ -5,7 +5,7 @@ import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
-import HomePage from '../pages/HomePage'
+import HomePage from "../pages/HomePage"
 
 /**
  * Centraliza as rotas da aplicação.
@@ -14,13 +14,8 @@ function AppRouter() {
   return (
     <Routes>
       {/* Rotas públicas */}
-      {/*
-      * A página inicial usa o layout público partilhado.
-      * MainLayout apresenta Header e Footer à volta do conteúdo da rota.
-      */}
       <Route element={<MainLayout />}>
-        <Route path="/" element={<HomePage />} />
-      </Route>
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route
@@ -87,6 +82,7 @@ function AppRouter() {
         path="*"
         element={<PlaceholderPage title="Página não encontrada" />}
       />
+      </Route>
     </Routes>
   );
 }
