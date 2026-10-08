@@ -111,6 +111,10 @@ async function buscarEventos(signal) {
       }
     );
 
+    if (response.status === 404) {
+      return [];
+    }
+
     if (!response.ok) {
       throw new Error(
         "Não foi possível carregar os próximos eventos."
@@ -259,7 +263,7 @@ export default function UpcomingEvents() {
           </p>
         ) : proximosEventos.length === 0 ? (
           <p className="py-12 text-center text-gray-500">
-            Ainda não existem próximos eventos disponíveis.
+            Ainda não há eventos agendados.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -74,7 +74,7 @@ export default function Footer() {
             <img
               src="/images/log-branco.png"
               alt="ASPEC"
-              className="h-6 w-auto"
+              className="w-60 max-w-full h-auto"
             />
           </div>
             <p className="text-sm text-gray-400 leading-relaxed">
