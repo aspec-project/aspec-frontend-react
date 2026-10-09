@@ -174,7 +174,7 @@ export default function Header() {
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
+                  <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
                     {isMember && (
                       <>
                         <button
