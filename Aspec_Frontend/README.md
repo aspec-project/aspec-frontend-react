@@ -1,5 +1,27 @@
 # React + Vite
 
+## Testes do frontend
+
+Todos os testes partilhados ficam na pasta `tests/`, organizados por componente.
+O ficheiro `tests/setup.js` configura os matchers de DOM e a limpeza entre testes.
+
+Depois de obter o projeto, executa os comandos na pasta `Aspec_Frontend`:
+
+```sh
+npm ci
+npm test
+```
+
+Para executar os testes automaticamente quando os ficheiros mudam:
+
+```sh
+npm run test:watch
+```
+
+Os novos testes devem ter o nome `*.test.jsx` ou `*.test.js` e usar importações
+relativas aos componentes em `src/`. A configuração também aceita ficheiros
+`*.spec.*` e testes em TypeScript.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:
