@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { isAxiosError } from "axios";
+import { normalizeError } from "../../services/api";
+import { getEvents } from "../../services/events";
 import {
   CalendarDays,
   Clock,
@@ -7,14 +10,6 @@ import {
   Users,
   ChevronRight,
 } from "lucide-react";
-
-const baseUrl = (
-  import.meta.env.VITE_API_URL || "http://localhost:8000"
-).replace(/\/+$/, "");
-
-const apiUrl = baseUrl.endsWith("/api")
-  ? baseUrl
-  : `${baseUrl}/api`;
 
 // A cor vem da categoria criada no backend.
 // A cor de recurso evita erros caso a API envie uma cor inválida.
@@ -93,69 +88,6 @@ function formatarHorario(inicio, fim) {
     : horaInicio;
 }
 
-async function buscarEventos(signal) {
-  const eventos = [];
-  let pagina = 1;
-  let ultimaPagina = 1;
-
-  // Percorre a paginação para selecionar os três eventos
-  // mais próximos entre todos os resultados da agenda.
-  do {
-    const response = await fetch(
-      `${apiUrl}/events?page=${pagina}`,
-      {
-        headers: {
-          Accept: "application/json",
-        },
-        signal,
-      }
-    );
-
-    if (response.status === 404) {
-      return [];
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        "Não foi possível carregar os próximos eventos."
-      );
-    }
-
-    const resposta = await response.json();
-
-    if (
-      resposta.success !== true ||
-      !Array.isArray(resposta.data?.items)
-    ) {
-      throw new Error(
-        "A resposta dos eventos tem um formato inesperado."
-      );
-    }
-
-    eventos.push(...resposta.data.items);
-
-    ultimaPagina = Number(
-      resposta.data.pagination?.last_page ?? 1
-    );
-
-    if (
-      !Number.isInteger(ultimaPagina) ||
-      ultimaPagina < 1
-    ) {
-      throw new Error(
-        "A paginação dos eventos tem um formato inesperado."
-      );
-    }
-
-    pagina += 1;
-  } while (pagina <= ultimaPagina);
-
-  // Evita repetir cards caso existam IDs duplicados nas páginas.
-  return Array.from(
-    new Map(eventos.map((evento) => [evento.id, evento])).values()
-  );
-}
-
 export default function UpcomingEvents() {
   const [eventos, setEventos] = useState([]);
   const [agora, setAgora] = useState(() => Date.now());
@@ -167,7 +99,7 @@ export default function UpcomingEvents() {
 
     async function carregarEventos() {
       try {
-        const dados = await buscarEventos(controller.signal);
+        const dados = await getEvents(controller.signal);
 
         if (!controller.signal.aborted) {
           setEventos(dados);
@@ -176,8 +108,8 @@ export default function UpcomingEvents() {
       } catch (err) {
         if (!controller.signal.aborted) {
           setError(
-            err instanceof TypeError
-              ? "Não foi possível ligar à API. Tenta novamente mais tarde."
+            isAxiosError(err)
+              ? normalizeError(err).message
               : err instanceof Error
                 ? err.message
                 : "Ocorreu um erro ao carregar os eventos."
