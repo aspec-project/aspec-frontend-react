@@ -18,7 +18,8 @@ function AppRouter() {
     <Routes>
       {/* Rotas públicas */}
       <Route element={<MainLayout />}>
-      <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />
+      </Route>
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route
@@ -94,7 +95,6 @@ function AppRouter() {
         path="*"
         element={<PlaceholderPage title="Página não encontrada" />}
       />
-      </Route>
     </Routes>
   );
 }
