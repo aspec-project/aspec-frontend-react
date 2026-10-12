@@ -1,8 +1,10 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
 import PlaceholderPage from "../pages/PlaceholderPage"
 import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
+import ShowcaseContactsPage from '../pages/ShowcaseContactsPage'
+import PortfolioPage from '../pages/PortfolioPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
@@ -55,10 +57,17 @@ function AppRouter() {
           path="/dashboard"
           element={<PlaceholderPage title="Dashboard" />}
         />
+        {/*
+         * /perfil mantém-se como endereço de entrada compatível, mas conduz
+         * diretamente à primeira secção útil da área do membro.
+         */}
         <Route
           path="/perfil"
-          element={<PlaceholderPage title="O meu perfil" />}
+          element={<Navigate replace to="/perfil/montra" />}
         />
+        <Route path="/perfil/montra" element={<ShowcaseInfoPage />} />
+        <Route path="/perfil/contactos" element={<ShowcaseContactsPage />} />
+        <Route path="/perfil/portefolio" element={<PortfolioPage />} />
         <Route
           path="/perfil/editar"
           element={<PlaceholderPage title="Editar perfil" />}
@@ -67,7 +76,6 @@ function AppRouter() {
           path="/perfil/inscricoes-eventos"
           element={<PlaceholderPage title="Inscrições em eventos" />}
         />
-        <Route path="/perfil/portefolio" element={<ShowcaseInfoPage />} />
       </Route>
 
       {/* Rotas de administração — exigem sessão válida E role "Admin" */}
