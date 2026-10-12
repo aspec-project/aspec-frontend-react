@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import Field from './Field'
+import Field from '../../../src/components/ui/Field'
 
 describe('Field', () => {
   it('mostra a etiqueta e o campo', () => {
