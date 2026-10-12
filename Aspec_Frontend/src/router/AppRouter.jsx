@@ -5,6 +5,7 @@ import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
+import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import HomePage from "../pages/HomePage"
@@ -23,6 +24,10 @@ function AppRouter() {
       <Route
         path="/ativacao/sucesso"
         element={<AccountActivationSuccessPage />}
+      />
+      <Route
+        path="/ativacao/novo-link"
+        element={<RequestActivationLinkPage />}
       />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
       <Route

@@ -42,3 +42,14 @@ export async function startAccountActivation(userId, rawSearch, payload = {}) {
 
   return response.data.data
 }
+
+/*
+ * Pede outro link de ativação ou reativação. O endpoint é público e a
+ * página apresenta sempre a mesma confirmação, mesmo que o backend
+ * responda com erro, para não revelar se o email pertence a uma conta.
+ */
+export async function resendAccountActivationLink(email) {
+  await activationApi.post(`${API_URL}/api/account-activations/resend`, {
+    email,
+  })
+}
