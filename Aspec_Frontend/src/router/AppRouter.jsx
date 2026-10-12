@@ -4,6 +4,7 @@ import PlaceholderPage from "../pages/PlaceholderPage"
 import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
+import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import HomePage from "../pages/HomePage"
@@ -19,6 +20,10 @@ function AppRouter() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
+      <Route
+        path="/ativacao/sucesso"
+        element={<AccountActivationSuccessPage />}
+      />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
       <Route
         path="/membros"
