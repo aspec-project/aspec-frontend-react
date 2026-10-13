@@ -5,6 +5,7 @@ import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
 import ShowcaseContactsPage from '../pages/ShowcaseContactsPage'
 import PortfolioPage from '../pages/PortfolioPage'
+import SubscriptionPage from '../pages/SubscriptionPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
@@ -59,6 +60,11 @@ function AppRouter() {
           path="/dashboard"
           element={<PlaceholderPage title="Dashboard" />}
         />
+        {/*
+         * Área privada da conta: apresenta apenas a subscrição do membro
+         * com sessão iniciada, sem expor dados de outros utilizadores.
+         */}
+        <Route path="/conta/subscricao" element={<SubscriptionPage />} />
         {/*
          * /perfil mantém-se como endereço de entrada compatível, mas conduz
          * diretamente à primeira secção útil da área do membro.
