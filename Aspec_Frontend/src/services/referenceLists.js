@@ -25,3 +25,23 @@ export function getSocialPlatforms() {
 export function getWeekDays() {
   return getReferenceList('/week-days')
 }
+
+async function getDirectoryReferenceList(endpoint, signal) {
+  const response = await api.get(endpoint, { signal, skipAuthRedirect: true })
+  const body = response.data
+  if (body?.success !== true || !Array.isArray(body.data) ||
+    !body.data.every((item) => typeof item?.id === 'string' && item.id.trim() &&
+      typeof item.name === 'string' && item.name.trim()) ||
+    new Set(body.data.map((item) => item.id)).size !== body.data.length) {
+    throw new Error('A lista de filtros tem um formato inesperado.')
+  }
+  return body.data
+}
+
+export function getSectors(signal) {
+  return getDirectoryReferenceList('/sectors', signal)
+}
+
+export function getLocations(signal) {
+  return getDirectoryReferenceList('/locations', signal)
+}

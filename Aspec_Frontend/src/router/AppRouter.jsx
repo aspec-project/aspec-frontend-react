@@ -11,6 +11,7 @@ import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import HomePage from "../pages/HomePage"
+import MembersPage from '../pages/MembersPage'
 
 /**
  * Centraliza as rotas da aplicação.
@@ -35,7 +36,7 @@ function AppRouter() {
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
       <Route
         path="/membros"
-        element={<PlaceholderPage title="Diretório de membros" />}
+        element={<MembersPage />}
       />
       <Route
         path="/membros/:membroId"
