@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { isAxiosError } from "axios";
-import { normalizeError } from "../../services/api";
-import { getEvents } from "../../services/events";
+import { getEvents, getEventsErrorMessage } from "../../services/events";
 import {
   CalendarDays,
   Clock,
@@ -93,6 +91,7 @@ export default function UpcomingEvents() {
   const [agora, setAgora] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,13 +106,7 @@ export default function UpcomingEvents() {
         }
       } catch (err) {
         if (!controller.signal.aborted) {
-          setError(
-            isAxiosError(err)
-              ? normalizeError(err).message
-              : err instanceof Error
-                ? err.message
-                : "Ocorreu um erro ao carregar os eventos."
-          );
+          setError(getEventsErrorMessage(err));
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -125,7 +118,7 @@ export default function UpcomingEvents() {
     carregarEventos();
 
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
 
   // Atualiza a seleção enquanto a página estiver aberta,
   // retirando eventos cujo início já passou.
@@ -187,12 +180,20 @@ export default function UpcomingEvents() {
             A carregar eventos...
           </p>
         ) : error ? (
-          <p
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700"
-          >
-            {error}
-          </p>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
+            <p role="alert">{error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                setError("");
+                setAttempt((current) => current + 1);
+              }}
+              className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-700"
+            >
+              Tentar novamente
+            </button>
+          </div>
         ) : proximosEventos.length === 0 ? (
           <p className="py-12 text-center text-gray-500">
             Ainda não há eventos agendados.

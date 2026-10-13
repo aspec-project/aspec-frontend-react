@@ -1,0 +1,223 @@
+import { AxiosError, CanceledError } from "axios";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../../src/services/api.js";
+import { getEventsCapabilities, getEventsPage } from "../../src/services/events.js";
+
+function respostaApi(data, config, status = 200) {
+  return { data, config, status, statusText: "", headers: {} };
+}
+
+function respostaPagina(items = [], pagination = {}) {
+  return {
+    success: true,
+    data: {
+      items,
+      pagination: {
+        current_page: 1,
+        per_page: 10,
+        total: items.length,
+        last_page: 1,
+        ...pagination,
+      },
+    },
+  };
+}
+
+function simularResposta(data) {
+  const adapter = vi.fn((config) => Promise.resolve(respostaApi(data, config)));
+  api.defaults.adapter = adapter;
+  return adapter;
+}
+
+describe("getEventsPage", () => {
+  let adapterOriginal;
+
+  beforeEach(() => {
+    adapterOriginal = api.defaults.adapter;
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "false");
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "false");
+  });
+
+  afterEach(() => {
+    api.defaults.adapter = adapterOriginal;
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("pede apenas a página atual e preserva todos os eventos e os metadados recebidos", async () => {
+    const items = [
+      { id: "distante", name: "Evento distante", event_date: "2030-12-20" },
+      { id: "passado", name: "Evento passado", event_date: "2020-01-01" },
+      { id: "primeiro", name: "Primeiro evento", event_date: "2030-01-02" },
+      { id: "primeiro", name: "Registo repetido recebido da API" },
+      { id: "quinto", name: "Quinto evento" },
+    ];
+    const resposta = respostaPagina(items, { current_page: 2, total: 30, last_page: 3 });
+    const adapter = simularResposta(resposta);
+    const controller = new AbortController();
+
+    const pagina = await getEventsPage(
+      { categoryId: "categoria-a", locationId: "distrito-b", page: 2 },
+      controller.signal
+    );
+
+    expect(pagina).toEqual(resposta.data);
+    expect(adapter).toHaveBeenCalledTimes(1);
+    const config = adapter.mock.calls[0][0];
+    expect(config.url).toBe("/events");
+    expect(config.method).toBe("get");
+    expect(config.params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 2 });
+    expect(config.baseURL).toBe(api.defaults.baseURL);
+    expect(config.withCredentials).toBe(true);
+    expect(config.withXSRFToken).toBe(true);
+    expect(config.signal).toBe(controller.signal);
+  });
+
+  it.each([
+    [{}, { page: 1 }],
+    [{ categoryId: "", locationId: "", page: 1 }, { page: 1 }],
+    [{ categoryId: "categoria-a", page: 1 }, { category_id: "categoria-a", page: 1 }],
+    [{ locationId: "distrito-b", page: 1 }, { location_id: "distrito-b", page: 1 }],
+  ])("omite filtros vazios sem inventar parâmetros para %j", async (filtros, params) => {
+    const adapter = simularResposta(respostaPagina());
+
+    await getEventsPage(filtros);
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(adapter.mock.calls[0][0].params).toEqual(params);
+  });
+
+  it.each([0, -1, 1.5, "2", NaN])("rejeita uma página inválida antes do pedido: %s", async (page) => {
+    const adapter = simularResposta(respostaPagina());
+
+    await expect(getEventsPage({ page })).rejects.toThrow("A página dos eventos deve ser um número inteiro positivo.");
+
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { categoryId: ["categoria-a"] },
+    { categoryId: { id: "categoria-a" } },
+    { locationId: 4 },
+    { locationId: ["distrito-b"] },
+  ])("rejeita filtros inválidos antes do pedido: %j", async (filtros) => {
+    const adapter = simularResposta(respostaPagina());
+
+    await expect(getEventsPage(filtros)).rejects.toThrow("Os filtros dos eventos têm um formato inválido.");
+
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    null,
+    { success: false, data: { items: [] } },
+    { success: true, data: { items: null } },
+    respostaPagina([{ id: "", name: "Nome sem identificador" }]),
+    respostaPagina([{ id: "evento-a", name: "" }]),
+  ])("não converte uma resposta inválida numa página vazia: %j", async (resposta) => {
+    simularResposta(resposta);
+
+    await expect(getEventsPage()).rejects.toThrow("A resposta dos eventos tem um formato inesperado.");
+  });
+
+  it.each([
+    { current_page: 0 },
+    { current_page: 2 },
+    { per_page: 0 },
+    { total: -1 },
+    { total: 1.5 },
+    { last_page: 0 },
+    { total: 20, last_page: 1 },
+  ])("rejeita metadados de paginação inválidos: %j", async (pagination) => {
+    const adapter = simularResposta(respostaPagina([], pagination));
+
+    await expect(getEventsPage()).rejects.toThrow("A paginação dos eventos tem um formato inesperado.");
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("mantém os parâmetros futuros desativados até confirmar o contrato", async () => {
+    const items = Array.from({ length: 15 }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
+    const adapter = simularResposta(respostaPagina(items, { per_page: 15 }));
+
+    expect(getEventsCapabilities()).toEqual({ search: false, perPage: false });
+    expect((await getEventsPage({ search: "conferência" })).items).toHaveLength(15);
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1 });
+  });
+
+  it("combina a pesquisa com os filtros e pede dez resultados quando o contrato está ativado", async () => {
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+    const adapter = simularResposta(respostaPagina([], { current_page: 2, total: 25, last_page: 3 }));
+
+    expect(getEventsCapabilities()).toEqual({ search: true, perPage: true });
+    await getEventsPage({ search: "conferência", categoryId: "categoria-a", locationId: "distrito-b", page: 2 });
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(adapter.mock.calls[0][0].params).toEqual({ search: "conferência", category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 10 });
+  });
+
+  it("omite uma pesquisa vazia mesmo com o contrato ativado", async () => {
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
+    const adapter = simularResposta(respostaPagina());
+
+    await getEventsPage({ search: "   " });
+
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1 });
+  });
+
+  it.each([null, 12, ["evento"], { text: "evento" }])("rejeita uma pesquisa com formato inválido: %j", async (search) => {
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
+    const adapter = simularResposta(respostaPagina());
+
+    await expect(getEventsPage({ search })).rejects.toThrow();
+
+    expect(adapter).not.toHaveBeenCalled();
+  });
+
+  it.each([11, 15])("não corta silenciosamente uma página de %s resultados quando o limite dez está ativado", async (quantidade) => {
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+    const items = Array.from({ length: quantidade }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
+    const adapter = simularResposta(respostaPagina(items, { per_page: quantidade }));
+
+    await expect(getEventsPage()).rejects.toThrow();
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 10 });
+  });
+
+  it("rejeita metadados que ignoram per_page mesmo quando chegam menos de dez eventos", async () => {
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+    simularResposta(respostaPagina([{ id: "1", name: "Evento" }], { per_page: 15 }));
+
+    await expect(getEventsPage()).rejects.toThrow();
+  });
+
+  it("não mascara o 404 como uma página vazia", async () => {
+    const adapter = vi.fn((config) => Promise.reject(new AxiosError(
+      "HTTP 404", AxiosError.ERR_BAD_RESPONSE, config, undefined, respostaApi({}, config, 404)
+    )));
+    api.defaults.adapter = adapter;
+
+    await expect(getEventsPage()).rejects.toMatchObject({ response: { status: 404 } });
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancela o pedido pendente sem iniciar outras páginas", async () => {
+    const controller = new AbortController();
+    const adapter = vi.fn((config) => new Promise((_, reject) => {
+      config.signal.addEventListener("abort", () => {
+        reject(new CanceledError("Pedido cancelado", config));
+      }, { once: true });
+    }));
+    api.defaults.adapter = adapter;
+
+    const pedido = getEventsPage({ page: 1 }, controller.signal);
+    const resultado = expect(pedido).rejects.toMatchObject({ code: AxiosError.ERR_CANCELED });
+    controller.abort();
+    await resultado;
+
+    expect(adapter).toHaveBeenCalledTimes(1);
+  });
+});

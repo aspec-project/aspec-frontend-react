@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AxiosError, CanceledError } from "axios";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -66,6 +67,8 @@ describe("UpcomingEvents", () => {
 
   beforeEach(() => {
     adapterOriginal = api.defaults.adapter;
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "false");
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "false");
     vi.spyOn(Date, "now").mockReturnValue(
       new Date("2030-10-07T10:00:00").getTime()
     );
@@ -75,6 +78,7 @@ describe("UpcomingEvents", () => {
     cleanup();
     api.defaults.adapter = adapterOriginal;
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("mostra os três eventos futuros mais próximos, sem duplicar eventos entre páginas", async () => {
@@ -151,7 +155,7 @@ describe("UpcomingEvents", () => {
     mostrarAgenda();
 
     expect(await screen.findByRole("alert"))
-      .toHaveTextContent(`Erro do servidor (${status}).`);
+      .toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
     expect(screen.queryByText("Ainda não há eventos agendados."))
       .not.toBeInTheDocument();
   });
@@ -164,7 +168,7 @@ describe("UpcomingEvents", () => {
     mostrarAgenda();
 
     expect(await screen.findByRole("alert"))
-      .toHaveTextContent("Não foi possível contactar o servidor.");
+      .toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
     expect(screen.queryByText("Ainda não há eventos agendados."))
       .not.toBeInTheDocument();
   });
@@ -182,13 +186,13 @@ describe("UpcomingEvents", () => {
       .not.toBeInTheDocument();
   });
 
-  it("dá prioridade à mensagem de erro enviada pela API", async () => {
+  it("apresenta uma mensagem segura para o limite de pedidos mesmo quando a API envia outro texto", async () => {
     simularErro(429, { message: "A agenda está temporariamente indisponível." });
 
     mostrarAgenda();
 
     expect(await screen.findByRole("alert"))
-      .toHaveTextContent("A agenda está temporariamente indisponível.");
+      .toHaveTextContent("Demasiados pedidos. Tente novamente mais tarde.");
   });
 
   it.each([
@@ -201,7 +205,7 @@ describe("UpcomingEvents", () => {
     mostrarAgenda();
 
     expect(await screen.findByRole("alert"))
-      .toHaveTextContent("A resposta dos eventos tem um formato inesperado.");
+      .toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
     expect(screen.queryByText("Ainda não há eventos agendados."))
       .not.toBeInTheDocument();
   });
@@ -212,7 +216,7 @@ describe("UpcomingEvents", () => {
     mostrarAgenda();
 
     expect(await screen.findByRole("alert"))
-      .toHaveTextContent("A paginação dos eventos tem um formato inesperado.");
+      .toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
     expect(adapter).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Ainda não há eventos agendados."))
       .not.toBeInTheDocument();
@@ -229,7 +233,7 @@ describe("UpcomingEvents", () => {
 
     mostrarAgenda();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Erro do servidor (500).");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
     expect(screen.queryByRole("heading", { name: evento.name })).not.toBeInTheDocument();
     expect(adapter).toHaveBeenCalledTimes(2);
   });
@@ -259,6 +263,39 @@ describe("UpcomingEvents", () => {
     expect(await screen.findByText("Ainda não há eventos agendados."))
       .toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it.each([404, 500])("permite repetir por teclado após HTTP %s e recuperar os próximos eventos", async (status) => {
+    const user = userEvent.setup();
+    const evento = criarEvento("recuperado", "Encontro recuperado", "2030-10-08", "11:00:00");
+    const adapter = vi.fn()
+      .mockImplementationOnce((config) => Promise.reject(erroHttp(config, status, { message: "Recurso não encontrado." })))
+      .mockImplementationOnce((config) => Promise.resolve(respostaApi(respostaEventos([evento]), config)));
+    api.defaults.adapter = adapter;
+    mostrarAgenda();
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("Não foi possível carregar os eventos. Tente novamente.");
+    expect(screen.queryByText("Recurso não encontrado.")).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Tentar novamente" }).focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("heading", { name: evento.name })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(adapter).toHaveBeenCalledTimes(2);
+    expect(adapter.mock.calls.map(([config]) => config.params)).toEqual([{ page: 1 }, { page: 1 }]);
+  });
+
+  it("as opções futuras da Agenda não alteram a estratégia de pedidos da homepage", async () => {
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
+    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+    const adapter = vi.fn((config) => Promise.resolve(respostaApi(respostaEventos([], 2), config)));
+    api.defaults.adapter = adapter;
+    mostrarAgenda();
+
+    await screen.findByText("Ainda não há eventos agendados.");
+
+    expect(adapter.mock.calls.map(([config]) => config.params)).toEqual([{ page: 1 }, { page: 2 }]);
   });
 
   it("cancela o pedido pendente ao sair da página", async () => {
