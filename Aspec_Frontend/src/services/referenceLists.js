@@ -26,6 +26,9 @@ export function getWeekDays() {
   return getReferenceList('/week-days')
 }
 
+/*
+ * Obtém listas de referência utilizadas na Agenda de Eventos.
+ */
 async function getEventReferenceList(endpoint, signal) {
   const response = await api.get(endpoint, { signal })
   const resposta = response.data
@@ -48,10 +51,52 @@ async function getEventReferenceList(endpoint, signal) {
   return resposta.data
 }
 
+/*
+ * Obtém listas de referência utilizadas no Diretório público.
+ */
+async function getDirectoryReferenceList(endpoint, signal) {
+  const response = await api.get(endpoint, {
+    signal,
+    skipAuthRedirect: true,
+  })
+
+  const body = response.data
+
+  if (
+    body?.success !== true ||
+    !Array.isArray(body.data) ||
+    !body.data.every(
+      (item) =>
+        typeof item?.id === 'string' &&
+        item.id.trim() &&
+        typeof item.name === 'string' &&
+        item.name.trim(),
+    ) ||
+    new Set(body.data.map((item) => item.id)).size !== body.data.length
+  ) {
+    throw new Error('A lista de filtros tem um formato inesperado.')
+  }
+
+  return body.data
+}
+
+/*
+ * Categorias utilizadas nos filtros da Agenda de Eventos.
+ */
 export function getEventCategories(signal) {
   return getEventReferenceList('/event-categories', signal)
 }
 
+/*
+ * Setores utilizados no Diretório de Membros.
+ */
+export function getSectors(signal) {
+  return getDirectoryReferenceList('/sectors', signal)
+}
+
+/*
+ * Localizações utilizadas nas páginas públicas.
+ */
 export function getLocations(signal) {
-  return getEventReferenceList('/locations', signal)
+  return getDirectoryReferenceList('/locations', signal)
 }

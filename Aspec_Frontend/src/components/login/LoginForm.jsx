@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react";
 
 export default function LoginForm({
@@ -10,6 +11,7 @@ export default function LoginForm({
   togglePassword,
   submitting,
   formError,
+  canRequestActivationLink,
   handleLogin,
   goToRegister
 }) {
@@ -64,9 +66,20 @@ export default function LoginForm({
         </div>
 
         {formError && (
-          <div className="flex items-center gap-1.5 text-xs text-red-500">
-            <AlertCircle size={13} />
-            <span>{formError}</span>
+          <div className="flex items-start gap-1.5 text-xs text-red-500">
+            <AlertCircle className="mt-0.5 shrink-0" size={13} />
+            <div>
+              <span>{formError}</span>
+
+              {canRequestActivationLink && (
+                <Link
+                  to="/ativacao/novo-link"
+                  className="mt-1 block font-semibold text-[#8a7043] hover:underline"
+                >
+                  Pedir novo link de ativação
+                </Link>
+              )}
+            </div>
           </div>
         )}
 

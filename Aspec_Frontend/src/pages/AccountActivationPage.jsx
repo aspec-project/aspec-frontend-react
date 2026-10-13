@@ -139,7 +139,7 @@ function BillingField({ label, name, error, ...inputProps }) {
 
 function ActivationShell({ children }) {
   return (
-    <section className="flex min-h-[calc(100vh-10rem)] items-center justify-center bg-[#f8f7f2] px-5 py-12">
+    <section className="flex min-h-screen items-center justify-center bg-[#f8f7f2] px-5 py-12">
       <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
         {children}
       </div>

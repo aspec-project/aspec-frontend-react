@@ -10,7 +10,7 @@ const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
 const maximumFileSize = 5 * 1024 * 1024
 
 /* Número máximo de imagens permitidas no portefólio. */
-const maximumImages = 8
+const maximumImages = 10
 
 /* Evita criar um novo array vazio em cada renderização. */
 const emptyInitialImages = []
