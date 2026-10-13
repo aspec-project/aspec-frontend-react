@@ -45,3 +45,57 @@ export async function resumeSubscription() {
 
   return response.data
 }
+
+/*
+ * Obtém uma página das faturas do membro autenticado.
+ *
+ * A API fixa 10 resultados por página e devolve tanto os itens como os
+ * metadados necessários para construir os controlos de paginação.
+ */
+export async function getInvoices(page = 1) {
+  const response = await api.get('/invoices', {
+    params: { page },
+  })
+
+  return response.data.data
+}
+
+/*
+ * Os pedidos de PDF usam responseType blob. Quando a API devolve um erro,
+ * também o recebemos como Blob; convertemo-lo novamente para JSON para que
+ * normalizeError consiga mostrar a mensagem enviada pelo backend.
+ */
+async function rethrowInvoicePdfError(error) {
+  const responseData = error.response?.data
+
+  if (typeof Blob !== 'undefined' && responseData instanceof Blob) {
+    try {
+      error.response.data = JSON.parse(await responseData.text())
+    } catch {
+      /*
+       * Se a resposta não for JSON, preservamos o erro original. O tratamento
+       * global apresenta então a mensagem de reserva apropriada.
+       */
+    }
+  }
+
+  throw error
+}
+
+/*
+ * Obtém o conteúdo binário do PDF de uma fatura emitida.
+ *
+ * A criação do download no browser fica a cargo do componente, que conhece
+ * o número da fatura para lhe atribuir um nome legível.
+ */
+export async function downloadInvoicePdf(invoiceId) {
+  try {
+    const response = await api.get(`/invoices/${invoiceId}/pdf`, {
+      responseType: 'blob',
+    })
+
+    return response.data
+  } catch (error) {
+    await rethrowInvoicePdfError(error)
+  }
+}

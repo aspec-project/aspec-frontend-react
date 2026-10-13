@@ -6,6 +6,7 @@ import {
   getSubscription,
   resumeSubscription,
 } from '../services/subscription'
+import InvoiceList from '../components/subscription/InvoiceList'
 
 /*
  * Tradução dos estados técnicos devolvidos pelo Stripe para texto legível
@@ -454,6 +455,12 @@ export default function SubscriptionPage() {
             </p>
           )}
         </section>
+        {/*
+         * A lista gere o próprio carregamento, paginação e download de PDFs.
+         * Mantemo-la separada da gestão da subscrição para cada responsabilidade
+         * ficar isolada e para não recarregar o estado do pagamento sem necessidade.
+         */}
+        <InvoiceList />
       </div>
     </main>
   )
