@@ -1,6 +1,14 @@
 import { useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Menu, X, ChevronDown, User, LogOut, Settings } from "lucide-react";
+import {
+  Menu,
+  X,
+  ChevronDown,
+  User,
+  LogOut,
+  Settings,
+  CreditCard,
+} from "lucide-react";
 import { useAuthStore } from '../../store/authStore'
 
 export default function Header() {
@@ -46,21 +54,6 @@ export default function Header() {
   const mobileButtonRef = useRef(null);
   const accountButtonRef = useRef(null);
   const navigate = useNavigate();
-
-  const accountLinks = isAdmin
-    ? [
-        { to: "/admin", label: "Administração", Icon: Settings },
-        { to: "/admin/utilizadores", label: "Utilizadores", Icon: User },
-        { to: "/admin/eventos", label: "Gestão de eventos", Icon: Menu },
-        { to: "/admin/moderacao", label: "Moderação", Icon: Settings },
-      ]
-    : isMember
-      ? [
-          { to: "/dashboard", label: "O meu perfil", Icon: User },
-          { to: "/perfil/editar", label: "Editar perfil", Icon: Settings },
-          { to: "/perfil/portefolio", label: "Portefólio", Icon: Settings },
-        ]
-      : [];
 
   const closeMenus = () => {
     setMobileOpen(false);
@@ -177,24 +170,25 @@ export default function Header() {
                   <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
                     {isMember && (
                       <>
+                        {/* Atalhos principais da área privada disponíveis ao membro autenticado. */}
                         <button
                           onClick={() => {
-                            navigate('/dashboard')
+                            navigate('/perfil')
                             setUserMenuOpen(false)
                           }}
                           className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
                         >
-                          <User size={14} /> O meu perfil
+                          <User size={14} /> A minha montra
                         </button>
 
                         <button
                           onClick={() => {
-                            navigate('/perfil/editar')
+                            navigate('/conta/subscricao')
                             setUserMenuOpen(false)
                           }}
                           className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
                         >
-                          <Settings size={14} /> Editar perfil
+                          <CreditCard size={14} /> A minha subscrição
                         </button>
                       </>
                     )}
@@ -299,20 +293,21 @@ export default function Header() {
               <>
                 {isMember && (
                   <>
+                    {/* Atalhos principais da área privada também disponíveis em ecrãs pequenos. */}
                     <Link
-                      to="/dashboard"
+                      to="/perfil"
                       onClick={() => setMobileOpen(false)}
                       className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
                     >
-                      O meu perfil
+                      A minha montra
                     </Link>
 
                     <Link
-                      to="/perfil/editar"
+                      to="/conta/subscricao"
                       onClick={() => setMobileOpen(false)}
                       className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                     >
-                      Editar perfil
+                      A minha subscrição
                     </Link>
                   </>
                 )}
