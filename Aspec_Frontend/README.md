@@ -1,5 +1,30 @@
 # React + Vite
 
+## Agenda e contrato da API
+
+A agenda obtém apenas uma página por pedido em `/api/events`, combinando
+`category_id` e `location_id` e usando os metadados de paginação do backend.
+
+As configurações seguintes estão desativadas por omissão:
+
+- `VITE_EVENTS_SEARCH_ENABLED=true` ativa a pesquisa e envia `search` ao backend.
+- `VITE_EVENTS_PER_PAGE_ENABLED=true` envia `per_page=10`. Respostas com um limite
+  superior a dez são rejeitadas; os resultados não são cortados no frontend.
+
+Estes parâmetros ainda não constam do contrato Postman atual. As opções só devem
+ser ativadas depois de o backend confirmar o respetivo suporte. Com as opções
+desativadas, a pesquisa fica indisponível e a agenda respeita a paginação recebida,
+cujo exemplo atual utiliza quinze resultados por página.
+
+Descrição, cor da categoria e ocupação são apresentadas apenas quando a API
+devolver os campos válidos `description`, `category.color`, `max_attendees` e
+`registrations_count`. Não se obtém o detalhe individual para completar cada card.
+Estes campos opcionais também aguardam confirmação no contrato da listagem.
+
+A homepage mantém a consulta existente de todas as páginas para selecionar os
+três eventos futuros mais próximos. A sua otimização depende de o backend
+confirmar a ordenação completa ou um mecanismo para obter só esses eventos.
+
 ## Testes do frontend
 
 Todos os testes partilhados ficam na pasta `tests/`, organizados por componente.

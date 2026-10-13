@@ -9,6 +9,7 @@ import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import HomePage from "../pages/HomePage"
+import EventsPage from "../pages/EventsPage"
 
 /**
  * Centraliza as rotas da aplicação.
@@ -38,7 +39,7 @@ function AppRouter() {
         path="/membros/:membroId"
         element={<PlaceholderPage title="Perfil do membro" />}
       />
-      <Route path="/eventos" element={<PlaceholderPage title="Eventos" />} />
+      <Route path="/eventos" element={<EventsPage />} />
       <Route
         path="/eventos/:eventoId"
         element={<PlaceholderPage title="Detalhe do evento" />}
