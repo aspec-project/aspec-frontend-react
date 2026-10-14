@@ -1,15 +1,23 @@
+import UserActions from './UserActions'
 import UserStatusBadge from './UserStatusBadge'
-import { formatFullDate, formatRegistrationDate, getDisplayName, getInitial } from '../../../utils/adminUsers'
+import { formatFullDate, formatRegistrationDate, getAvailableActions, getDisplayName, getInitial } from '../../../utils/adminUsers'
 
-const HEADERS = ['Nome / Negócio', 'Setor', 'Localidade', 'Email', 'Data registo', 'Estado']
+const HEADERS = ['Nome / Negócio', 'Setor', 'Localidade', 'Email', 'Data registo', 'Estado', 'Ações']
 
 /**
- * Tabela da lista de utilizadores do backoffice. Mostra os itens pela ordem recebida do servidor.
+ * Tabela da lista de utilizadores do backoffice. Mostra os itens pela ordem recebida do servidor,
+ * com as ações disponíveis para cada utilizador.
  *
- * @param {{users: object[], busy?: boolean}} props
+ * @param {{
+ *   users: object[],
+ *   busy?: boolean,
+ *   currentUserId?: string,
+ *   onAction: (action: string, user: object) => void,
+ *   actionsDisabled?: boolean,
+ * }} props
  * @returns {JSX.Element}
  */
-export default function UsersTable({ users, busy = false }) {
+export default function UsersTable({ users, busy = false, currentUserId, onAction, actionsDisabled = false }) {
   return (
     <div aria-busy={busy} className={`overflow-x-auto rounded-xl bg-white shadow-sm transition-opacity ${busy ? 'opacity-60' : ''}`}>
       <table className="w-full min-w-[900px] text-left text-sm">
@@ -51,6 +59,14 @@ export default function UsersTable({ users, busy = false }) {
                   <span title={formatFullDate(user.created_at)}>{formatRegistrationDate(user.created_at)}</span>
                 </td>
                 <td className="px-5 py-4"><UserStatusBadge user={user} /></td>
+                <td className="px-5 py-4">
+                  <UserActions
+                    user={user}
+                    actions={getAvailableActions(user, currentUserId)}
+                    disabled={actionsDisabled}
+                    onAction={onAction}
+                  />
+                </td>
               </tr>
             )
           })}

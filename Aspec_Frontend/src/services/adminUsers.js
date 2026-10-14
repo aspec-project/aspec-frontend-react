@@ -32,3 +32,56 @@ export async function getAdminUsers(filters = {}, signal) {
 
   return response.data.data
 }
+
+/**
+ * Muda o estado de um utilizador do backoffice através de uma ação de administração.
+ *
+ * @param {string} id Id do utilizador.
+ * @param {'approve'|'reject'|'block'|'unblock'} action Ação da API.
+ * @returns {Promise<{message: string, user: object}>} Mensagem da API e utilizador atualizado.
+ */
+async function changeUserStatus(id, action) {
+  const response = await api.patch(`/admin/users/${encodeURIComponent(id)}/${action}`)
+
+  return { message: response.data.message, user: response.data.data }
+}
+
+/**
+ * Aprova uma candidatura pendente (a API envia o email de ativação).
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function approveUser(id) {
+  return changeUserStatus(id, 'approve')
+}
+
+/**
+ * Recusa uma candidatura pendente (a API desativa a conta sem enviar email).
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function rejectUser(id) {
+  return changeUserStatus(id, 'reject')
+}
+
+/**
+ * Bloqueia um membro (a API desativa a conta, termina as sessões e cancela a subscrição).
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function blockUser(id) {
+  return changeUserStatus(id, 'block')
+}
+
+/**
+ * Desbloqueia um membro bloqueado (a API envia o email de ativação ou de reativação).
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function unblockUser(id) {
+  return changeUserStatus(id, 'unblock')
+}

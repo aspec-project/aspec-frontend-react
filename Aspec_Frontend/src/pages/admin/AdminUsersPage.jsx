@@ -1,13 +1,20 @@
 import { Search } from 'lucide-react'
 import UserStatusTabs from '../../components/admin/users/UserStatusTabs'
 import UsersTable from '../../components/admin/users/UsersTable'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import FeedbackBanner from '../../components/ui/FeedbackBanner'
+import useAdminUserActions from '../../hooks/useAdminUserActions'
 import useAdminUsers from '../../hooks/useAdminUsers'
+import { useAuthStore } from '../../store/authStore'
+import { getActionConfirmation } from '../../utils/adminUsers'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * Página Gestão de Utilizadores do backoffice: separadores de estado com contagens, pesquisa,
- * "Mostrar admins", tabela e paginação. A lógica vive no hook useAdminUsers.
+ * "Mostrar admins", tabela com ações (aprovar, recusar, bloquear, desbloquear) e paginação.
+ * Cada ação pede confirmação num diálogo e o resultado aparece numa mensagem com o texto da API.
+ * A lógica vive nos hooks useAdminUsers (lista) e useAdminUserActions (ações).
  *
  * @returns {JSX.Element}
  */
@@ -20,15 +27,25 @@ export default function AdminUsersPage() {
     toggleIncludeAdmins,
     goToPage,
     retry,
+    refresh,
     data,
     loading,
     error,
   } = useAdminUsers()
+  const currentUserId = useAuthStore((state) => state.user?.id)
+  const actions = useAdminUserActions({ onChanged: refresh })
 
   const pagination = data?.pagination
+  const confirmation = actions.confirming
+    ? getActionConfirmation(actions.confirming.action, actions.confirming.user)
+    : null
 
   return (
     <div className="space-y-6">
+      {actions.feedback && (
+        <FeedbackBanner type={actions.feedback.type} message={actions.feedback.message} onClose={actions.dismissFeedback} />
+      )}
+
       <UserStatusTabs activeTab={filters.tab} counts={data?.counts} onSelect={selectTab} />
 
       <div className="flex flex-wrap items-center gap-4">
@@ -67,7 +84,13 @@ export default function AdminUsersPage() {
           {data.items.length === 0 ? (
             <p className="rounded-xl bg-white py-12 text-center text-gray-600 shadow-sm">Não foram encontrados utilizadores.</p>
           ) : (
-            <UsersTable users={data.items} busy={loading} />
+            <UsersTable
+              users={data.items}
+              busy={loading}
+              currentUserId={currentUserId}
+              onAction={actions.requestAction}
+              actionsDisabled={loading || actions.pending}
+            />
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -98,6 +121,14 @@ export default function AdminUsersPage() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmation)}
+        {...confirmation}
+        pending={actions.pending}
+        onConfirm={actions.confirm}
+        onCancel={actions.cancel}
+      />
     </div>
   )
 }
