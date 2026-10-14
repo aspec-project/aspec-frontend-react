@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../src/services/api'
-import { getAdminUsers } from '../../src/services/adminUsers'
+import { approveUser, blockUser, getAdminUsers, rejectUser, unblockUser } from '../../src/services/adminUsers'
 
 const payload = {
   items: [{ id: 'u1', email: 'ana@techbless.pt' }],
@@ -42,5 +42,36 @@ describe('getAdminUsers', () => {
     vi.spyOn(api, 'get').mockRejectedValue(error)
 
     await expect(getAdminUsers({})).rejects.toBe(error)
+  })
+})
+
+describe('ações sobre utilizadores', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('cada ação faz um PATCH sem corpo à rota certa e devolve a mensagem e o utilizador', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'M', data: { id: 'u1' } } })
+    const pairs = [[approveUser, 'approve'], [rejectUser, 'reject'], [blockUser, 'block'], [unblockUser, 'unblock']]
+
+    for (const [action, path] of pairs) {
+      patch.mockClear()
+
+      const result = await action('u1')
+
+      expect(patch.mock.calls).toEqual([[`/admin/users/u1/${path}`]])
+      expect(result).toEqual({ message: 'M', user: { id: 'u1' } })
+    }
+  })
+
+  it('codifica o id no caminho e propaga o erro do pedido', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'M', data: {} } })
+
+    await approveUser('a/b?c')
+
+    expect(patch).toHaveBeenCalledWith('/admin/users/a%2Fb%3Fc/approve')
+
+    const error = new Error('Falha de rede')
+    patch.mockRejectedValue(error)
+
+    await expect(blockUser('u1')).rejects.toBe(error)
   })
 })

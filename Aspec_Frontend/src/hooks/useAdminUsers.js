@@ -9,7 +9,8 @@ const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
 
 /**
  * Estado e pedidos da lista de utilizadores do backoffice: separador, pesquisa com debounce,
- * "Mostrar admins" e paginação. Cancela o pedido anterior sempre que os filtros mudam.
+ * "Mostrar admins" e paginação. Cancela o pedido anterior sempre que os filtros mudam e, se a
+ * página atual ficar vazia (ex.: depois de uma ação), passa para a última página.
  *
  * @returns {{
  *   filters: {tab: string, search: string, includeAdmins: boolean, page: number},
@@ -19,6 +20,7 @@ const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
  *   toggleIncludeAdmins: () => void,
  *   goToPage: (page: number) => void,
  *   retry: () => void,
+ *   refresh: () => void,
  *   data: {items: object[], pagination: object, counts: object}|null,
  *   loading: boolean,
  *   error: string,
@@ -67,6 +69,14 @@ export default function useAdminUsers() {
     )
       .then((result) => {
         if (controller.signal.aborted) return
+
+        const lastPage = Math.max(1, result.pagination?.last_page ?? 1)
+
+        if (result.items.length === 0 && filters.page > lastPage) {
+          setFilters((current) => ({ ...current, page: lastPage }))
+          return
+        }
+
         setData(result)
         setLoading(false)
       })
@@ -79,6 +89,15 @@ export default function useAdminUsers() {
     return () => controller.abort()
   }, [filters, retryKey])
 
+  /**
+   * Repete o pedido com os filtros atuais, mantendo a tabela anterior visível enquanto carrega.
+   */
+  const reload = () => {
+    setLoading(true)
+    setError('')
+    setRetryKey((value) => value + 1)
+  }
+
   return {
     filters,
     searchInput,
@@ -86,11 +105,8 @@ export default function useAdminUsers() {
     selectTab: (key) => changeFilters((current) => ({ ...current, tab: key, page: 1 })),
     toggleIncludeAdmins: () => changeFilters((current) => ({ ...current, includeAdmins: !current.includeAdmins, page: 1 })),
     goToPage: (page) => changeFilters((current) => ({ ...current, page })),
-    retry: () => {
-      setLoading(true)
-      setError('')
-      setRetryKey((value) => value + 1)
-    },
+    retry: reload,
+    refresh: reload,
     data,
     loading,
     error,

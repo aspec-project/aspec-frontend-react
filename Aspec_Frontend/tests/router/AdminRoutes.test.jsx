@@ -6,7 +6,13 @@ import { getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
 import { useAuthStore } from '../../src/store/authStore'
 
-vi.mock('../../src/services/adminUsers', () => ({ getAdminUsers: vi.fn() }))
+vi.mock('../../src/services/adminUsers', () => ({
+  getAdminUsers: vi.fn(),
+  approveUser: vi.fn(),
+  rejectUser: vi.fn(),
+  blockUser: vi.fn(),
+  unblockUser: vi.fn(),
+}))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
   getEventsErrorMessage: vi.fn(() => 'Erro'),

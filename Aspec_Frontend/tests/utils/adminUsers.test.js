@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  USER_ACTION_LABELS,
   USER_STATUS_TABS,
   formatFullDate,
+  getActionConfirmation,
+  getAvailableActions,
   formatRegistrationDate,
   getDisplayName,
   getInitial,
@@ -45,5 +48,66 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
     expect(getInitial(withProfile)).toBe('M')
     expect(getDisplayName(withoutProfile)).toBe('jose@x.pt')
     expect(getInitial(withoutProfile)).toBe('J')
+  })
+})
+
+describe('ações disponíveis e textos de confirmação', () => {
+  const member = (id, status, reason = null) => ({ id, role: { name: 'Member' }, account_status: { name: status }, inactive_reason: reason })
+
+  it('mostra as ações certas para cada estado e nenhuma para admins ou para a própria conta', () => {
+    const cases = [
+      [member('m1', 'Pending'), ['approve', 'reject']],
+      [member('m2', 'Approved'), ['block']],
+      [member('m3', 'Active'), ['block']],
+      [member('m4', 'Inactive', 'blocked'), ['unblock']],
+      [member('m5', 'Inactive', 'unpaid'), ['block']],
+      [member('m6', 'Inactive', 'cancelled'), ['block']],
+      [member('m7', 'Inactive', 'rejected'), []],
+      [member('m8', 'Inactive', 'deleted'), []],
+      [member('m9', 'Inactive', null), []],
+      [member('m10', 'Desconhecido'), []],
+      [{ ...member('admin-2', 'Active'), role: { name: 'Admin' } }, []],
+      [member('admin-1', 'Active'), []],
+    ]
+
+    for (const [target, expected] of cases) {
+      expect(getAvailableActions(target, 'admin-1')).toEqual(expected)
+    }
+
+    expect(USER_ACTION_LABELS).toEqual({ approve: 'Aprovar', reject: 'Recusar', block: 'Bloquear', unblock: 'Desbloquear' })
+  })
+
+  it('explica o efeito de cada ação com o nome e o email do membro', () => {
+    const maria = { email: 'maria@santos.pt', member_profile: { name: 'Maria Santos' } }
+    const who = 'Maria Santos (maria@santos.pt)'
+
+    expect(getActionConfirmation('approve', maria)).toEqual({
+      title: 'Aprovar candidatura',
+      description: `Aprovar a candidatura de ${who}? A conta passa a Aprovada e é enviado um email com o link para pagar a quota. Só fica ativa depois do pagamento.`,
+      confirmLabel: 'Aprovar',
+      tone: 'primary',
+    })
+    expect(getActionConfirmation('reject', maria)).toEqual({
+      title: 'Recusar candidatura',
+      description: `Recusar a candidatura de ${who}? A conta fica inativa e não é enviado nenhum email.`,
+      confirmLabel: 'Recusar',
+      tone: 'danger',
+    })
+    expect(getActionConfirmation('block', maria)).toEqual({
+      title: 'Bloquear membro',
+      description: `Bloquear ${who}? A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Não é enviado nenhum email.`,
+      confirmLabel: 'Bloquear',
+      tone: 'danger',
+    })
+    expect(getActionConfirmation('unblock', maria)).toEqual({
+      title: 'Desbloquear membro',
+      description: `Desbloquear ${who}? A conta não fica logo ativa: é enviado um email com o link para pagar a quota e só fica ativa depois do pagamento.`,
+      confirmLabel: 'Desbloquear',
+      tone: 'primary',
+    })
+
+    const { description } = getActionConfirmation('block', { email: 'x@y.pt', member_profile: null })
+    expect(description).toContain('x@y.pt?')
+    expect(description).not.toContain('(')
   })
 })

@@ -128,3 +128,90 @@ export function getDisplayName(user) {
 export function getInitial(user) {
   return getDisplayName(user).charAt(0).toUpperCase()
 }
+
+/**
+ * Nomes das ações de administração sobre um utilizador, por chave da API.
+ *
+ * @type {{approve: string, reject: string, block: string, unblock: string}}
+ */
+export const USER_ACTION_LABELS = {
+  approve: 'Aprovar',
+  reject: 'Recusar',
+  block: 'Bloquear',
+  unblock: 'Desbloquear',
+}
+
+const BLOCKABLE_INACTIVE_REASONS = ['unpaid', 'cancelled']
+
+/**
+ * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins e a própria conta
+ * não têm ações (a API responderia sempre 409).
+ *
+ * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null}} user
+ * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
+ * @returns {('approve'|'reject'|'block'|'unblock')[]}
+ */
+export function getAvailableActions(user, currentUserId) {
+  if (!user || user.role?.name === 'Admin' || user.id === currentUserId) {
+    return []
+  }
+
+  switch (user.account_status?.name) {
+    case 'Pending':
+      return ['approve', 'reject']
+    case 'Approved':
+    case 'Active':
+      return ['block']
+    case 'Inactive':
+      if (user.inactive_reason === 'blocked') {
+        return ['unblock']
+      }
+
+      return BLOCKABLE_INACTIVE_REASONS.includes(user.inactive_reason) ? ['block'] : []
+    default:
+      return []
+  }
+}
+
+/**
+ * Textos do diálogo de confirmação de uma ação, com o efeito real no backend (incluindo emails).
+ *
+ * @param {'approve'|'reject'|'block'|'unblock'} action
+ * @param {{email?: string, member_profile?: {name?: string}|null}} user
+ * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger'}}
+ */
+export function getActionConfirmation(action, user) {
+  const who = user?.member_profile?.name ? `${getDisplayName(user)} (${user.email})` : getDisplayName(user)
+
+  switch (action) {
+    case 'approve':
+      return {
+        title: 'Aprovar candidatura',
+        description: `Aprovar a candidatura de ${who}? A conta passa a Aprovada e é enviado um email com o link para pagar a quota. Só fica ativa depois do pagamento.`,
+        confirmLabel: USER_ACTION_LABELS.approve,
+        tone: 'primary',
+      }
+    case 'reject':
+      return {
+        title: 'Recusar candidatura',
+        description: `Recusar a candidatura de ${who}? A conta fica inativa e não é enviado nenhum email.`,
+        confirmLabel: USER_ACTION_LABELS.reject,
+        tone: 'danger',
+      }
+    case 'block':
+      return {
+        title: 'Bloquear membro',
+        description: `Bloquear ${who}? A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Não é enviado nenhum email.`,
+        confirmLabel: USER_ACTION_LABELS.block,
+        tone: 'danger',
+      }
+    case 'unblock':
+    default:
+      return {
+        title: 'Desbloquear membro',
+        description: `Desbloquear ${who}? A conta não fica logo ativa: é enviado um email com o link para pagar a quota e só fica ativa depois do pagamento.`,
+        confirmLabel: USER_ACTION_LABELS.unblock,
+        tone: 'primary',
+      }
+  }
+}
