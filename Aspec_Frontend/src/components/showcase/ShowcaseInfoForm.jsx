@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { normalizeError } from '../../services/api'
+import { isSessionCurrent } from '../../services/sessionContext'
+import useSessionRequest from '../../hooks/useSessionRequest'
 import {
   getMemberProfile,
   updateMemberProfile,
@@ -25,6 +27,8 @@ const initialFormData = {
  * para que esta página fique focada no nome, descrição e logótipo.
  */
 function ShowcaseInfoForm() {
+  const getRequestContext = useSessionRequest()
+  const savingRef = useRef(false)
   const [formData, setFormData] = useState(initialFormData)
   const [profileAddress, setProfileAddress] = useState('')
   const [logoFile, setLogoFile] = useState(null)
@@ -43,13 +47,14 @@ function ShowcaseInfoForm() {
    * porque o backend exige que esse campo esteja sempre preenchido.
    */
   useEffect(() => {
-    let componentIsMounted = true
+    const context = getRequestContext()
+    if (!context) return
 
     async function loadShowcaseInfo() {
       try {
-        const profile = await getMemberProfile()
+        const profile = await getMemberProfile(context)
 
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
@@ -60,7 +65,7 @@ function ShowcaseInfoForm() {
         setProfileAddress(profile.address ?? '')
         setSavedLogoUrl(profile.logo_url ?? '')
       } catch (error) {
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
@@ -71,7 +76,7 @@ function ShowcaseInfoForm() {
             'Não foi possível carregar a informação da montra.',
         )
       } finally {
-        if (componentIsMounted) {
+        if (isSessionCurrent(context)) {
           setIsLoading(false)
         }
       }
@@ -79,10 +84,7 @@ function ShowcaseInfoForm() {
 
     loadShowcaseInfo()
 
-    return () => {
-      componentIsMounted = false
-    }
-  }, [])
+  }, [getRequestContext])
 
   /*
    * Atualiza os campos de texto reutilizando o atributo name do input.
@@ -134,6 +136,9 @@ function ShowcaseInfoForm() {
   async function handleSubmit(event) {
     event.preventDefault()
 
+    const context = getRequestContext()
+    if (!context || savingRef.current) return
+
     if (!profileAddress.trim()) {
       setStatus({
         type: 'error',
@@ -144,18 +149,22 @@ function ShowcaseInfoForm() {
       return
     }
 
+    savingRef.current = true
     setIsSaving(true)
     setStatus(null)
     setFieldErrors({})
 
     try {
-      await updateMemberProfile(buildShowcasePayload())
+      await updateMemberProfile(buildShowcasePayload(), context)
+
+      if (!isSessionCurrent(context)) return
 
       const shouldUploadLogo =
         logoFile && logoFile !== uploadedLogoFile
 
       if (shouldUploadLogo) {
-        await uploadMemberLogo(logoFile)
+        await uploadMemberLogo(logoFile, context)
+        if (!isSessionCurrent(context)) return
         setUploadedLogoFile(logoFile)
       }
 
@@ -164,6 +173,8 @@ function ShowcaseInfoForm() {
         message: 'Informação da montra guardada com sucesso.',
       })
     } catch (error) {
+      if (!isSessionCurrent(context)) return
+
       const normalisedError = normalizeError(error)
 
       setFieldErrors(normalisedError.fieldErrors ?? {})
@@ -175,7 +186,8 @@ function ShowcaseInfoForm() {
         }`,
       })
     } finally {
-      setIsSaving(false)
+      savingRef.current = false
+      if (isSessionCurrent(context)) setIsSaving(false)
     }
   }
 

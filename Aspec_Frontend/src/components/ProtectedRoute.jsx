@@ -1,16 +1,17 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
-export function ProtectedRoute({ allowedRoles }) {
+export function ProtectedRoute({ allowedRoles, allowedStatuses }) {
   const user = useAuthStore((state) => state.user);
   const status = useAuthStore((state) => state.status);
+  const generation = useAuthStore((state) => state.sessionGeneration);
   const location = useLocation();
 
-  if (status === "loading") {
+  if (status === "loading" || status === "logging-out") {
     return null;
   }
 
-  if (!user) {
+  if (!user || status !== 'authenticated') {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -18,5 +19,9 @@ export function ProtectedRoute({ allowedRoles }) {
     return <Navigate to="/" replace />;
   }
 
-  return <Outlet />;
+  if (allowedStatuses && !allowedStatuses.includes(user.account_status?.name)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet key={`${user.id}:${generation}`} />;
 }

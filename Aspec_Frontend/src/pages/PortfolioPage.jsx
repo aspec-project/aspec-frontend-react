@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import MemberDashboardLayout from '../components/layout/MemberDashboardLayout'
 import PortfolioGallery from '../components/showcase/PortfolioGallery'
 import { normalizeError } from '../services/api'
+import { isSessionCurrent } from '../services/sessionContext'
+import useSessionRequest from '../hooks/useSessionRequest'
 import {
   deletePortfolioImage,
   getMemberProfile,
@@ -15,6 +17,8 @@ import {
  * apresente apenas a galeria, em vez de todo o formulário da montra.
  */
 export default function PortfolioPage() {
+  const getRequestContext = useSessionRequest()
+  const savingRef = useRef(false)
   const [savedPortfolio, setSavedPortfolio] = useState([])
   const [portfolioFiles, setPortfolioFiles] = useState([])
   const [uploadedPortfolioFiles, setUploadedPortfolioFiles] = useState([])
@@ -28,17 +32,18 @@ export default function PortfolioPage() {
    * através de initialImages e trata-as como imagens guardadas.
    */
   useEffect(() => {
-    let isCancelled = false
+    const context = getRequestContext()
+    if (!context) return
 
     async function loadPortfolio() {
       try {
-        const profile = await getMemberProfile()
+        const profile = await getMemberProfile(context)
 
-        if (!isCancelled) {
+        if (isSessionCurrent(context)) {
           setSavedPortfolio(profile.portfolio ?? [])
         }
       } catch (error) {
-        if (!isCancelled) {
+        if (isSessionCurrent(context)) {
           const normalizedError = normalizeError(error)
 
           setLoadError(
@@ -47,7 +52,7 @@ export default function PortfolioPage() {
           )
         }
       } finally {
-        if (!isCancelled) {
+        if (isSessionCurrent(context)) {
           setIsLoading(false)
         }
       }
@@ -55,10 +60,7 @@ export default function PortfolioPage() {
 
     loadPortfolio()
 
-    return () => {
-      isCancelled = true
-    }
-  }, [])
+  }, [getRequestContext])
 
   /*
    * Recebe apenas os objetos File que ainda não foram enviados.
@@ -75,9 +77,14 @@ export default function PortfolioPage() {
    */
   const handleDeleteSavedPortfolioImage = useCallback(
     async (portfolioImageId) => {
+      const context = getRequestContext()
+      if (!context) return
+
       setStatus(null)
 
-      await deletePortfolioImage(portfolioImageId)
+      await deletePortfolioImage(portfolioImageId, context)
+
+      if (!isSessionCurrent(context)) return
 
       setSavedPortfolio((currentPortfolio) =>
         currentPortfolio.filter((image) => image.id !== portfolioImageId),
@@ -88,7 +95,7 @@ export default function PortfolioPage() {
         message: 'Imagem removida do portefólio com sucesso.',
       })
     },
-    [],
+    [getRequestContext],
   )
 
   /*
@@ -97,6 +104,9 @@ export default function PortfolioPage() {
    */
   async function handleSubmit(event) {
     event.preventDefault()
+
+    const context = getRequestContext()
+    if (!context || savingRef.current) return
 
     const newPortfolioFiles = portfolioFiles.filter(
       (file) => !uploadedPortfolioFiles.includes(file),
@@ -111,11 +121,14 @@ export default function PortfolioPage() {
       return
     }
 
+    savingRef.current = true
     setIsSaving(true)
     setStatus(null)
 
     try {
-      const uploadedImages = await uploadPortfolioImages(newPortfolioFiles)
+      const uploadedImages = await uploadPortfolioImages(newPortfolioFiles, context)
+
+      if (!isSessionCurrent(context)) return
 
       /*
        * A API devolve as imagens já persistidas. Ao guardá-las no estado,
@@ -136,6 +149,8 @@ export default function PortfolioPage() {
         message: 'Portefólio guardado com sucesso.',
       })
     } catch (error) {
+      if (!isSessionCurrent(context)) return
+
       const normalizedError = normalizeError(error)
 
       setStatus({
@@ -145,7 +160,8 @@ export default function PortfolioPage() {
           'Não foi possível guardar as imagens do portefólio.',
       })
     } finally {
-      setIsSaving(false)
+      savingRef.current = false
+      if (isSessionCurrent(context)) setIsSaving(false)
     }
   }
 

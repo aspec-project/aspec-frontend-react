@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSessionContext, isSessionCurrent } from './sessionContext';
 
 export const API_URL =
   import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -25,6 +26,34 @@ export const api = axios.create({
     Accept: "application/json",
   },
 });
+
+// Estas listas não variam por identidade. Não interromper o seu carregamento
+// público quando a confirmação inicial de /auth/me termina.
+const publicLists = new Set([
+  '/members', '/events', '/sectors', '/locations',
+  '/social-platforms', '/week-days', '/event-categories',
+]);
+
+api.interceptors.request.use((config) => {
+  const context = getSessionContext();
+  config.sessionIndependent = config.sessionGeneration === undefined &&
+    config.method === 'get' && publicLists.has(config.url);
+  if (config.sessionGeneration !== undefined && config.sessionGeneration !== context.generation) {
+    throw new axios.CanceledError('Pedido de uma sessão anterior.', config);
+  }
+  config.sessionGeneration = context.generation;
+  if (!config.sessionIndependent) {
+    config.signal = config.signal
+      ? AbortSignal.any([config.signal, context.signal])
+      : context.signal;
+  }
+  return config;
+}, (error) => { throw error; }, { synchronous: true });
+
+function belongsToCurrentSession(config) {
+  const context = getSessionContext();
+  return config?.sessionGeneration === context.generation && isSessionCurrent(context);
+}
 
 /*
  * Pede ao Laravel o cookie XSRF-TOKEN antes de login ou registo.
@@ -72,7 +101,12 @@ function redirectToLogin() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (!response.config.sessionIndependent && !belongsToCurrentSession(response.config)) {
+      throw new axios.CanceledError('Resposta de uma sessão anterior.', response.config);
+    }
+    return response;
+  },
   async (error) => {
     /*
      * fetchUser usa skipAuthRedirect porque um visitante sem sessão
@@ -80,11 +114,14 @@ api.interceptors.response.use(
      */
     if (
       error.response?.status === 401 &&
-      !error.config?.skipAuthRedirect
+      !error.config?.skipAuthRedirect &&
+      belongsToCurrentSession(error.config)
     ) {
       const { useAuthStore } = await import("../store/authStore");
-      useAuthStore.getState().clearSession();
-      redirectToLogin();
+      if (belongsToCurrentSession(error.config)) {
+        useAuthStore.getState().clearSession();
+        redirectToLogin();
+      }
     }
 
     return Promise.reject(error);

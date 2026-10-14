@@ -1,9 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MembersPage from '../../src/pages/MembersPage'
+import AppRouter from '../../src/router/AppRouter'
+import MemberCard from '../../src/components/members/MemberCard'
 import { api } from '../../src/services/api'
 import { useAuthStore } from '../../src/store/authStore'
 
@@ -32,6 +34,34 @@ describe('Diretório de membros', () => {
   beforeEach(() => { original = api.defaults.adapter; useAuthStore.setState({ user: null, status: 'idle' }) })
   afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
 
+  it.each([
+    ['Visitor', null, 'idle'],
+    ['Member Active', { id: member.id, role: { name: 'Member' }, account_status: { name: 'Active' } }, 'authenticated'],
+  ])('integra /membros no MainLayout sem duplicar Navbar, conteúdo ou Footer para %s', async (_, user, status) => {
+    const items = Array.from({ length: 9 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index}`, business_name: `Negócio ${index}` }))
+    setupAdapter((config) => Promise.resolve(response(body(config, items, 18), config)))
+    useAuthStore.setState({ user, status })
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    render(<MemoryRouter initialEntries={['/membros']}><AppRouter /></MemoryRouter>)
+    await screen.findByRole('heading', { name: 'Negócio 0' })
+
+    const main = screen.getByRole('main')
+    const footer = screen.getByRole('contentinfo')
+    const navbar = main.previousElementSibling
+    expect(navbar.tagName).toBe('NAV')
+    expect(navbar).toBeVisible()
+    expect(footer).toBeVisible()
+    expect(main.nextElementSibling).toBe(footer)
+    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+    expect(within(main).getByRole('region', { name: 'Resultados do diretório' })).toBeInTheDocument()
+    expect(main.querySelector('footer')).toBeNull()
+    expect(within(navbar).queryByRole('button', { name: 'Abrir menu de navegação' })).toBeInTheDocument()
+
+    await userEvent.setup().click(within(navbar).getByRole('button', { name: 'Abrir menu de navegação' }))
+    expect(within(navbar).getByRole('button', { name: 'Fechar menu de navegação' })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+  })
+
   it('mostra total servidor, campos públicos, fallback de logo e paginação com um pedido por página', async () => {
     const user = userEvent.setup()
     const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
@@ -42,6 +72,10 @@ describe('Diretório de membros', () => {
     expect(screen.getByText('S')).toBeInTheDocument()
     for (const privateText of [member.email, member.phone, member.description, member.tags[0]]) expect(screen.queryByText(privateText)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: `Ver perfil: ${member.business_name}` })).toHaveAttribute('href', `/membros/${member.id}`)
+    expect(screen.getByRole('link', { name: `Ver perfil: ${member.business_name}` })).toContainElement(screen.getByRole('heading', { name: member.business_name }))
+    expect(screen.getByText('4,8')).toHaveAttribute('aria-label', '4,8 estrelas')
+    expect(screen.queryByText('4,8 (12)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ver perfil →')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Pelo menos 4,5 estrelas' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Pelo menos 4,5 estrelas' })).toHaveTextContent('★ 4,5+')
@@ -76,7 +110,7 @@ describe('Diretório de membros', () => {
     await user.click(screen.getByRole('button', { name: 'Pelo menos 4 estrelas' }))
     await screen.findByRole('heading', { name: member.business_name })
     const requests = adapter.mock.calls.filter(([config]) => config.url === '/members')
-    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 12, search: 'contabilidade', sector_id: sectorId, location_id: locationId, min_rating: 4 })
+    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 9, search: 'contabilidade', sector_id: sectorId, location_id: locationId, min_rating: 4 })
     await user.click(screen.getByRole('button', { name: 'Todas' }))
     await screen.findByRole('heading', { name: member.business_name })
     expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params.min_rating).toBeUndefined()
@@ -94,7 +128,7 @@ describe('Diretório de membros', () => {
     await screen.findByText('Página 1 de 3')
     const requests = adapter.mock.calls.filter(([config]) => config.url === '/members')
     expect(requests).toHaveLength(3)
-    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 12, min_rating: 4.5 })
+    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 9, min_rating: 4.5 })
     expect(screen.getByRole('button', { name: 'Pelo menos 4,5 estrelas' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: member.business_name })).toBeInTheDocument()
     expect(screen.getByText('25 membros encontrados')).toBeInTheDocument()
@@ -206,16 +240,55 @@ describe('Diretório de membros', () => {
     expect(oldConfig.signal.aborted).toBe(true)
   })
 
-  it('mostra convite apenas aos visitantes após confirmar sessão', async () => {
-    setupAdapter((config) => Promise.resolve(response(body(config), config)))
-    useAuthStore.setState({ user: { id: member.id }, status: 'authenticated' })
+  it.each([
+    ['visitante', null, 'idle'],
+    ['pendente', { id: member.id, role: { name: 'Member' }, account_status: { name: 'Pending' } }, 'authenticated'],
+    ['membro ativo', { id: member.id, role: { name: 'Member' }, account_status: { name: 'Active' } }, 'authenticated'],
+    ['administrador ativo', { id: member.id, role: { name: 'Admin' }, account_status: { name: 'Active' } }, 'authenticated'],
+  ])('não expõe contactos, avisos de contacto nem campos adicionais para %s', async (_, user, status) => {
+    const injected = { ...member, contacts: { email: member.email }, members_only: { phone: member.phone } }
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config, [injected]), config)))
+    useAuthStore.setState({ user, status })
     show()
     await screen.findByRole('heading', { name: member.business_name })
+    expect(screen.queryByText('Contacto visível apenas para membros')).not.toBeInTheDocument()
+    expect(screen.queryByText('Contacto não disponível')).not.toBeInTheDocument()
+    for (const value of [member.email, member.phone, member.description, member.tags[0]]) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Entrar' })).not.toBeInTheDocument()
-    await act(async () => useAuthStore.setState({ user: null, status: 'loading' }))
-    expect(screen.queryByRole('link', { name: 'Entrar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Candidatar-me' })).not.toBeInTheDocument()
+    expect(adapter.mock.calls.map(([config]) => config.url).sort()).toEqual(['/locations', '/members', '/sectors'])
+  })
+
+  it('mantém o cartão sem avisos e sem contactos quando a sessão termina, sem repetir pedidos', async () => {
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    useAuthStore.setState({ user: { id: member.id, role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
     await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
-    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-    expect(screen.getByRole('link', { name: 'Candidatar-me' })).toHaveAttribute('href', '/registo')
+    expect(screen.queryByText('Contacto visível apenas para membros')).not.toBeInTheDocument()
+    expect(screen.queryByText('Contacto não disponível')).not.toBeInTheDocument()
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members')).toHaveLength(1)
+  })
+
+  it('o cartão admite uma descrição textual quando fornecida e omite o bloco quando não existe', () => {
+    const description = 'Resumo fornecido para demonstração <script>texto</script>'
+    const view = render(<MemoryRouter><MemberCard member={{ ...member, description }} /></MemoryRouter>)
+    expect(screen.getByText(description)).toBeInTheDocument()
+    expect(document.querySelector('script')).toBeNull()
+    expect(screen.queryByText(member.tags[0])).not.toBeInTheDocument()
+    view.rerender(<MemoryRouter><MemberCard member={{ ...member, description: undefined }} /></MemoryRouter>)
+    expect(screen.queryByText(description)).not.toBeInTheDocument()
+  })
+
+  it('pede nove cartões por página ao servidor sem carregar detalhes individuais', async () => {
+    const items = Array.from({ length: 9 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index}`, business_name: `Negócio ${index}` }))
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config, items, 18), config)))
+    show()
+    await screen.findByRole('heading', { name: 'Negócio 0' })
+    expect(screen.getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument()
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members')).toHaveLength(1)
+    expect(adapter.mock.calls.find(([config]) => config.url === '/members')[0].params).toEqual({ page: 1, per_page: 9 })
+    expect(adapter.mock.calls.some(([config]) => config.url.startsWith('/members/'))).toBe(false)
   })
 })
