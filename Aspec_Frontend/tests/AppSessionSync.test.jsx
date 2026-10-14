@@ -26,11 +26,11 @@ it('limpa a identidade ao mudar sessão noutra aba e só restaura após confirma
   api.defaults.adapter = async (config) => ({ config, status: 200, statusText: 'OK', headers: {}, data: { data: { id: identity, role: { name: 'Member' }, account_status: { name: 'Active' } } } })
   const view = render(<App />)
   expect(await screen.findByText('A')).toBeInTheDocument()
-  act(() => channel.onmessage({ data: 'changing' }))
+  act(() => channel.onmessage({ data: { type: 'changing', sourceTabId: 'other-tab', sessionVersion: 1 } }))
   expect(screen.getByText('Sem identidade')).toBeInTheDocument()
   expect(useAuthStore.getState().status).toBe('idle')
   identity = 'B'
-  act(() => channel.onmessage({ data: 'changed' }))
+  act(() => channel.onmessage({ data: { type: 'changed', sourceTabId: 'other-tab', sessionVersion: 1 } }))
   expect(await screen.findByText('B')).toBeInTheDocument()
   view.unmount()
   expect(channel.close).toHaveBeenCalled()

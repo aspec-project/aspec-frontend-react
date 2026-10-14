@@ -34,7 +34,7 @@ export function useLoginForm() {
     const result = await login(email.trim(), password);
     if (result.cancelled) return;
     if (result.success) {
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
     } else {
       /*
       * Apenas os estados Approved e Inactive por falta de pagamento

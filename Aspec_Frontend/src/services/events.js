@@ -1,13 +1,11 @@
 import { api, normalizeError } from "./api";
 
 /*
- * Pesquisa e limite por pedido aguardam confirmação do contrato do backend.
- * As opções só devem ser ativadas depois de essa integração estar disponível.
+ * A pesquisa mantém a ativação dependente do suporte confirmado no backend.
  */
 export function getEventsCapabilities() {
   return {
     search: import.meta.env.VITE_EVENTS_SEARCH_ENABLED === "true",
-    perPage: import.meta.env.VITE_EVENTS_PER_PAGE_ENABLED === "true",
   };
 }
 
@@ -42,12 +40,11 @@ export async function getEventsPage(
   }
 
   const capabilities = getEventsCapabilities();
-  const params = { page };
+  const params = { page, per_page: 9 };
 
   if (categoryId) params.category_id = categoryId;
   if (locationId) params.location_id = locationId;
   if (capabilities.search && search.trim()) params.search = search.trim();
-  if (capabilities.perPage) params.per_page = 10;
 
   const response = await api.get("/events", { params, signal });
   const resposta = response.data;
@@ -76,14 +73,13 @@ export async function getEventsPage(
     !Number.isInteger(pagination.total) ||
     !Number.isInteger(pagination.last_page) ||
     pagination.current_page !== page ||
-    pagination.per_page < 1 ||
+    pagination.per_page !== 9 ||
     pagination.total < 0 ||
     pagination.last_page < 1 ||
     pagination.current_page > pagination.last_page ||
     pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
     items.length > pagination.per_page ||
-    items.length > pagination.total ||
-    (capabilities.perPage && (pagination.per_page > 10 || items.length > 10))
+    items.length > pagination.total
   ) {
     throw new Error("A paginação dos eventos tem um formato inesperado.");
   }

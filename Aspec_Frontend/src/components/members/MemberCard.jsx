@@ -18,7 +18,7 @@ export default function MemberCard({ member }) {
   const title = member.business_name || member.name
   const hasRating = member.reviews_count > 0 && member.average_rating !== null
   return (
-    <article>
+    <article className="min-w-0">
       <Link
         to={`/membros/${encodeURIComponent(member.id)}`}
         aria-label={`Ver perfil: ${title}`}
@@ -34,7 +34,7 @@ export default function MemberCard({ member }) {
           </div>
         </div>
         {typeof member.description === 'string' && member.description.trim() && (
-          <p className="mb-3 line-clamp-2 text-xs leading-relaxed text-gray-500">{member.description.trim()}</p>
+          <p className="mb-3 line-clamp-2 [overflow-wrap:anywhere] text-xs leading-relaxed text-gray-500">{member.description.trim()}</p>
         )}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
           <p className="flex min-w-0 items-center gap-1 text-xs text-gray-600"><MapPin size={10} className="shrink-0" aria-hidden="true" /><span className="truncate">{member.location.name}</span></p>

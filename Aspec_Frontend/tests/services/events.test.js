@@ -14,7 +14,7 @@ function respostaPagina(items = [], pagination = {}) {
       items,
       pagination: {
         current_page: 1,
-        per_page: 10,
+        per_page: 9,
         total: items.length,
         last_page: 1,
         ...pagination,
@@ -35,7 +35,6 @@ describe("getEventsPage", () => {
   beforeEach(() => {
     adapterOriginal = api.defaults.adapter;
     vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "false");
-    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "false");
   });
 
   afterEach(() => {
@@ -52,7 +51,7 @@ describe("getEventsPage", () => {
       { id: "primeiro", name: "Registo repetido recebido da API" },
       { id: "quinto", name: "Quinto evento" },
     ];
-    const resposta = respostaPagina(items, { current_page: 2, total: 30, last_page: 3 });
+    const resposta = respostaPagina(items, { current_page: 2, total: 27, last_page: 3 });
     const adapter = simularResposta(resposta);
     const controller = new AbortController();
 
@@ -66,7 +65,7 @@ describe("getEventsPage", () => {
     const config = adapter.mock.calls[0][0];
     expect(config.url).toBe("/events");
     expect(config.method).toBe("get");
-    expect(config.params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 2 });
+    expect(config.params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
     expect(config.baseURL).toBe(api.defaults.baseURL);
     expect(config.withCredentials).toBe(true);
     expect(config.withXSRFToken).toBe(true);
@@ -74,10 +73,10 @@ describe("getEventsPage", () => {
   });
 
   it.each([
-    [{}, { page: 1 }],
-    [{ categoryId: "", locationId: "", page: 1 }, { page: 1 }],
-    [{ categoryId: "categoria-a", page: 1 }, { category_id: "categoria-a", page: 1 }],
-    [{ locationId: "distrito-b", page: 1 }, { location_id: "distrito-b", page: 1 }],
+    [{}, { page: 1, per_page: 9 }],
+    [{ categoryId: "", locationId: "", page: 1 }, { page: 1, per_page: 9 }],
+    [{ categoryId: "categoria-a", page: 1 }, { category_id: "categoria-a", page: 1, per_page: 9 }],
+    [{ locationId: "distrito-b", page: 1 }, { location_id: "distrito-b", page: 1, per_page: 9 }],
   ])("omite filtros vazios sem inventar parâmetros para %j", async (filtros, params) => {
     const adapter = simularResposta(respostaPagina());
 
@@ -136,25 +135,23 @@ describe("getEventsPage", () => {
     expect(adapter).toHaveBeenCalledTimes(1);
   });
 
-  it("mantém os parâmetros futuros desativados até confirmar o contrato", async () => {
-    const items = Array.from({ length: 15 }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
-    const adapter = simularResposta(respostaPagina(items, { per_page: 15 }));
-
-    expect(getEventsCapabilities()).toEqual({ search: false, perPage: false });
-    expect((await getEventsPage({ search: "conferência" })).items).toHaveLength(15);
-    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1 });
+  it("pede nove eventos mesmo com a pesquisa desativada", async () => {
+    const items = Array.from({ length: 9 }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
+    const adapter = simularResposta(respostaPagina(items));
+    expect(getEventsCapabilities()).toEqual({ search: false });
+    expect((await getEventsPage({ search: "conferencia" })).items).toHaveLength(9);
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9 });
   });
 
-  it("combina a pesquisa com os filtros e pede dez resultados quando o contrato está ativado", async () => {
+  it("combina a pesquisa com os filtros e pede nove resultados quando o contrato está ativado", async () => {
     vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
-    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
     const adapter = simularResposta(respostaPagina([], { current_page: 2, total: 25, last_page: 3 }));
 
-    expect(getEventsCapabilities()).toEqual({ search: true, perPage: true });
+    expect(getEventsCapabilities()).toEqual({ search: true });
     await getEventsPage({ search: "conferência", categoryId: "categoria-a", locationId: "distrito-b", page: 2 });
 
     expect(adapter).toHaveBeenCalledTimes(1);
-    expect(adapter.mock.calls[0][0].params).toEqual({ search: "conferência", category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 10 });
+    expect(adapter.mock.calls[0][0].params).toEqual({ search: "conferência", category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
   });
 
   it("omite uma pesquisa vazia mesmo com o contrato ativado", async () => {
@@ -163,7 +160,7 @@ describe("getEventsPage", () => {
 
     await getEventsPage({ search: "   " });
 
-    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1 });
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9 });
   });
 
   it.each([null, 12, ["evento"], { text: "evento" }])("rejeita uma pesquisa com formato inválido: %j", async (search) => {
@@ -175,19 +172,17 @@ describe("getEventsPage", () => {
     expect(adapter).not.toHaveBeenCalled();
   });
 
-  it.each([11, 15])("não corta silenciosamente uma página de %s resultados quando o limite dez está ativado", async (quantidade) => {
-    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+  it.each([10, 15])("não corta silenciosamente uma página de %s resultados quando o limite nove está ativado", async (quantidade) => {
     const items = Array.from({ length: quantidade }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
     const adapter = simularResposta(respostaPagina(items, { per_page: quantidade }));
 
     await expect(getEventsPage()).rejects.toThrow();
 
     expect(adapter).toHaveBeenCalledTimes(1);
-    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 10 });
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9 });
   });
 
-  it("rejeita metadados que ignoram per_page mesmo quando chegam menos de dez eventos", async () => {
-    vi.stubEnv("VITE_EVENTS_PER_PAGE_ENABLED", "true");
+  it("rejeita metadados que ignoram per_page mesmo quando chegam menos de nove eventos", async () => {
     simularResposta(respostaPagina([{ id: "1", name: "Evento" }], { per_page: 15 }));
 
     await expect(getEventsPage()).rejects.toThrow();

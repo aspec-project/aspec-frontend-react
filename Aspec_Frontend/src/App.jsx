@@ -11,14 +11,9 @@ export default function App() {
    * Sanctum corresponde a uma sessão de utilizador ainda válida.
    */
   useEffect(() => {
+    const stop = listenSessionChanges((type) => useAuthStore.getState().receiveSessionChange(type));
     initialize();
-    return listenSessionChanges((type) => {
-      useAuthStore.getState().clearSession();
-      if (type === 'changed') {
-        useAuthStore.setState({ status: 'loading' });
-        initialize();
-      }
-    });
+    return stop;
   }, [initialize]);
 
   return <AppRouter />;

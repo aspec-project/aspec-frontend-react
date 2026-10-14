@@ -27,6 +27,7 @@ function AppRouter() {
       {/* Rotas públicas */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/eventos" element={<EventsPage />} />
         <Route path="/membros" element={<MembersPage />} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
       </Route>
@@ -41,7 +42,6 @@ function AppRouter() {
         element={<RequestActivationLinkPage />}
       />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
-      <Route path="/eventos" element={<EventsPage />} />
       <Route
         path="/eventos/:eventoId"
         element={<PlaceholderPage title="Detalhe do evento" />}
