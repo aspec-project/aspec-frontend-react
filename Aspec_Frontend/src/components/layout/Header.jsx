@@ -10,6 +10,7 @@ export default function Header() {
    */
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+  const logoutError = useAuthStore((state) => state.logoutError)
 
 
   /*
@@ -72,7 +73,8 @@ export default function Header() {
     setIsLoggingOut(true);
 
     try {
-      await logout();
+      const result = await logout();
+      if (!result.success) return;
       closeMenus();
       navigate("/");
     } finally {
@@ -96,6 +98,14 @@ export default function Header() {
 
   return (
     <nav onKeyDown={handleMenuKeyDown} className="bg-[#0d1f35] sticky top-0 z-50 shadow-lg border-b border-white/10">
+      {logoutError && (
+        <div role="alert" className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 text-sm text-white">
+          <p>{logoutError}</p>
+          <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="rounded underline focus-visible:outline-2 focus-visible:outline-offset-4 disabled:opacity-60">
+            Tentar terminar sessão novamente
+          </button>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           

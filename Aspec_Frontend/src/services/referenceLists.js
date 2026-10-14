@@ -4,8 +4,8 @@ import { api, extractList } from './api'
  * Obtém uma lista de referência devolvida no formato padrão da API:
  * { success, message, data }.
  */
-async function getReferenceList(endpoint) {
-  const response = await api.get(endpoint)
+async function getReferenceList(endpoint, config) {
+  const response = await api.get(endpoint, config)
 
   return extractList(response.data.data)
 }
@@ -14,16 +14,16 @@ async function getReferenceList(endpoint) {
  * Devolve as plataformas sociais disponíveis no backend.
  * Cada item contém o id e o nome da plataforma.
  */
-export function getSocialPlatforms() {
-  return getReferenceList('/social-platforms')
+export function getSocialPlatforms(config) {
+  return getReferenceList('/social-platforms', config)
 }
 
 /*
  * Devolve os dias da semana disponíveis no backend.
  * Cada item contém o id e o nome apresentado no formulário.
  */
-export function getWeekDays() {
-  return getReferenceList('/week-days')
+export function getWeekDays(config) {
+  return getReferenceList('/week-days', config)
 }
 
 /*

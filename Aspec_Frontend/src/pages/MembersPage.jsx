@@ -1,20 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import { getMembers } from '../services/members'
 import { getLocations, getSectors } from '../services/referenceLists'
 import { normalizeError } from '../services/api'
-import { useAuthStore } from '../store/authStore'
 import MemberCard from '../components/members/MemberCard'
 import MemberFilters, { directoryButtonClass } from '../components/members/MemberFilters'
 
-const initialFilters = { search: '', sector_id: '', location_id: '', min_rating: '', page: 1, per_page: 12 }
+const initialFilters = { search: '', sector_id: '', location_id: '', min_rating: '', page: 1, per_page: 9 }
 const emptyReferences = { sectors: [], locations: [], ready: false }
 const directoryErrorMessage = 'Não foi possível carregar o diretório. Tente novamente.'
 
 export default function MembersPage() {
-  const user = useAuthStore((state) => state.user)
-  const sessionStatus = useAuthStore((state) => state.status)
   const [filters, setFilters] = useState(initialFilters)
   const [draftSearch, setDraftSearch] = useState('')
   const [references, setReferences] = useState(emptyReferences)
@@ -98,10 +94,6 @@ export default function MembersPage() {
       <div className="mx-auto max-w-7xl space-y-6 px-6 py-10">
         <MemberFilters filters={filters} draftSearch={draftSearch} setDraftSearch={setDraftSearch} changeFilter={changeFilter} onSearch={onSearch} references={references} loading={loading} fieldErrors={fieldErrors} />
         {referenceError && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{referenceError} <button type="button" onClick={() => { setReferenceError(''); setReferenceRetry((value) => value + 1) }} className="ml-2 rounded font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-4">Tentar carregar filtros novamente</button></div>}
-        {user === null && sessionStatus !== 'loading' && <aside className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#8a7043]/20 bg-[#8a7043]/10 p-5 text-sm">
-          <p>Os contactos estão disponíveis apenas para membros ASPEC. Entre ou candidate-se para aceder.</p>
-          <div className="flex gap-4"><Link className="rounded font-semibold text-[#0d1f35] underline focus-visible:outline-2 focus-visible:outline-offset-4" to="/login">Entrar</Link><Link className="rounded font-semibold text-[#0d1f35] underline focus-visible:outline-2 focus-visible:outline-offset-4" to="/registo">Candidatar-me</Link></div>
-        </aside>}
         <section aria-label="Resultados do diretório" aria-busy={loading}>
           {loading ? <p role="status" className="py-12 text-center text-gray-600">A carregar membros...</p> : error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700"><p>{error}</p><button type="button" className={`${directoryButtonClass} mt-4`} onClick={() => { beginRequest(); setRetry((value) => value + 1) }}>Tentar novamente</button></div> : result && <>
             <p role="status" className="mb-5 text-sm text-gray-600">{result.pagination.total} {result.pagination.total === 1 ? 'membro encontrado' : 'membros encontrados'}</p>

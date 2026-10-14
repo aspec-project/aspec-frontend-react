@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { normalizeError } from '../../services/api'
+import { isSessionCurrent } from '../../services/sessionContext'
+import useSessionRequest from '../../hooks/useSessionRequest'
 import {
   getMemberProfile,
   updateMemberProfile,
@@ -31,6 +33,8 @@ const initialFormData = {
  * extensa e permite guardar cada área de forma independente.
  */
 export default function ShowcaseContactsForm() {
+  const getRequestContext = useSessionRequest()
+  const savingRef = useRef(false)
   const [formData, setFormData] = useState(initialFormData)
   const [businessHours, setBusinessHours] = useState([])
   const [socialLinks, setSocialLinks] = useState([])
@@ -52,17 +56,19 @@ export default function ShowcaseContactsForm() {
    * os IDs devolvidos pela API em dias e plataformas legíveis na interface.
    */
   useEffect(() => {
-    let componentIsMounted = true
+    const context = getRequestContext()
+    if (!context) return
+    const config = { sessionGeneration: context.generation, signal: context.signal }
 
     async function loadContactData() {
       try {
         const [profile, socialPlatforms, weekDays] = await Promise.all([
-          getMemberProfile(),
-          getSocialPlatforms(),
-          getWeekDays(),
+          getMemberProfile(context),
+          getSocialPlatforms(config),
+          getWeekDays(config),
         ])
 
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
@@ -80,7 +86,7 @@ export default function ShowcaseContactsForm() {
           createSocialLinks(profile.social_links ?? [], socialPlatforms),
         )
       } catch (error) {
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
@@ -91,7 +97,7 @@ export default function ShowcaseContactsForm() {
             'Não foi possível carregar os contactos da montra.',
         )
       } finally {
-        if (componentIsMounted) {
+        if (isSessionCurrent(context)) {
           setIsLoading(false)
         }
       }
@@ -99,10 +105,7 @@ export default function ShowcaseContactsForm() {
 
     loadContactData()
 
-    return () => {
-      componentIsMounted = false
-    }
-  }, [])
+  }, [getRequestContext])
 
   /*
    * Atualiza um campo de contacto reutilizando o atributo name do input.
@@ -228,6 +231,10 @@ export default function ShowcaseContactsForm() {
   async function handleSubmit(event) {
     event.preventDefault()
 
+    const context = getRequestContext()
+    if (!context || savingRef.current) return
+
+    savingRef.current = true
     setIsSaving(true)
     setStatus(null)
     setFieldErrors({})
@@ -245,13 +252,17 @@ export default function ShowcaseContactsForm() {
         return
       }
 
-      await updateMemberProfile(buildContactsPayload())
+      await updateMemberProfile(buildContactsPayload(), context)
+
+      if (!isSessionCurrent(context)) return
 
       setStatus({
         type: 'success',
         message: 'Contactos e redes sociais guardados com sucesso.',
       })
     } catch (error) {
+      if (!isSessionCurrent(context)) return
+
       const normalisedError = normalizeError(error)
 
       /*
@@ -270,7 +281,8 @@ export default function ShowcaseContactsForm() {
         message: `Não foi possível guardar as alterações. ${message}`,
       })
     } finally {
-      setIsSaving(false)
+      savingRef.current = false
+      if (isSessionCurrent(context)) setIsSaving(false)
     }
   }
 

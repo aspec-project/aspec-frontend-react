@@ -13,6 +13,7 @@ import MainLayout from '../components/layout/MainLayout'
 import HomePage from "../pages/HomePage"
 import EventsPage from "../pages/EventsPage"
 import MembersPage from '../pages/MembersPage'
+import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 
 /**
  * Centraliza as rotas da aplicação.
@@ -23,6 +24,8 @@ function AppRouter() {
       {/* Rotas públicas */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/membros" element={<MembersPage />} />
+        <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
       </Route>
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
@@ -35,14 +38,6 @@ function AppRouter() {
         element={<RequestActivationLinkPage />}
       />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
-      <Route
-        path="/membros"
-        element={<MembersPage />}
-      />
-      <Route
-        path="/membros/:membroId"
-        element={<PlaceholderPage title="Perfil do membro" />}
-      />
       <Route path="/eventos" element={<EventsPage />} />
       <Route
         path="/eventos/:eventoId"
@@ -54,7 +49,7 @@ function AppRouter() {
       />
 
       {/* Rotas do membro autenticado — exigem sessão válida */}
-      <Route element={<ProtectedRoute />}>
+      <Route element={<ProtectedRoute allowedRoles={["Member"]} allowedStatuses={["Active"]} />}>
         <Route
           path="/dashboard"
           element={<PlaceholderPage title="Dashboard" />}

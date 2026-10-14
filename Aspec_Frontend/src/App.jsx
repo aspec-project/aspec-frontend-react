@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import AppRouter from "./router/AppRouter";
 import { useAuthStore } from "./store/authStore";
+import { listenSessionChanges } from './services/sessionSync';
 
 export default function App() {
   const initialize = useAuthStore((state) => state.initialize);
@@ -11,6 +12,13 @@ export default function App() {
    */
   useEffect(() => {
     initialize();
+    return listenSessionChanges((type) => {
+      useAuthStore.getState().clearSession();
+      if (type === 'changed') {
+        useAuthStore.setState({ status: 'loading' });
+        initialize();
+      }
+    });
   }, [initialize]);
 
   return <AppRouter />;
