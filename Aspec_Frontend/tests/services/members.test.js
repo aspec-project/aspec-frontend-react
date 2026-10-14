@@ -4,7 +4,7 @@ import { getMembers } from '../../src/services/members'
 import { getLocations, getSectors } from '../../src/services/referenceLists'
 
 const id = '019512a1-1234-7123-8123-123456789abc'
-const member = { id, name: 'Ana', business_name: 'Negócio', sector: { id, name: 'Serviços' }, location: { id, name: 'Lisboa' }, logo_url: null, average_rating: 4.8, reviews_count: 12 }
+const member = { id, name: 'Ana', business_name: 'Negócio', description: 'Descrição real do resumo', sector: { id, name: 'Serviços' }, location: { id, name: 'Lisboa' }, logo_url: null, average_rating: 4.8, reviews_count: 12 }
 const references = { sectors: [{ id, name: 'Serviços' }], locations: [{ id, name: 'Lisboa' }] }
 const body = (items = [member], total = 25) => ({ success: true, data: { items, pagination: { current_page: 1, per_page: 9, total, last_page: Math.max(1, Math.ceil(total / 9)) } } })
 const response = (data, config) => ({ data, config, status: 200, statusText: '', headers: {} })
@@ -50,7 +50,7 @@ describe('Serviço do diretório', () => {
   it('conserva exclusivamente os campos do resumo, descartando contactos e extras também nas referências', async () => {
     const injected = {
       ...member, email: 'privado@example.test', phone: '912345678',
-      description: 'Descrição não contratada', tags: ['Tag não contratada'],
+      tags: ['Tag não contratada'],
       contacts: { phone: '912345678' }, members_only: { commercial_contacts: 'Privado' },
       sector: { ...member.sector, private_field: 'Privado' },
       location: { ...member.location, address: 'Morada privada' },
@@ -58,6 +58,17 @@ describe('Serviço do diretório', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(body([injected]), config))
     const result = await getMembers({}, references)
     expect(result.items).toEqual([member])
+  })
+
+  it.each([null, undefined, '', 'Descrição enviada pela API <script>texto</script>'])('preserva description sem inventar texto quando recebe %j', async (description) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(body([{ ...member, description }]), config))
+    const result = await getMembers({}, references)
+    expect(result.items[0].description).toBe(description)
+  })
+
+  it.each([42, {}, []])('rejeita description com tipo inválido: %j', async (description) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(body([{ ...member, description }]), config))
+    await expect(getMembers({}, references)).rejects.toThrow('A resposta do diretório tem um formato inesperado.')
   })
 
   it.each([null, { success: false, data: body().data }, body([{}]), { ...body(), data: { ...body().data, pagination: { ...body().data.pagination, total: -1 } } }, { ...body(), data: { ...body().data, pagination: { ...body().data.pagination, current_page: 2 } } }])('não transforma contrato inválido em vazio', async (data) => {

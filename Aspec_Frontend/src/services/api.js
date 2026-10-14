@@ -59,14 +59,17 @@ function belongsToCurrentSession(config) {
  * Pede ao Laravel o cookie XSRF-TOKEN antes de login ou registo.
  * Este endpoint fica fora do prefixo /api.
  */
-export async function ensureCsrfCookie() {
+export async function ensureCsrfCookie(context = getSessionContext()) {
+  if (!isSessionCurrent(context)) throw new axios.CanceledError('Sessão anterior ao pedido CSRF.');
   await axios.get(`${API_URL}/sanctum/csrf-cookie`, {
     withCredentials: true,
     withXSRFToken: true,
+    signal: context.signal,
     headers: {
       Accept: "application/json",
     },
   });
+  if (!isSessionCurrent(context)) throw new axios.CanceledError('Resposta CSRF de uma sessão anterior.');
 }
 
 /*
@@ -108,6 +111,9 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    if (error.config && !error.config.sessionIndependent && !belongsToCurrentSession(error.config)) {
+      throw new axios.CanceledError('Erro de uma sessão anterior.', error.config);
+    }
     /*
      * fetchUser usa skipAuthRedirect porque um visitante sem sessão
      * não deve ser redirecionado para login só por abrir a página inicial.
@@ -119,7 +125,7 @@ api.interceptors.response.use(
     ) {
       const { useAuthStore } = await import("../store/authStore");
       if (belongsToCurrentSession(error.config)) {
-        useAuthStore.getState().clearSession();
+        useAuthStore.getState().clearSession({ broadcast: true });
         redirectToLogin();
       }
     }

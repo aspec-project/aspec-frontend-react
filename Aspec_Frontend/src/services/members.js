@@ -45,6 +45,7 @@ export async function getMembers(filters, references, signal) {
     new Set(items.map((item) => item?.id)).size !== items.length ||
     !items.every((item) => validId(item?.id) && typeof item.name === 'string' && item.name.trim() &&
       (item.business_name === null || typeof item.business_name === 'string') &&
+      (item.description == null || typeof item.description === 'string') &&
       validReference(item.sector) && validReference(item.location) &&
       (item.logo_url === null || typeof item.logo_url === 'string') &&
       (item.average_rating === null || (typeof item.average_rating === 'number' && Number.isFinite(item.average_rating) && item.average_rating >= 0 && item.average_rating <= 5)) &&
@@ -57,7 +58,7 @@ export async function getMembers(filters, references, signal) {
    */
   return {
     items: items.map((item) => ({
-      id: item.id, name: item.name, business_name: item.business_name,
+      id: item.id, name: item.name, business_name: item.business_name, description: item.description,
       sector: { id: item.sector.id, name: item.sector.name },
       location: { id: item.location.id, name: item.location.name },
       logo_url: item.logo_url, average_rating: item.average_rating, reviews_count: item.reviews_count,

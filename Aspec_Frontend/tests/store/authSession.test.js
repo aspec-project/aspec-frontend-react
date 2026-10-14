@@ -51,6 +51,17 @@ describe('Isolamento da sessão', () => {
     expect(useAuthStore.getState().user).toEqual(B)
   })
 
+  it('o interceptor rejeita diretamente um 401 antigo mesmo sem depender do abort Axios', async () => {
+    const config = { sessionGeneration: getSessionContext().generation }
+    useAuthStore.setState({ user: B, status: 'authenticated' })
+    const generation = getSessionContext().generation
+    const interceptor = api.interceptors.response.handlers[0]
+    await expect(interceptor.rejected(failure(config, 401))).rejects.toMatchObject({ code: 'ERR_CANCELED' })
+    expect(useAuthStore.getState().user).toEqual(B)
+    expect(getSessionContext().generation).toBe(generation)
+    expect(notifySessionChange).not.toHaveBeenCalled()
+  })
+
   it('recusa pedido com geração anterior antes do envio', async () => {
     const context = getSessionContext()
     useAuthStore.getState().clearSession()

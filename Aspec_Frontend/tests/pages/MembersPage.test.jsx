@@ -11,7 +11,7 @@ import { useAuthStore } from '../../src/store/authStore'
 
 const sectorId = '019512a1-1234-7123-8123-123456789abc'
 const locationId = '019512a1-5678-7123-8123-123456789abc'
-const member = { id: '019512a1-9999-7123-8123-123456789abc', name: 'Ana', business_name: 'Serviços Ana', sector: { id: sectorId, name: 'Consultoria' }, location: { id: locationId, name: 'Lisboa' }, logo_url: null, average_rating: 4.8, reviews_count: 12, email: 'privado@example.test', phone: '912345678', description: 'Descrição privada', tags: ['Tag privada'] }
+const member = { id: '019512a1-9999-7123-8123-123456789abc', name: 'Ana', business_name: 'Serviços Ana', sector: { id: sectorId, name: 'Consultoria' }, location: { id: locationId, name: 'Lisboa' }, logo_url: null, average_rating: 4.8, reviews_count: 12, email: 'privado@example.test', phone: '912345678', description: 'Descrição pública fornecida pela API', tags: ['Tag privada'] }
 function body(config, items = [member], total = 25) {
   return { success: true, data: { items, pagination: { current_page: config.params.page, per_page: config.params.per_page, total, last_page: Math.max(1, Math.ceil(total / config.params.per_page)) } } }
 }
@@ -70,7 +70,8 @@ describe('Diretório de membros', () => {
     await screen.findByRole('heading', { name: member.business_name })
     expect(screen.getByText('25 membros encontrados')).toBeInTheDocument()
     expect(screen.getByText('S')).toBeInTheDocument()
-    for (const privateText of [member.email, member.phone, member.description, member.tags[0]]) expect(screen.queryByText(privateText)).not.toBeInTheDocument()
+    expect(screen.getByText(member.description)).toHaveClass('line-clamp-2')
+    for (const privateText of [member.email, member.phone, member.tags[0]]) expect(screen.queryByText(privateText)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: `Ver perfil: ${member.business_name}` })).toHaveAttribute('href', `/membros/${member.id}`)
     expect(screen.getByRole('link', { name: `Ver perfil: ${member.business_name}` })).toContainElement(screen.getByRole('heading', { name: member.business_name }))
     expect(screen.getByText('4,8')).toHaveAttribute('aria-label', '4,8 estrelas')
@@ -253,7 +254,8 @@ describe('Diretório de membros', () => {
     await screen.findByRole('heading', { name: member.business_name })
     expect(screen.queryByText('Contacto visível apenas para membros')).not.toBeInTheDocument()
     expect(screen.queryByText('Contacto não disponível')).not.toBeInTheDocument()
-    for (const value of [member.email, member.phone, member.description, member.tags[0]]) expect(screen.queryByText(value)).not.toBeInTheDocument()
+    expect(screen.getByText(member.description)).toBeInTheDocument()
+    for (const value of [member.email, member.phone, member.tags[0]]) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Entrar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Candidatar-me' })).not.toBeInTheDocument()
     expect(adapter.mock.calls.map(([config]) => config.url).sort()).toEqual(['/locations', '/members', '/sectors'])
@@ -274,6 +276,7 @@ describe('Diretório de membros', () => {
     const description = 'Resumo fornecido para demonstração <script>texto</script>'
     const view = render(<MemoryRouter><MemberCard member={{ ...member, description }} /></MemoryRouter>)
     expect(screen.getByText(description)).toBeInTheDocument()
+    expect(screen.getByText(description)).toHaveClass('line-clamp-2', '[overflow-wrap:anywhere]')
     expect(document.querySelector('script')).toBeNull()
     expect(screen.queryByText(member.tags[0])).not.toBeInTheDocument()
     view.rerender(<MemoryRouter><MemberCard member={{ ...member, description: undefined }} /></MemoryRouter>)

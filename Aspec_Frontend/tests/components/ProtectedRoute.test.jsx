@@ -1,8 +1,9 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, renderHook } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProtectedRoute } from '../../src/components/ProtectedRoute'
 import { useAuthStore } from '../../src/store/authStore'
+import { useLoginForm } from '../../src/hooks/useLoginForm'
 
 const member = { id: 'A', role: { name: 'Member' }, account_status: { name: 'Active' } }
 function show() {
@@ -38,5 +39,38 @@ describe('Rotas Member Active', () => {
     show()
     act(() => useAuthStore.setState({ status: 'logging-out' }))
     expect(screen.queryByText('Conteúdo privado')).not.toBeInTheDocument()
+  })
+})
+
+describe('Destino após login válido', () => {
+  it.each(['Member', 'Admin'])('envia %s Active diretamente para /', async (role) => {
+    const loginOriginal = useAuthStore.getState().login
+    const login = vi.fn(async () => {
+      useAuthStore.setState({ user: { ...member, role: { name: role } }, status: 'authenticated' })
+      return { success: true }
+    })
+    useAuthStore.setState({ login, user: null, status: 'idle' })
+    const wrapper = ({ children }) => <MemoryRouter initialEntries={['/login']}>
+      {children}
+      <Routes>
+        <Route path="/login" element={<p>Login</p>} />
+        <Route path="/" element={<p>Destino inicial</p>} />
+        <Route path="/dashboard" element={<p>Destino antigo</p>} />
+      </Routes>
+    </MemoryRouter>
+    try {
+      const { result } = renderHook(() => useLoginForm(), { wrapper })
+      act(() => {
+        result.current.setEmail('teste@example.test')
+        result.current.setPassword('password-de-teste')
+      })
+      await act(async () => result.current.handleLogin())
+      expect(login).toHaveBeenCalledWith('teste@example.test', 'password-de-teste')
+      expect(screen.getByText('Destino inicial')).toBeInTheDocument()
+      expect(screen.queryByText('Destino antigo')).not.toBeInTheDocument()
+    } finally {
+      useAuthStore.setState({ login: loginOriginal })
+      useAuthStore.getState().clearSession()
+    }
   })
 })
