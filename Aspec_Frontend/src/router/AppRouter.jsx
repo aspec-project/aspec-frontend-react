@@ -11,6 +11,8 @@ import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
+import AdminLayout from '../components/layout/AdminLayout'
+import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import HomePage from "../pages/HomePage"
 import EventsPage from "../pages/EventsPage"
 import MembersPage from '../pages/MembersPage'
@@ -83,22 +85,21 @@ function AppRouter() {
 
       {/* Rotas de administração — exigem sessão válida E role "Admin" */}
       <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
-        <Route
-          path="/admin"
-          element={<PlaceholderPage title="Administração" />}
-        />
-        <Route
-          path="/admin/utilizadores"
-          element={<PlaceholderPage title="Gestão de utilizadores" />}
-        />
-        <Route
-          path="/admin/eventos"
-          element={<PlaceholderPage title="Gestão de eventos" />}
-        />
-        <Route
-          path="/admin/moderacao"
-          element={<PlaceholderPage title="Moderação" />}
-        />
+        <Route element={<AdminLayout />}>
+          <Route
+            path="/admin"
+            element={<PlaceholderPage title="Administração" />}
+          />
+          <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
+          <Route
+            path="/admin/eventos"
+            element={<PlaceholderPage title="Gestão de eventos" />}
+          />
+          <Route
+            path="/admin/moderacao"
+            element={<PlaceholderPage title="Moderação" />}
+          />
+        </Route>
       </Route>
 
       {/* Rota para URLs que não existem */}
