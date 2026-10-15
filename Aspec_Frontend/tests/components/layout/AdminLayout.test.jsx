@@ -13,6 +13,7 @@ function show(path) {
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<p>Conteúdo do dashboard</p>} />
           <Route path="/admin/utilizadores" element={<p>Conteúdo dos utilizadores</p>} />
+          <Route path="/admin/utilizadores/:id" element={<p>Conteúdo do detalhe</p>} />
           <Route path="/admin/eventos" element={<p>Conteúdo dos eventos</p>} />
           <Route path="/admin/moderacao" element={<p>Conteúdo da moderação</p>} />
         </Route>
@@ -61,5 +62,14 @@ describe('AdminLayout', () => {
     expect(sectionTabs().getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
     expect(sectionTabs().getByRole('link', { name: 'Eventos' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Eventos' })).toBeInTheDocument()
+  })
+
+  it('no detalhe de um membro mostra o título próprio e mantém o separador Utilizadores ativo', () => {
+    show('/admin/utilizadores/u3')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Detalhe do membro' })).toBeInTheDocument()
+    expect(screen.getByText('Área de Administração')).toBeInTheDocument()
+    expect(sectionTabs().getByRole('link', { name: 'Utilizadores' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Conteúdo do detalhe')).toBeInTheDocument()
   })
 })

@@ -13,6 +13,7 @@ import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import AdminLayout from '../components/layout/AdminLayout'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
+import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import HomePage from "../pages/HomePage"
 import EventsPage from "../pages/EventsPage"
 import MembersPage from '../pages/MembersPage'
@@ -91,6 +92,7 @@ function AppRouter() {
             element={<PlaceholderPage title="Administração" />}
           />
           <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
+          <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
           <Route
             path="/admin/eventos"
             element={<PlaceholderPage title="Gestão de eventos" />}
