@@ -664,4 +664,33 @@ describe('Gestão de Utilizadores', () => {
     expect(screen.queryByRole('button', { name: 'Fechar mensagem' })).not.toBeInTheDocument()
     expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore)
   })
+
+  it('cada linha tem uma ligação Ver detalhe para a página do membro, incluindo admins sem perfil', async () => {
+    const otherAdmin = {
+      id: 'admin-2',
+      email: 'outro@aspec.pt',
+      created_at: '2024-01-15T09:30:00+00:00',
+      role: { id: 'role-admin', name: 'Admin' },
+      account_status: { id: 'status-Active', name: 'Active' },
+      inactive_reason: null,
+      member_profile: null,
+    }
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    const ana = rowOf('Ana Costa').getByRole('link', { name: 'Ver detalhe de Ana Costa' })
+    expect(ana).toHaveAttribute('href', '/admin/utilizadores/u1')
+    expect(ana).toHaveAttribute('title', 'Ver detalhe')
+    expect(rowOf('Rita Ferreira').getByRole('link', { name: 'Ver detalhe de Rita Ferreira' })).toHaveAttribute('href', '/admin/utilizadores/u5')
+    expect(within(rowOf('Rita Ferreira').getAllByRole('cell').at(-1)).getByText('Sem ações')).toBeInTheDocument()
+
+    getAdminUsers.mockResolvedValue(list([otherAdmin, ...items]))
+    await user.click(screen.getByRole('checkbox', { name: 'Mostrar admins' }))
+    await screen.findAllByText('outro@aspec.pt')
+
+    const adminRow = within(screen.getAllByText('outro@aspec.pt')[0].closest('tr'))
+    expect(adminRow.getByRole('link', { name: 'Ver detalhe de outro@aspec.pt' })).toHaveAttribute('href', '/admin/utilizadores/admin-2')
+    expect(adminRow.queryAllByRole('button')).toHaveLength(0)
+  })
 })

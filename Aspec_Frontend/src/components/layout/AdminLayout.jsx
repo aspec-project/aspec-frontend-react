@@ -13,6 +13,13 @@ const ADMIN_TABS = [
   { to: '/admin/moderacao', label: 'Moderação', title: 'Moderação de Conteúdos' },
 ]
 
+/**
+ * Títulos do herói para páginas dentro de um separador (o separador continua ativo).
+ */
+const ADMIN_PAGE_TITLES = [
+  { path: '/admin/utilizadores/:id', title: 'Detalhe do membro' },
+]
+
 const todayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
@@ -26,7 +33,8 @@ export default function AdminLayout() {
   const [today] = useState(() => todayFormatter.format(new Date()))
   const currentTab = ADMIN_TABS.find((tab) => matchPath({ path: tab.to, end: tab.end ?? false }, pathname))
   const isDashboard = currentTab?.to === '/admin'
-  const title = currentTab?.title ?? 'Área de Administração'
+  const pageTitle = ADMIN_PAGE_TITLES.find((page) => matchPath({ path: page.path, end: true }, pathname))?.title
+  const title = pageTitle ?? currentTab?.title ?? 'Área de Administração'
 
   return (
     <div className="min-h-screen flex flex-col">

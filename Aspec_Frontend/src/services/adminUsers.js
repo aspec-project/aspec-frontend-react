@@ -34,6 +34,19 @@ export async function getAdminUsers(filters = {}, signal) {
 }
 
 /**
+ * Obtém o detalhe de um utilizador do backoffice (conta e perfil de membro).
+ *
+ * @param {string} id Id do utilizador.
+ * @param {AbortSignal} [signal] Permite cancelar o pedido ao sair da página.
+ * @returns {Promise<object>} O utilizador devolvido pela API.
+ */
+export async function getAdminUser(id, signal) {
+  const response = await api.get(`/admin/users/${encodeURIComponent(id)}`, { signal })
+
+  return response.data.data
+}
+
+/**
  * Muda o estado de um utilizador do backoffice através de uma ação de administração.
  *
  * @param {string} id Id do utilizador.

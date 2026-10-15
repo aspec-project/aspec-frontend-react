@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   USER_ACTION_LABELS,
   USER_STATUS_TABS,
+  formatBusinessHours,
   formatFullDate,
   getActionConfirmation,
   getAvailableActions,
   formatRegistrationDate,
   getDisplayName,
   getInitial,
+  getRoleLabel,
   getStatusBadge,
 } from '../../src/utils/adminUsers'
 
@@ -109,5 +111,31 @@ describe('ações disponíveis e textos de confirmação', () => {
     const { description } = getActionConfirmation('block', { email: 'x@y.pt', member_profile: null })
     expect(description).toContain('x@y.pt?')
     expect(description).not.toContain('(')
+  })
+})
+
+describe('detalhe do membro', () => {
+  it('mostra o horário de segunda a domingo com Encerrado nos dias sem horas e o papel em português', () => {
+    const labels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+    const hours = formatBusinessHours([
+      { week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' },
+      { week_day_id: 6, week_day: 'Sábado', open_time: '10:00', close_time: '13:00' },
+    ])
+
+    expect(hours.map((day) => day.label)).toEqual(labels)
+    expect(hours.map((day) => day.value)).toEqual(['09:00 – 18:00', 'Encerrado', 'Encerrado', 'Encerrado', 'Encerrado', '10:00 – 13:00', 'Encerrado'])
+    expect(formatBusinessHours([
+      { week_day_id: 1, week_day: 'X', open_time: '09:00', close_time: '18:00' },
+      { week_day_id: 6, week_day: 'Y', open_time: '10:00', close_time: '13:00' },
+    ])).toEqual(hours)
+
+    for (const empty of [formatBusinessHours(), formatBusinessHours([])]) {
+      expect(empty.map((day) => day.label)).toEqual(labels)
+      expect(empty.map((day) => day.value)).toEqual(Array(7).fill('Encerrado'))
+    }
+
+    expect(getRoleLabel({ role: { name: 'Admin' } })).toBe('Administrador')
+    expect(getRoleLabel({ role: { name: 'Member' } })).toBe('Membro')
+    expect(getRoleLabel({})).toBe('Não indicado')
   })
 })

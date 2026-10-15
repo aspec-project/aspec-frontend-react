@@ -130,6 +130,39 @@ export function getInitial(user) {
 }
 
 /**
+ * Papel do utilizador em português.
+ *
+ * @param {{role?: {name?: string}}} user
+ * @returns {string} "Administrador", "Membro" ou "Não indicado".
+ */
+export function getRoleLabel(user) {
+  switch (user?.role?.name) {
+    case 'Admin':
+      return 'Administrador'
+    case 'Member':
+      return 'Membro'
+    default:
+      return 'Não indicado'
+  }
+}
+
+const WEEK_DAY_LABELS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+
+/**
+ * Horário semanal para mostrar, de segunda a domingo, com "Encerrado" nos dias sem horas.
+ *
+ * @param {{week_day_id: number, open_time: string, close_time: string}[]|undefined} hours Horário da API (dia pelo id 1–7).
+ * @returns {{label: string, value: string}[]} Os 7 dias por ordem.
+ */
+export function formatBusinessHours(hours = []) {
+  return WEEK_DAY_LABELS.map((label, index) => {
+    const day = hours.find((item) => item.week_day_id === index + 1)
+
+    return { label, value: day ? `${day.open_time} – ${day.close_time}` : 'Encerrado' }
+  })
+}
+
+/**
  * Nomes das ações de administração sobre um utilizador, por chave da API.
  *
  * @type {{approve: string, reject: string, block: string, unblock: string}}

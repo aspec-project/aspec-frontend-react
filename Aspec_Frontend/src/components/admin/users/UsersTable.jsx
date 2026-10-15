@@ -1,3 +1,5 @@
+import { Eye } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import UserActions from './UserActions'
 import UserStatusBadge from './UserStatusBadge'
 import { formatFullDate, formatRegistrationDate, getAvailableActions, getDisplayName, getInitial } from '../../../utils/adminUsers'
@@ -6,7 +8,7 @@ const HEADERS = ['Nome / Negócio', 'Setor', 'Localidade', 'Email', 'Data regist
 
 /**
  * Tabela da lista de utilizadores do backoffice. Mostra os itens pela ordem recebida do servidor,
- * com as ações disponíveis para cada utilizador.
+ * com a ligação "Ver detalhe" (👁) em todas as linhas e as ações disponíveis para cada utilizador.
  *
  * @param {{
  *   users: object[],
@@ -60,12 +62,22 @@ export default function UsersTable({ users, busy = false, currentUserId, onActio
                 </td>
                 <td className="px-5 py-4"><UserStatusBadge user={user} /></td>
                 <td className="px-5 py-4">
-                  <UserActions
-                    user={user}
-                    actions={getAvailableActions(user, currentUserId)}
-                    disabled={actionsDisabled}
-                    onAction={onAction}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/admin/utilizadores/${encodeURIComponent(user.id)}`}
+                      aria-label={`Ver detalhe de ${getDisplayName(user)}`}
+                      title="Ver detalhe"
+                      className="flex h-8 w-8 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]"
+                    >
+                      <Eye size={16} aria-hidden="true" />
+                    </Link>
+                    <UserActions
+                      user={user}
+                      actions={getAvailableActions(user, currentUserId)}
+                      disabled={actionsDisabled}
+                      onAction={onAction}
+                    />
+                  </div>
                 </td>
               </tr>
             )
