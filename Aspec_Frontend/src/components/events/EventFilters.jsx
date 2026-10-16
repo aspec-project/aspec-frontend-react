@@ -1,7 +1,7 @@
-import { Search } from "lucide-react";
+const selectClassName = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:opacity-60";
+const buttonClassName = "rounded text-sm font-medium text-[#0d1f35] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]";
 
-const selectClassName = "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-3 text-sm text-[#0D1F35] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:bg-gray-100";
-const buttonClassName = "rounded text-sm font-medium text-[#0D1F35] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline";
+const searchButtonClassName = "rounded-lg bg-[#0d1f35] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function EventFilters({
   categoryId,
@@ -13,36 +13,28 @@ export default function EventFilters({
   onCategoryChange,
   onLocationChange,
   onSearchChange,
+  onSearch,
   onClear,
 }) {
   return (
-    <section aria-label="Filtros de eventos" className="mb-8 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="event-search" className="text-sm font-semibold text-[#0D1F35]">Pesquisar eventos</label>
-            <button type="button" disabled={!searchEnabled || !search} onClick={() => onSearchChange("")} className={buttonClassName}>Limpar pesquisa</button>
-          </div>
-          <div className="relative">
-            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              id="event-search"
-              type="search"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Pesquisar eventos..."
-              disabled={!searchEnabled}
-              aria-describedby={!searchEnabled ? "event-search-unavailable" : undefined}
-              className={`${selectClassName} pl-9`}
-            />
-          </div>
+    <form onSubmit={onSearch} aria-label="Filtros de eventos" className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="min-w-0 md:col-span-2">
+          <label htmlFor="event-search" className="mb-1.5 block text-sm font-medium text-gray-700">Pesquisar eventos</label>
+          <input
+            id="event-search"
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Pesquisar eventos..."
+            disabled={!searchEnabled}
+            aria-describedby={!searchEnabled ? "event-search-unavailable" : undefined}
+            className={selectClassName}
+          />
           {!searchEnabled && <p id="event-search-unavailable" className="mt-2 text-sm text-gray-600">Pesquisa indisponível de momento.</p>}
         </div>
         <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="event-category" className="text-sm font-semibold text-[#0D1F35]">Categoria</label>
-            <button type="button" disabled={!categoryId} onClick={() => onCategoryChange("")} className={buttonClassName}>Limpar categoria</button>
-          </div>
+          <label htmlFor="event-category" className="mb-1.5 block text-sm font-medium text-gray-700">Categoria</label>
           <select
             id="event-category"
             value={categoryId}
@@ -63,10 +55,7 @@ export default function EventFilters({
           )}
         </div>
         <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="event-location" className="text-sm font-semibold text-[#0D1F35]">Distrito</label>
-            <button type="button" disabled={!locationId} onClick={() => onLocationChange("")} className={buttonClassName}>Limpar distrito</button>
-          </div>
+          <label htmlFor="event-location" className="mb-1.5 block text-sm font-medium text-gray-700">Distrito</label>
           <select
             id="event-location"
             value={locationId}
@@ -87,9 +76,10 @@ export default function EventFilters({
           )}
         </div>
       </div>
-      <div className="mt-5 flex justify-end">
-        <button type="button" disabled={!categoryId && !locationId && !search} onClick={onClear} className={buttonClassName}>Limpar filtros</button>
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-4">
+        <button type="submit" className={searchButtonClassName}>Pesquisar</button>
+        <button type="button" onClick={onClear} className={buttonClassName}>Limpar filtros</button>
       </div>
-    </section>
+    </form>
   );
 }

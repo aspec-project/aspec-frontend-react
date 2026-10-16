@@ -17,7 +17,7 @@ const otherId = '019512a1-9998-7123-8123-123456789abc'
 const profile = {
   id, name: 'Ana', business_name: 'Serviços Ana', description: 'Descrição pública', website_url: 'https://example.test',
   sector: { id, name: 'Consultoria' }, location: { id, name: 'Lisboa' }, logo_url: null,
-  business_hours: [{ week_day_id: 1, week_day: 'Monday', open_time: '09:00', close_time: '18:00' }],
+  business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' }],
   portfolio: [{ id, image_url: 'https://example.test/image.jpg' }], average_rating: 4.8, reviews_count: 12,
   address: 'Morada pública',
   social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }],
@@ -38,6 +38,15 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config))
   })
   afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
+
+  it('aceita o horário da API em português e mostra segunda-feira aberta no perfil', async () => {
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    const mondayHours = screen.getByText('Segunda-feira').nextElementSibling
+    expect(mondayHours).toHaveTextContent('09:00 – 18:00')
+    expect(mondayHours).not.toHaveTextContent('Encerrado')
+    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+  })
 
   it.each([
     ['visitante', null, 'idle'], ['sessão a confirmar', active, 'loading'],
@@ -219,9 +228,9 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       ...profile,
       business_hours: [
-        { week_day_id: 5, week_day: 'Friday', open_time: null, close_time: null },
-        { week_day_id: 1, week_day: 'Monday', open_time: '14:00', close_time: '18:00' },
-        { week_day_id: 1, week_day: 'Monday', open_time: '09:00', close_time: '12:00' },
+        { week_day_id: 5, week_day: 'Sexta-feira', open_time: null, close_time: null },
+        { week_day_id: 1, week_day: 'Segunda-feira', open_time: '14:00', close_time: '18:00' },
+        { week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '12:00' },
       ],
     }))
     show()
@@ -323,7 +332,7 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
   })
 
-  it.each([{ id: otherId }, { average_rating: 6 }, { reviews_count: -1 }, { business_hours: [{ week_day_id: 1, week_day: 'Monday', open_time: '25:00', close_time: '18:00' }] }, { portfolio: [{}] }])('rejeita contrato malformado: %j', async (change) => {
+  it.each([{ id: otherId }, { average_rating: 6 }, { reviews_count: -1 }, { business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '25:00', close_time: '18:00' }] }, { portfolio: [{}] }])('rejeita contrato malformado: %j', async (change) => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, ...change }))
     show()
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
