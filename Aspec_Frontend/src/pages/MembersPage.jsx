@@ -6,7 +6,7 @@ import { normalizeError } from '../services/api'
 import MemberCard from '../components/members/MemberCard'
 import MemberFilters, { directoryButtonClass } from '../components/members/MemberFilters'
 
-const initialFilters = { search: '', sector_id: '', location_id: '', min_rating: '', page: 1, per_page: 9 }
+const initialFilters = { search: '', sector_id: '', location_id: '', min_rating: '', page: 1, per_page: 12 }
 const emptyReferences = { sectors: [], locations: [], ready: false }
 const directoryErrorMessage = 'Não foi possível carregar o diretório. Tente novamente.'
 
@@ -81,6 +81,18 @@ export default function MembersPage() {
       setFilters((current) => ({ ...current, search: draftSearch.trim(), page: 1 }))
     }
   }
+  const changeSearch = (value) => {
+    setDraftSearch(value)
+    if (value === '') {
+      beginRequest()
+      setFilters((current) => ({ ...current, search: '', page: 1 }))
+    }
+  }
+  const clearFilters = () => {
+    setDraftSearch('')
+    beginRequest()
+    setFilters({ ...initialFilters })
+  }
 
   return (
     <div className="bg-gray-50 text-gray-800">
@@ -92,12 +104,12 @@ export default function MembersPage() {
         </div>
       </section>
       <div className="mx-auto max-w-7xl space-y-6 px-6 py-10">
-        <MemberFilters filters={filters} draftSearch={draftSearch} setDraftSearch={setDraftSearch} changeFilter={changeFilter} onSearch={onSearch} references={references} loading={loading} fieldErrors={fieldErrors} />
+        <MemberFilters filters={filters} draftSearch={draftSearch} changeSearch={changeSearch} changeFilter={changeFilter} onSearch={onSearch} clearFilters={clearFilters} references={references} loading={loading} fieldErrors={fieldErrors} />
         {referenceError && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{referenceError} <button type="button" onClick={() => { setReferenceError(''); setReferenceRetry((value) => value + 1) }} className="ml-2 rounded font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-4">Tentar carregar filtros novamente</button></div>}
         <section aria-label="Resultados do diretório" aria-busy={loading}>
           {loading ? <p role="status" className="py-12 text-center text-gray-600">A carregar membros...</p> : error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700"><p>{error}</p><button type="button" className={`${directoryButtonClass} mt-4`} onClick={() => { beginRequest(); setRetry((value) => value + 1) }}>Tentar novamente</button></div> : result && <>
             <p role="status" className="mb-5 text-sm text-gray-600">{result.pagination.total} {result.pagination.total === 1 ? 'membro encontrado' : 'membros encontrados'}</p>
-            {result.items.length === 0 ? <p className="py-12 text-center text-gray-600">Não foram encontrados membros para esta pesquisa.</p> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{result.items.map((member) => <MemberCard key={member.id} member={member} />)}</div>}
+            {result.items.length === 0 ? <p className="py-12 text-center text-gray-600">Não foram encontrados membros para esta pesquisa.</p> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">{result.items.map((member) => <MemberCard key={member.id} member={member} />)}</div>}
           </>}
           {result && !error && <nav aria-label="Paginação do diretório" className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <button type="button" className={directoryButtonClass} disabled={loading || result.pagination.current_page <= 1} onClick={() => { beginRequest(); setFilters((current) => ({ ...current, page: current.page - 1 })) }}>Anterior</button>

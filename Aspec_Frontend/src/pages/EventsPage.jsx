@@ -53,6 +53,7 @@ const paginationButtonClassName = "inline-flex items-center justify-center gap-2
 
 export default function EventsPage() {
   const [query, setQuery] = useState({ categoryId: "", locationId: "", search: "", page: 1 });
+  const [draftSearch, setDraftSearch] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState({ key: "", data: null, error: "" });
   const categories = useFilterOptions(getEventCategories);
@@ -120,16 +121,30 @@ export default function EventsPage() {
         <EventFilters
           categoryId={categoryId}
           locationId={locationId}
-          search={search}
+          search={draftSearch}
           searchEnabled={capabilities.search}
           categories={categories}
           locations={locations}
           onCategoryChange={(value) => changeFilter("categoryId", value, categories.items)}
           onLocationChange={(value) => changeFilter("locationId", value, locations.items)}
           onSearchChange={(value) => {
-            if (capabilities.search) setQuery((current) => ({ ...current, search: value, page: 1 }));
+            if (!capabilities.search) return;
+            setDraftSearch(value);
+            if (value === "") {
+              setQuery((current) => ({ ...current, search: "", page: 1 }));
+              setAttempt((current) => current + 1);
+            }
           }}
-          onClear={() => setQuery({ categoryId: "", locationId: "", search: "", page: 1 })}
+          onSearch={(event) => {
+            event.preventDefault();
+            setQuery((current) => ({ ...current, search: capabilities.search ? draftSearch.trim() : "", page: 1 }));
+            setAttempt((current) => current + 1);
+          }}
+          onClear={() => {
+            setDraftSearch("");
+            setQuery({ categoryId: "", locationId: "", search: "", page: 1 });
+            setAttempt((current) => current + 1);
+          }}
         />
         <section aria-label="Resultados da agenda" aria-busy={loading}>
           {loading ? (
