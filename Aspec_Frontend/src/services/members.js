@@ -5,7 +5,7 @@ const validId = (value) => typeof value === 'string' && value.trim() !== ''
 const validReference = (value) => validId(value?.id) && typeof value.name === 'string' && value.name.trim() !== ''
 
 export async function getMembers(filters, references, signal) {
-  const { search = '', sector_id = '', location_id = '', min_rating = '', page = 1, per_page = 9 } = filters
+  const { search = '', sector_id = '', location_id = '', min_rating = '', page = 1, per_page = 12 } = filters
   if (typeof search !== 'string' || !positiveInteger(page) || !positiveInteger(per_page) || per_page > 50) {
     throw new Error('Os parâmetros de pesquisa são inválidos.')
   }
@@ -78,7 +78,7 @@ export function safeMemberUrl(value, asset = false) {
 }
 
 const nullableText = (value) => value === null || typeof value === 'string'
-const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const weekDays = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 const time = (value) => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
 
 export async function getPublicMemberProfile(id, allowContacts = false, signal) {

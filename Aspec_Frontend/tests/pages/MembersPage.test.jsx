@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
@@ -38,7 +38,7 @@ describe('Diretório de membros', () => {
     ['Visitor', null, 'idle'],
     ['Member Active', { id: member.id, role: { name: 'Member' }, account_status: { name: 'Active' } }, 'authenticated'],
   ])('integra /membros no MainLayout sem duplicar Navbar, conteúdo ou Footer para %s', async (_, user, status) => {
-    const items = Array.from({ length: 9 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index}`, business_name: `Negócio ${index}` }))
+    const items = Array.from({ length: 12 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index.toString(16)}`, business_name: `Negócio ${index}` }))
     setupAdapter((config) => Promise.resolve(response(body(config, items, 18), config)))
     useAuthStore.setState({ user, status })
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
@@ -52,14 +52,14 @@ describe('Diretório de membros', () => {
     expect(navbar).toBeVisible()
     expect(footer).toBeVisible()
     expect(main.nextElementSibling).toBe(footer)
-    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(12)
     expect(within(main).getByRole('region', { name: 'Resultados do diretório' })).toBeInTheDocument()
     expect(main.querySelector('footer')).toBeNull()
     expect(within(navbar).queryByRole('button', { name: 'Abrir menu de navegação' })).toBeInTheDocument()
 
     await userEvent.setup().click(within(navbar).getByRole('button', { name: 'Abrir menu de navegação' }))
     expect(within(navbar).getByRole('button', { name: 'Fechar menu de navegação' })).toHaveAttribute('aria-expanded', 'true')
-    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+    expect(within(main).getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(12)
   })
 
   it('mostra total servidor, campos públicos, fallback de logo e paginação com um pedido por página', async () => {
@@ -111,7 +111,7 @@ describe('Diretório de membros', () => {
     await user.click(screen.getByRole('button', { name: 'Pelo menos 4 estrelas' }))
     await screen.findByRole('heading', { name: member.business_name })
     const requests = adapter.mock.calls.filter(([config]) => config.url === '/members')
-    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 9, search: 'contabilidade', sector_id: sectorId, location_id: locationId, min_rating: 4 })
+    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 12, search: 'contabilidade', sector_id: sectorId, location_id: locationId, min_rating: 4 })
     await user.click(screen.getByRole('button', { name: 'Todas' }))
     await screen.findByRole('heading', { name: member.business_name })
     expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params.min_rating).toBeUndefined()
@@ -129,10 +129,121 @@ describe('Diretório de membros', () => {
     await screen.findByText('Página 1 de 3')
     const requests = adapter.mock.calls.filter(([config]) => config.url === '/members')
     expect(requests).toHaveLength(3)
-    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 9, min_rating: 4.5 })
+    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 12, min_rating: 4.5 })
     expect(screen.getByRole('button', { name: 'Pelo menos 4,5 estrelas' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: member.business_name })).toBeInTheDocument()
     expect(screen.getByText('25 membros encontrados')).toBeInTheDocument()
+  })
+
+  it('limpa a pesquisa pelo X nativo e regressa à primeira página preservando os outros filtros', async () => {
+    const user = userEvent.setup()
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.selectOptions(screen.getByLabelText('Setor'), sectorId)
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.selectOptions(screen.getByLabelText('Distrito'), locationId)
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Pelo menos 4 estrelas' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    const search = screen.getByLabelText('Pesquisar')
+    await user.type(search, 'Ana')
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Seguinte' }))
+    await screen.findByText('Página 2 de 3')
+    const countBeforeClear = adapter.mock.calls.filter(([config]) => config.url === '/members').length
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params).toEqual({ page: 2, per_page: 12, search: 'Ana', sector_id: sectorId, location_id: locationId, min_rating: 4 })
+    fireEvent.change(search, { target: { value: '' } })
+    await screen.findByText('Página 1 de 3')
+    expect(search).toHaveValue('')
+    const requests = adapter.mock.calls.filter(([config]) => config.url === '/members')
+    expect(requests).toHaveLength(countBeforeClear + 1)
+    expect(requests.at(-1)[0].params).toEqual({ page: 1, per_page: 12, sector_id: sectorId, location_id: locationId, min_rating: 4 })
+  })
+
+  it('reinicia a primeira página ao mudar setor ou distrito e preserva a pesquisa e a avaliação', async () => {
+    const user = userEvent.setup()
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.type(screen.getByLabelText('Pesquisar'), 'Ana')
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Pelo menos 4 estrelas' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Seguinte' }))
+    await screen.findByText('Página 2 de 3')
+    await user.selectOptions(screen.getByLabelText('Setor'), sectorId)
+    await screen.findByText('Página 1 de 3')
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params).toEqual({ page: 1, per_page: 12, search: 'Ana', sector_id: sectorId, min_rating: 4 })
+    await user.click(screen.getByRole('button', { name: 'Seguinte' }))
+    await screen.findByText('Página 2 de 3')
+    await user.selectOptions(screen.getByLabelText('Distrito'), locationId)
+    await screen.findByText('Página 1 de 3')
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params).toEqual({ page: 1, per_page: 12, search: 'Ana', sector_id: sectorId, location_id: locationId, min_rating: 4 })
+  })
+
+  it('limpa todos os filtros e o rascunho na página dois e repete a consulta mesmo já limpa', async () => {
+    const user = userEvent.setup()
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.selectOptions(screen.getByLabelText('Setor'), sectorId)
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.selectOptions(screen.getByLabelText('Distrito'), locationId)
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Pelo menos 4 estrelas' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.type(screen.getByLabelText('Pesquisar'), 'Ana')
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    await user.click(screen.getByRole('button', { name: 'Seguinte' }))
+    await screen.findByText('Página 2 de 3')
+    await user.type(screen.getByLabelText('Pesquisar'), ' por submeter')
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    await screen.findByText('Página 1 de 3')
+    expect(screen.getByLabelText('Pesquisar')).toHaveValue('')
+    expect(screen.getByLabelText('Setor')).toHaveValue('')
+    expect(screen.getByLabelText('Distrito')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Todas' })).toHaveAttribute('aria-pressed', 'true')
+    const requests = () => adapter.mock.calls.filter(([config]) => config.url === '/members')
+    expect(requests().at(-1)[0].params).toEqual({ page: 1, per_page: 12 })
+    const countBeforeRepeat = requests().length
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    await screen.findByRole('heading', { name: member.business_name })
+    expect(requests()).toHaveLength(countBeforeRepeat + 1)
+    expect(requests().at(-1)[0].params).toEqual({ page: 1, per_page: 12 })
+  })
+
+  it('limpa pesquisa sem resultados durante um pedido pendente e ignora a resposta antiga', async () => {
+    const user = userEvent.setup()
+    let resolveOld
+    let oldConfig
+    const adapter = setupAdapter((config) => {
+      if (config.params.search === 'pendente') {
+        oldConfig = config
+        return new Promise((resolve) => { resolveOld = resolve })
+      }
+      return Promise.resolve(response(body(config, config.params.search ? [] : [member], config.params.search ? 0 : 25), config))
+    })
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    const search = screen.getByLabelText('Pesquisar')
+    await user.type(search, 'sem resultados')
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    await screen.findByText('Não foram encontrados membros para esta pesquisa.')
+    fireEvent.change(search, { target: { value: '' } })
+    await screen.findByRole('heading', { name: member.business_name })
+    fireEvent.change(search, { target: { value: 'pendente' } })
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    await waitFor(() => expect(resolveOld).toBeTypeOf('function'))
+    fireEvent.change(search, { target: { value: '' } })
+    await screen.findByRole('heading', { name: member.business_name })
+    expect(oldConfig.signal.aborted).toBe(true)
+    await act(async () => resolveOld(response(body(oldConfig, [], 0), oldConfig)))
+    expect(screen.getByRole('heading', { name: member.business_name })).toBeInTheDocument()
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members').at(-1)[0].params).toEqual({ page: 1, per_page: 12 })
   })
 
   it('mantém controlos e foco durante o carregamento de outra página', async () => {
@@ -283,15 +394,15 @@ describe('Diretório de membros', () => {
     expect(screen.queryByText(description)).not.toBeInTheDocument()
   })
 
-  it('pede nove cartões por página ao servidor sem carregar detalhes individuais', async () => {
-    const items = Array.from({ length: 9 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index}`, business_name: `Negócio ${index}` }))
+  it('pede doze cartões por página ao servidor sem carregar detalhes individuais', async () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({ ...member, id: `${member.id.slice(0, -1)}${index.toString(16)}`, business_name: `Negócio ${index}` }))
     const adapter = setupAdapter((config) => Promise.resolve(response(body(config, items, 18), config)))
     show()
     await screen.findByRole('heading', { name: 'Negócio 0' })
-    expect(screen.getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(9)
+    expect(screen.getAllByRole('link', { name: /^Ver perfil:/ })).toHaveLength(12)
     expect(screen.getByText('Página 1 de 2')).toBeInTheDocument()
     expect(adapter.mock.calls.filter(([config]) => config.url === '/members')).toHaveLength(1)
-    expect(adapter.mock.calls.find(([config]) => config.url === '/members')[0].params).toEqual({ page: 1, per_page: 9 })
+    expect(adapter.mock.calls.find(([config]) => config.url === '/members')[0].params).toEqual({ page: 1, per_page: 12 })
     expect(adapter.mock.calls.some(([config]) => config.url.startsWith('/members/'))).toBe(false)
   })
 })

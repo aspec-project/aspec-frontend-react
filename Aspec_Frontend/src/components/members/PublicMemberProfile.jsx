@@ -7,7 +7,7 @@ import MemberReviews from './MemberReviews'
 const cardClass = 'rounded-xl border border-gray-100 bg-white p-6 shadow-sm'
 const sidebarClass = 'rounded-xl border border-gray-100 bg-white p-5 shadow-sm'
 const linkClass = 'rounded font-semibold text-[#0d1f35] underline focus-visible:outline-2 focus-visible:outline-offset-4'
-const days = { Monday: 'Segunda-feira', Tuesday: 'Terça-feira', Wednesday: 'Quarta-feira', Thursday: 'Quinta-feira', Friday: 'Sexta-feira', Saturday: 'Sábado', Sunday: 'Domingo' }
+const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
 function ProfileImage({ src, title, logo = false, index }) {
   const [failed, setFailed] = useState(null)
@@ -160,11 +160,11 @@ export default function PublicMemberProfile({ member, allowContacts, allowReview
         <section className={cardClass}>
           <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Horário de Atendimento</h2>
           <dl className="mt-4 space-y-3">
-            {Object.entries(days).map(([day, label]) => {
+            {days.map((day) => {
               const intervals = member.business_hours.filter((item) => item.week_day === day && item.open_time && item.close_time)
               return (
                 <div key={day} className="flex flex-wrap justify-between gap-2 text-sm leading-relaxed">
-                  <dt>{label}</dt>
+                  <dt>{day}</dt>
                   <dd>{intervals.length > 0 ? intervals.map((item) => `${item.open_time} – ${item.close_time}`).join(' / ') : 'Encerrado'}</dd>
                 </div>
               )
