@@ -4,8 +4,8 @@ import {
   api,
   ensureCsrfCookie,
   normalizeError,
-  extractList,
 } from "../services/api";
+import { getSectors, getLocations } from "../services/referenceLists";
 import {
   FIELD_STEP,
   validateStepForm,
@@ -40,15 +40,16 @@ export function useRegisterForm() {
     const controller = new AbortController();
 
     Promise.all([
-      api.get("/sectors", { signal: controller.signal }),
-      api.get("/locations", { signal: controller.signal }),
+      getSectors(controller.signal),
+      getLocations(controller.signal),
     ])
-      .then(([sRes, lRes]) => {
-        setSectors(extractList(sRes.data.data));
-        setLocations(extractList(lRes.data.data));
+      .then(([sectors, locations]) => {
+        if (controller.signal.aborted) return;
+        setSectors(sectors);
+        setLocations(locations);
       })
       .catch((err) => {
-        if (err.code !== "ERR_CANCELED") setListsError("Não foi possível carregar os dados.");
+        if (!controller.signal.aborted && err.code !== "ERR_CANCELED") setListsError("Não foi possível carregar os dados.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setListsLoading(false);

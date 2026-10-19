@@ -1,11 +1,11 @@
 import { api, normalizeError } from "./api";
 
 /*
- * A pesquisa mantém a ativação dependente do suporte confirmado no backend.
+ * O contrato atual da agenda suporta pesquisa textual no servidor.
  */
 export function getEventsCapabilities() {
   return {
-    search: import.meta.env.VITE_EVENTS_SEARCH_ENABLED === "true",
+    search: true,
   };
 }
 
@@ -39,12 +39,11 @@ export async function getEventsPage(
     throw new Error("Os filtros dos eventos têm um formato inválido.");
   }
 
-  const capabilities = getEventsCapabilities();
   const params = { page, per_page: 9 };
 
   if (categoryId) params.category_id = categoryId;
   if (locationId) params.location_id = locationId;
-  if (capabilities.search && search.trim()) params.search = search.trim();
+  if (search.trim()) params.search = search.trim();
 
   const response = await api.get("/events", { params, signal });
   const resposta = response.data;

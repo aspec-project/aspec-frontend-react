@@ -1,4 +1,5 @@
 import { api, extractList } from './api'
+import { getCachedPublicReferenceList } from './publicReferenceCache'
 
 /*
  * Obtém uma lista de referência devolvida no formato padrão da API:
@@ -27,76 +28,22 @@ export function getWeekDays(config) {
 }
 
 /*
- * Obtém listas de referência utilizadas na Agenda de Eventos.
- */
-async function getEventReferenceList(endpoint, signal) {
-  const response = await api.get(endpoint, { signal })
-  const resposta = response.data
-
-  if (
-    resposta?.success !== true ||
-    !Array.isArray(resposta.data) ||
-    resposta.data.some(
-      (item) =>
-        typeof item?.id !== 'string' ||
-        !item.id.trim() ||
-        typeof item.name !== 'string' ||
-        !item.name.trim(),
-    ) ||
-    new Set(resposta.data.map((item) => item.id)).size !== resposta.data.length
-  ) {
-    throw new Error('A lista de filtros dos eventos tem um formato inesperado.')
-  }
-
-  return resposta.data
-}
-
-/*
- * Obtém listas de referência utilizadas no Diretório público.
- */
-async function getDirectoryReferenceList(endpoint, signal) {
-  const response = await api.get(endpoint, {
-    signal,
-    skipAuthRedirect: true,
-  })
-
-  const body = response.data
-
-  if (
-    body?.success !== true ||
-    !Array.isArray(body.data) ||
-    !body.data.every(
-      (item) =>
-        typeof item?.id === 'string' &&
-        item.id.trim() &&
-        typeof item.name === 'string' &&
-        item.name.trim(),
-    ) ||
-    new Set(body.data.map((item) => item.id)).size !== body.data.length
-  ) {
-    throw new Error('A lista de filtros tem um formato inesperado.')
-  }
-
-  return body.data
-}
-
-/*
  * Categorias utilizadas nos filtros da Agenda de Eventos.
  */
 export function getEventCategories(signal) {
-  return getEventReferenceList('/event-categories', signal)
+  return getCachedPublicReferenceList('/event-categories', signal, 'A lista de filtros dos eventos tem um formato inesperado.')
 }
 
 /*
  * Setores utilizados no Diretório de Membros.
  */
 export function getSectors(signal) {
-  return getDirectoryReferenceList('/sectors', signal)
+  return getCachedPublicReferenceList('/sectors', signal, 'A lista de filtros tem um formato inesperado.')
 }
 
 /*
  * Localizações utilizadas nas páginas públicas.
  */
 export function getLocations(signal) {
-  return getDirectoryReferenceList('/locations', signal)
+  return getCachedPublicReferenceList('/locations', signal, 'A lista de filtros tem um formato inesperado.')
 }

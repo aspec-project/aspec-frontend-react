@@ -49,6 +49,25 @@ describe('Perfil público de membro', () => {
   })
 
   it.each([
+    ['visitante', null, 'idle', false],
+    ['sessão a confirmar', null, 'loading', false],
+    ['membro ainda a confirmar', active, 'loading', false],
+    ['logout em curso', active, 'logging-out', false],
+    ['membro ativo', active, 'authenticated', true],
+    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', true],
+    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', true],
+    ['identidade sem ID', { role: { name: 'Member' } }, 'authenticated', false],
+  ])('mantém a classificação pública e restringe a lista de comentários: %s', async (_, user, status, visible) => {
+    useAuthStore.setState({ user, status })
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
+    expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
+    if (visible) expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
+    else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+  })
+
+  it.each([
     ['visitante', null, 'idle'], ['sessão a confirmar', active, 'loading'],
     ['inativo', { ...active, account_status: { name: 'Inactive' } }, 'authenticated'],
     ['pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated'],
@@ -79,7 +98,11 @@ describe('Perfil público de membro', () => {
     expect(screen.getByText('Domingo')).toBeInTheDocument()
     expect(screen.getAllByText('Encerrado')).toHaveLength(6)
     expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
+    if (status === 'authenticated') {
+      expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
+    } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+    expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
+    expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
   })
 
   it.each(['Member', 'Admin'])('mostra contactos ao %s Active sem usar contactos legados nem criar controlos de edição ou avaliação', async (role) => {
@@ -109,7 +132,9 @@ describe('Perfil público de membro', () => {
     await waitFor(() => expect(pending).toHaveLength(1))
     await act(async () => pending[0].resolve(response(pending[0].config)))
     await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
     await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -119,6 +144,7 @@ describe('Perfil público de membro', () => {
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expect(screen.getByText('Morada pública')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(document.querySelector('a[href="https://social.test/"]')).toBeNull()
@@ -129,6 +155,7 @@ describe('Perfil público de membro', () => {
     await waitFor(() => expect(pending).toHaveLength(3))
     await act(async () => pending[2].resolve(response(pending[2].config)))
     await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Visitar website' })).toBeInTheDocument()
     expect(screen.getByText('Contacto privado')).toBeInTheDocument()
@@ -159,6 +186,7 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => new Promise(() => { expect(config.signal.aborted).toBe(false) })
     await act(async () => useAuthStore.setState({ user: { ...active, id: otherId }, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
   })
 
   it('cancela pedido e ignora perfil antigo quando muda o ID na rota', async () => {

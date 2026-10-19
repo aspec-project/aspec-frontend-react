@@ -10,6 +10,7 @@ export default function PublicMemberProfilePage() {
   const sessionStatus = useAuthStore((state) => state.status)
   const allowContacts = sessionStatus === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
   const allowReview = allowContacts && user?.role?.name === 'Member'
+  const allowComments = sessionStatus === 'authenticated' && !!user?.id && ['Member', 'Admin'].includes(user?.role?.name)
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
 
@@ -54,7 +55,7 @@ export default function PublicMemberProfilePage() {
       </div>
     )
   } else {
-    content = <PublicMemberProfile member={current.member} allowContacts={allowContacts} allowReview={allowReview} />
+    content = <PublicMemberProfile member={current.member} allowContacts={allowContacts} allowReview={allowReview} allowComments={allowComments} />
   }
   return (
     <div className="min-h-[50vh] bg-gray-50 text-gray-800">

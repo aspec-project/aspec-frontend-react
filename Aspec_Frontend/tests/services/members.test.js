@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../src/services/api'
+import { clearPublicReferenceCache } from '../../src/services/publicReferenceCache'
 import { getMembers } from '../../src/services/members'
 import { getLocations, getSectors } from '../../src/services/referenceLists'
 
@@ -81,6 +82,7 @@ describe('Serviço do diretório', () => {
     api.defaults.adapter = adapter
     await expect(load()).resolves.toEqual(references.sectors)
     expect(adapter.mock.calls[0][0].skipAuthRedirect).toBe(true)
+    clearPublicReferenceCache()
     api.defaults.adapter = (config) => Promise.resolve(response({ success: true, data: [{ id: 1, name: 'Inválido' }] }, config))
     await expect(load()).rejects.toThrow('A lista de filtros tem um formato inesperado.')
   })

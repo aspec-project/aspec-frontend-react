@@ -74,6 +74,7 @@ describe("EventCard", () => {
   it.each([
     [0, 40, 0],
     [12, 40, 30],
+    [1, 3, 33],
     [40, 40, 100],
     [60, 40, 100],
   ])("representa %s inscrições em %s lugares como %s%%", (registrations_count, max_attendees, percentagem) => {
@@ -84,6 +85,14 @@ describe("EventCard", () => {
     expect(barra).toHaveAttribute("aria-valuemax", "100");
     expect(barra).toHaveAttribute("aria-valuenow", String(percentagem));
     expect(barra.firstElementChild).toHaveStyle({ width: `${percentagem}%` });
+  });
+
+  it("apresenta a contagem e as vagas reais sem substituir a capacidade", () => {
+    mostrarCard({ registrations_count: 12, max_attendees: 40, available_spots: 28 });
+
+    expect(screen.getByText("12 / 40 inscritos")).toBeInTheDocument();
+    expect(screen.getByText("28 vagas disponíveis")).toBeInTheDocument();
+    expect(screen.getByText("30% de ocupação")).toBeInTheDocument();
   });
 
   it.each([

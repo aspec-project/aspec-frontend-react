@@ -135,12 +135,12 @@ describe("getEventsPage", () => {
     expect(adapter).toHaveBeenCalledTimes(1);
   });
 
-  it("pede nove eventos mesmo com a pesquisa desativada", async () => {
+  it("ativa a pesquisa do contrato atual sem depender da antiga flag", async () => {
     const items = Array.from({ length: 9 }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
     const adapter = simularResposta(respostaPagina(items));
-    expect(getEventsCapabilities()).toEqual({ search: false });
+    expect(getEventsCapabilities()).toEqual({ search: true });
     expect((await getEventsPage({ search: "conferencia" })).items).toHaveLength(9);
-    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9 });
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9, search: "conferencia" });
   });
 
   it("combina a pesquisa com os filtros e pede nove resultados quando o contrato está ativado", async () => {
