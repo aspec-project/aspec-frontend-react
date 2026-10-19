@@ -16,6 +16,7 @@ import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import HomePage from "../pages/HomePage"
 import EventsPage from "../pages/EventsPage"
+import EventDetailPage from "../pages/EventDetailPage"
 import MembersPage from '../pages/MembersPage'
 import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 
@@ -29,6 +30,7 @@ function AppRouter() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/eventos" element={<EventsPage />} />
+        <Route path="/eventos/:id" element={<EventDetailPage />} />
         <Route path="/membros" element={<MembersPage />} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
       </Route>
@@ -43,10 +45,6 @@ function AppRouter() {
         element={<RequestActivationLinkPage />}
       />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
-      <Route
-        path="/eventos/:eventoId"
-        element={<PlaceholderPage title="Detalhe do evento" />}
-      />
       <Route
         path="/pendente"
         element={<PlaceholderPage title="Conta pendente" />}
