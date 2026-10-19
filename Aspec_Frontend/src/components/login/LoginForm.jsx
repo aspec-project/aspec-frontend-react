@@ -42,9 +42,13 @@ export default function LoginForm({
             <label className="text-xs text-gray-500 block">
               Password *
             </label>
-            <button type="button" className="text-xs cursor-pointer" style={{ color: "#8a7043" }}>
+            <Link
+              to="/esqueci-password"
+              className="text-xs cursor-pointer"
+              style={{ color: '#8a7043' }}
+            >
               Esqueci-me da password
-            </button>
+            </Link>
           </div>
           <div className="relative">
             <input

@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
+import ForgotPasswordPage from '../pages/ForgotPasswordPage'
+import ResetPasswordPage from '../pages/ResetPasswordPage'
 import PlaceholderPage from "../pages/PlaceholderPage"
 import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
@@ -33,6 +35,9 @@ function AppRouter() {
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
       </Route>
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
+      {/* Recuperação de password: rotas públicas abertas através do login e email. */}
+      <Route path="/esqueci-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route
         path="/ativacao/sucesso"
