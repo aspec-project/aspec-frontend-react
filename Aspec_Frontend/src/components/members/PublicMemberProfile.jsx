@@ -127,7 +127,7 @@ function LocationCard({ address }) {
   )
 }
 
-export default function PublicMemberProfile({ member, allowContacts, allowReview = false }) {
+export default function PublicMemberProfile({ member, allowContacts, allowReview = false, allowComments = false }) {
   const title = member.business_name || member.name
   const address = member.address?.trim()
   const hasRating = member.average_rating !== null && member.reviews_count > 0
@@ -179,7 +179,7 @@ export default function PublicMemberProfile({ member, allowContacts, allowReview
             </div>
           ) : <p className="mt-4 text-sm leading-relaxed text-gray-600">Sem imagens no portefólio.</p>}
         </section>
-        <MemberReviews memberId={member.id} allowReview={allowReview} />
+        {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} />}
       </div>
       <aside className="space-y-6">
         <Contacts member={member} allowContacts={allowContacts} />

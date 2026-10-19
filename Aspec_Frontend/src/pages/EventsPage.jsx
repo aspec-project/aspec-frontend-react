@@ -67,6 +67,7 @@ export default function EventsPage() {
 
     async function load() {
       try {
+        if (controller.signal.aborted) return;
         const data = await getEventsPage({ categoryId, locationId, search, page }, controller.signal);
 
         if (!controller.signal.aborted) {
@@ -79,7 +80,8 @@ export default function EventsPage() {
       }
     }
 
-    load();
+    /* O replay imediato de efeitos do StrictMode cancela antes do envio. */
+    queueMicrotask(load);
 
     return () => controller.abort();
   }, [categoryId, locationId, search, page, queryKey]);
