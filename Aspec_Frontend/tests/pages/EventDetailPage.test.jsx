@@ -61,7 +61,7 @@ describe("Página de detalhe do evento", () => {
     expect(screen.getAllByText("14 de outubro de 2030 às 23:59")).toHaveLength(2);
     expect(screen.queryByRole("heading", { name: "Informações do evento" })).not.toBeInTheDocument();
     const headings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    expect(headings).toEqual(["Localização do evento", "Sobre o evento", "Notas do organizador", "Lotação do Evento"]);
+    expect(headings).toEqual(["Localização do evento", "Sobre o evento", "Notas do organizador", "Lotação do Evento", "Inscrição"]);
   });
 
   it.each([null, "", "2030-02-30T23:59:00+00:00", "2030-10-14T25:00:00+00:00", "2030-10-14T23:59:00", "inválido"])("omite prazo ausente ou inválido sem inventar uma data: %s", async (registration_deadline) => {

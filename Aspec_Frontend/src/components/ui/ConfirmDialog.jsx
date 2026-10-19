@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef } from 'react'
+import { X } from 'lucide-react'
 
 const TONE_CLASSES = {
   primary: 'bg-[#0d1f35] hover:bg-[#183650]',
   danger: 'bg-red-600 hover:bg-red-700',
+  gold: 'bg-[#8A7043] hover:bg-[#796038]',
 }
 
 const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
@@ -17,10 +19,12 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  *   description?: string,
  *   confirmLabel?: string,
  *   cancelLabel?: string,
- *   tone?: 'primary'|'danger',
+ *   tone?: 'primary'|'danger'|'gold',
  *   pending?: boolean,
  *   onConfirm: () => void,
  *   onCancel: () => void,
+ *   children?: import('react').ReactNode,
+ *   showClose?: boolean,
  * }} props
  * @returns {JSX.Element|null}
  */
@@ -34,6 +38,8 @@ export default function ConfirmDialog({
   pending = false,
   onConfirm,
   onCancel,
+  children,
+  showClose = false,
 }) {
   const titleId = useId()
   const descriptionId = useId()
@@ -56,7 +62,7 @@ export default function ConfirmDialog({
   }
 
   /**
-   * Escape cancela (exceto durante o pedido) e Tab/Shift+Tab circulam só entre os botões do diálogo.
+   * Escape cancela (exceto durante o pedido) e Tab/Shift+Tab mantêm o foco no diálogo.
    *
    * @param {import('react').KeyboardEvent} event
    */
@@ -69,15 +75,15 @@ export default function ConfirmDialog({
 
     if (event.key !== 'Tab') return
 
-    const buttons = Array.from(dialogRef.current.querySelectorAll('button:not([disabled])'))
+    const focusable = Array.from(dialogRef.current.querySelectorAll('button:not([disabled]), [tabindex="0"]'))
 
-    if (buttons.length === 0) {
+    if (focusable.length === 0) {
       event.preventDefault()
       return
     }
 
-    const first = buttons[0]
-    const last = buttons[buttons.length - 1]
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
 
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault()
@@ -97,11 +103,23 @@ export default function ConfirmDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onKeyDown={handleKeyDown}
-        className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+        className={`relative w-full max-w-md rounded-xl bg-white p-6 shadow-xl ${children ? 'flex max-h-[calc(100dvh-2rem)] flex-col' : ''} ${showClose ? 'text-left' : ''}`}
       >
-        <h2 id={titleId} className="text-lg font-semibold text-[#0d1f35]">{title}</h2>
-        <p id={descriptionId} className="mt-3 text-sm text-gray-600">{description}</p>
-        <div className="mt-6 flex justify-end gap-3">
+        {showClose && (
+          <button
+            type="button"
+            aria-label="Fechar"
+            disabled={pending}
+            onClick={onCancel}
+            className="absolute right-4 top-4 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        )}
+        <h2 id={titleId} className={`shrink-0 text-lg font-semibold text-[#0d1f35] ${showClose ? 'pr-7' : ''}`}>{title}</h2>
+        <p id={descriptionId} className="mt-3 shrink-0 text-sm text-gray-600">{description}</p>
+        {children && <div tabIndex={0} role="region" aria-label="Resumo da confirmação" className="min-h-0 overflow-y-auto">{children}</div>}
+        <div className={`mt-6 flex shrink-0 justify-end gap-3 ${showClose ? 'flex-col-reverse sm:flex-row' : ''}`}>
           <button
             ref={cancelRef}
             type="button"

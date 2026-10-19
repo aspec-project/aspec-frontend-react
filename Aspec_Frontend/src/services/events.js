@@ -27,6 +27,8 @@ export async function getEventDetail(id, signal) {
     event_start_time: text(event.event_start_time),
     event_end_time: text(event.event_end_time),
     registration_deadline: text(event.registration_deadline),
+    is_registered: typeof event.is_registered === "boolean" ? event.is_registered : null,
+    registration_open: typeof event.registration_open === "boolean" ? event.registration_open : null,
     category: { name: text(event.category?.name), color: text(event.category?.color) },
     location: { name: text(event.location?.name) },
     organizer_notes: text(event.organizer_notes),

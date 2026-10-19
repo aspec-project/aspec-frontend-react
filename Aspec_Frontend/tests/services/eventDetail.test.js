@@ -9,6 +9,7 @@ const event = {
   max_attendees: 20, registrations_count: 12, available_spots: 8, organizer_notes: "Chegar cedo.",
   address: "", latitude: null, longitude: null,
   registration_deadline: "2030-10-14T23:59:00+01:00",
+  is_registered: false, registration_open: true,
 };
 
 describe("Contrato do detalhe do evento", () => {
@@ -20,8 +21,8 @@ describe("Contrato do detalhe do evento", () => {
     api.get.mockResolvedValue({ data: { success: true, data: { ...event, online_url: "https://private.test/secret", secret: "privado", is_registered: true, address: "Rua", latitude: 38, longitude: -9 } } });
     const result = await getEventDetail(id, controller.signal);
     expect(api.get).toHaveBeenCalledWith(`/events/${id}`, { signal: controller.signal });
-    expect(result).toEqual({ ...event, address: "Rua", latitude: 38, longitude: -9 });
-    for (const field of ["online_url", "secret", "is_registered"]) expect(result).not.toHaveProperty(field);
+    expect(result).toEqual({ ...event, address: "Rua", latitude: 38, longitude: -9, is_registered: true });
+    for (const field of ["online_url", "secret"]) expect(result).not.toHaveProperty(field);
   });
 
   it("mantém zeros distintos de valores ausentes sem calcular vagas a partir da lotação", async () => {
@@ -54,5 +55,10 @@ describe("Contrato do detalhe do evento", () => {
   it.each([{ latitude: 91, longitude: -181 }, { latitude: "38.7", longitude: Infinity }])("descarta coordenadas inválidas: %j", async (coordinates) => {
     api.get.mockResolvedValue({ data: { success: true, data: { ...event, ...coordinates } } });
     expect(await getEventDetail(id)).toMatchObject({ latitude: null, longitude: null });
+  });
+
+  it.each([undefined, null, "false", 0, 1])("não interpreta flags ausentes ou inválidas como booleanos: %s", async (flag) => {
+    api.get.mockResolvedValue({ data: { success: true, data: { ...event, is_registered: flag, registration_open: flag } } });
+    expect(await getEventDetail(id)).toMatchObject({ is_registered: null, registration_open: null });
   });
 });

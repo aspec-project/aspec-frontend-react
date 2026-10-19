@@ -9,9 +9,11 @@ export default function EventDetailPage() {
   const { id } = useParams();
   const sessionGeneration = useAuthStore((state) => state.sessionGeneration);
   const sessionStatus = useAuthStore((state) => state.status);
+  const sessionChanging = useAuthStore((state) => state.sessionChanging);
+  const user = useAuthStore((state) => state.user);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState(null);
-  const key = JSON.stringify([id, sessionGeneration, sessionStatus, attempt]);
+  const key = JSON.stringify([id, sessionGeneration, sessionStatus, sessionChanging, user?.id, user?.role?.name, user?.account_status?.name, attempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,7 +62,7 @@ export default function EventDetailPage() {
             <button type="button" onClick={() => setAttempt((value) => value + 1)} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-700">Tentar novamente</button>
           </div>
         </div>
-      ) : <EventDetail event={current.event} />}
+      ) : <EventDetail key={key} event={current.event} onEventUpdate={(event) => setResult((previous) => previous?.key === key ? { ...previous, event } : previous)} />}
     </div>
   );
 }
