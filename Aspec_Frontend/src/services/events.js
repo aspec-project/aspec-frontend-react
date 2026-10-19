@@ -1,5 +1,52 @@
 import { api, normalizeError } from "./api";
 
+export const isEventId = (value) => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+export async function getEventDetail(id, signal) {
+  if (!isEventId(id)) throw new Error("O identificador do evento é inválido.");
+
+  const response = await api.get(`/events/${encodeURIComponent(id)}`, { signal });
+  const event = response.data?.data;
+  if (response.data?.success !== true || event?.id !== id || typeof event.name !== "string" || !event.name.trim()) {
+    throw new Error("A resposta do evento tem um formato inesperado.");
+  }
+
+  const text = (value) => typeof value === "string" ? value.trim() : "";
+  const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const coordinate = (value, limit) => typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit ? value : null;
+
+  /*
+   * O detalhe só conserva os campos públicos utilizados nesta página.
+   * O link privado online pertence à ASPEC-258 e é descartado.
+   */
+  return {
+    id: event.id,
+    name: event.name.trim(),
+    description: text(event.description),
+    event_date: text(event.event_date),
+    event_start_time: text(event.event_start_time),
+    event_end_time: text(event.event_end_time),
+    registration_deadline: text(event.registration_deadline),
+    category: { name: text(event.category?.name), color: text(event.category?.color) },
+    location: { name: text(event.location?.name) },
+    organizer_notes: text(event.organizer_notes),
+    address: text(event.address),
+    latitude: coordinate(event.latitude, 90),
+    longitude: coordinate(event.longitude, 180),
+    max_attendees: count(event.max_attendees),
+    registrations_count: count(event.registrations_count),
+    available_spots: count(event.available_spots),
+  };
+}
+
+export function getEventDetailErrorMessage(error) {
+  if (error?.response?.status === 403) return "Não tem permissão para consultar este evento.";
+  if ([419, 429].includes(error?.response?.status)) {
+    return normalizeError({ response: { status: error.response.status } }).message;
+  }
+  return "Não foi possível carregar o evento. Tente novamente.";
+}
+
 /*
  * O contrato atual da agenda suporta pesquisa textual no servidor.
  */
