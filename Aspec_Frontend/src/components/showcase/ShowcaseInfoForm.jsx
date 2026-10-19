@@ -1,65 +1,39 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { normalizeError } from '../../services/api'
-import { validatePhone } from '../../utils/registerUtils'
+import { isSessionCurrent } from '../../services/sessionContext'
+import useSessionRequest from '../../hooks/useSessionRequest'
 import {
   getMemberProfile,
   updateMemberProfile,
   uploadMemberLogo,
-  uploadPortfolioImages,
-  deletePortfolioImage,
 } from '../../services/memberProfile'
-import {
-  getSocialPlatforms,
-  getWeekDays,
-} from '../../services/referenceLists'
-import BusinessHoursEditor from './BusinessHoursEditor'
-import { createBusinessHours } from '../../utils/businessHours'
 import LogoUploader from './LogoUploader'
-import PortfolioGallery from './PortfolioGallery'
-import SocialLinksEditor from './SocialLinksEditor'
-import { createSocialLinks } from '../../utils/socialLinks'
 
 /*
- * Estado inicial dos campos textuais.
+ * Estado inicial dos campos apresentados nesta secção.
  *
- * Os nomes usados aqui são próprios do frontend. No envio, são convertidos
- * para os nomes esperados pelo backend, como business_name e website_url.
+ * Os nomes usados pelo formulário são convertidos para o formato esperado
+ * pela API quando os dados são enviados.
  */
 const initialFormData = {
   businessName: '',
   description: '',
-  commercialContacts: '',
-  phone: '',
-  address: '',
-  website: '',
 }
 
-function ShowcaseInfoForm() {
-  const [formData, setFormData] = useState(initialFormData)
-  const [businessHours, setBusinessHours] = useState([])
-  const [socialLinks, setSocialLinks] = useState([])
-
-  /*
-   * Estes estados guardam os ficheiros selecionados pelos componentes filhos.
-   * Os próprios componentes continuam responsáveis pela seleção e pré-visualização.
-   */
-  const [logoFile, setLogoFile] = useState(null)
-  const [portfolioFiles, setPortfolioFiles] = useState([])
-
-  /*
-   * Guardam os ficheiros que já foram enviados nesta sessão.
-   * Assim, clicar novamente em "Guardar alterações" não cria cópias.
-   */
-  const [uploadedLogoFile, setUploadedLogoFile] = useState(null)
-  const [uploadedPortfolioFiles, setUploadedPortfolioFiles] = useState([])
-
-  /*
- * Guardam os ficheiros que já existem no backend.
- * Estes dados são usados para reconstruir a pré-visualização após F5.
+/*
+ * Formulário da apresentação visual da montra.
+ *
+ * Contactos, horários e redes sociais são geridos na sua própria secção
+ * para que esta página fique focada no nome, descrição e logótipo.
  */
-const [savedLogoUrl, setSavedLogoUrl] = useState('')
-const [savedPortfolio, setSavedPortfolio] = useState([])
-
+function ShowcaseInfoForm() {
+  const getRequestContext = useSessionRequest()
+  const savingRef = useRef(false)
+  const [formData, setFormData] = useState(initialFormData)
+  const [profileAddress, setProfileAddress] = useState('')
+  const [logoFile, setLogoFile] = useState(null)
+  const [uploadedLogoFile, setUploadedLogoFile] = useState(null)
+  const [savedLogoUrl, setSavedLogoUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -67,77 +41,53 @@ const [savedPortfolio, setSavedPortfolio] = useState([])
   const [fieldErrors, setFieldErrors] = useState({})
 
   /*
-   * Estes estados permitem enviar horários e redes sociais apenas quando
-   * o utilizador os altera. A API substitui listas completas destes dados.
-   */
-  const [hoursChanged, setHoursChanged] = useState(false)
-  const [socialLinksChanged, setSocialLinksChanged] = useState(false)
-
-  /*
-   * Ao abrir a página, obtemos o perfil do membro autenticado.
-   * Os dados recebidos preenchem os campos e fornecem os IDs das redes
-   * sociais que já estão associadas ao perfil.
+   * Carrega os dados já persistidos no backend, incluindo a morada.
+   *
+   * A morada não aparece nesta secção, mas precisa de acompanhar o PUT
+   * porque o backend exige que esse campo esteja sempre preenchido.
    */
   useEffect(() => {
-    let componentIsMounted = true
+    const context = getRequestContext()
+    if (!context) return
 
-    async function loadProfile() {
+    async function loadShowcaseInfo() {
       try {
-        const [profile, socialPlatforms, weekDays] = await Promise.all([
-          getMemberProfile(),
-          getSocialPlatforms(),
-          getWeekDays(),
-        ])
+        const profile = await getMemberProfile(context)
 
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
         setFormData({
           businessName: profile.business_name ?? '',
           description: profile.description ?? '',
-          commercialContacts: profile.commercial_contacts ?? '',
-          phone: profile.phone ?? '',
-          address: profile.address ?? '',
-          website: profile.website_url ?? '',
         })
-
-        setBusinessHours(
-          createBusinessHours(profile.business_hours ?? [], weekDays),
-        )
-        setSocialLinks(
-          createSocialLinks(profile.social_links ?? [], socialPlatforms),
-        )
-        /*
-        * O serviço já converteu os URLs relativos do Laravel em URLs completos.
-        * Guardamos estes valores para os passar aos componentes visuais.
-        */
+        setProfileAddress(profile.address ?? '')
         setSavedLogoUrl(profile.logo_url ?? '')
-        setSavedPortfolio(profile.portfolio ?? [])
       } catch (error) {
-        if (!componentIsMounted) {
+        if (!isSessionCurrent(context)) {
           return
         }
 
         const normalisedError = normalizeError(error)
 
-        setLoadError(normalisedError.message)
+        setLoadError(
+          normalisedError.message ??
+            'Não foi possível carregar a informação da montra.',
+        )
       } finally {
-        if (componentIsMounted) {
+        if (isSessionCurrent(context)) {
           setIsLoading(false)
         }
       }
     }
 
-    loadProfile()
+    loadShowcaseInfo()
 
-    return () => {
-      componentIsMounted = false
-    }
-  }, [])
+  }, [getRequestContext])
 
   /*
-   * Atualiza os campos de texto reutilizando o atributo "name".
+   * Atualiza os campos de texto reutilizando o atributo name do input.
    */
   function handleTextChange(event) {
     const { name, value } = event.target
@@ -152,245 +102,92 @@ const [savedPortfolio, setSavedPortfolio] = useState([])
   }
 
   /*
-   * Recebe a lista atualizada de horários do BusinessHoursEditor.
-   */
-  function handleBusinessHoursChange(updatedHours) {
-    setBusinessHours(updatedHours)
-    setHoursChanged(true)
-    setStatus(null)
-    setFieldErrors({})
-  }
-
-  /*
-   * Recebe a lista atualizada de redes sociais do SocialLinksEditor.
-   */
-  function handleSocialLinksChange(updatedLinks) {
-    setSocialLinks(updatedLinks)
-    setSocialLinksChanged(true)
-    setStatus(null)
-    setFieldErrors({})
-  }
-
-  /*
-   * useCallback mantém a mesma referência entre renderizações.
-   * Isto evita que os componentes de ficheiros executem efeitos desnecessários.
+   * Mantém a mesma referência entre renderizações para evitar efeitos
+   * desnecessários dentro do componente responsável pelo logótipo.
    */
   const handleLogoChange = useCallback((selectedLogo) => {
     setLogoFile(selectedLogo)
     setStatus(null)
   }, [])
 
-  const handlePortfolioImagesChange = useCallback((selectedImages) => {
-    setPortfolioFiles(selectedImages)
-    setStatus(null)
-  }, [])
-
   /*
- * Remove uma imagem que já existe no backend e atualiza a lista
- * usada pela galeria, sem ser necessário recarregar a página.
- */
-const handleDeleteSavedPortfolioImage = useCallback(
-  async (portfolioImageId) => {
-    await deletePortfolioImage(portfolioImageId)
-
-    setSavedPortfolio((currentPortfolio) =>
-      currentPortfolio.filter((image) => image.id !== portfolioImageId),
-    )
-  },
-  [],
-)
-
-/*
- * Valida no browser os campos que o backend exige no perfil da montra.
- *
- * A regra do telefone é a mesma usada no registo. A morada é obrigatória
- * no endpoint PUT /member-profile, por isso interrompemos o envio antes
- * de fazer um pedido que resultaria num erro 422.
- */
-function validateShowcaseFields() {
-  const errors = {}
-  const phone = formData.phone.trim()
-
-  /*
-   * Mantemos o comportamento atual de só enviar telefone quando existe
-   * valor, mas quando é preenchido tem de ser português e válido.
-   */
-  if (phone && !validatePhone(phone)) {
-    errors.phone =
-      'O campo telefone tem de ser um número de telefone português válido.'
-  }
-
-  if (!formData.address.trim()) {
-    errors.address = 'O campo morada é obrigatório.'
-  }
-
-  return errors
-}
-
-  /*
-   * Constrói o objeto JSON para PUT /member-profile.
+   * Constrói o objeto para PUT /member-profile.
    *
-   * Não enviamos campos vazios que sejam obrigatórios quando presentes,
-   * como business_name e phone.
+   * A morada atual é incluída mesmo sendo editada noutra página, porque
+   * o backend considera esse campo obrigatório no pedido de atualização.
    */
-  function buildProfilePayload() {
+  function buildShowcasePayload() {
     const profilePayload = {
       description: formData.description.trim() || null,
-      commercial_contacts: formData.commercialContacts.trim() || null,
-      address: formData.address.trim(),
-      website_url: formData.website.trim() || null,
+      address: profileAddress.trim(),
     }
 
     if (formData.businessName.trim()) {
       profilePayload.business_name = formData.businessName.trim()
     }
 
-    if (formData.phone.trim()) {
-      profilePayload.phone = formData.phone
-      .trim()
-      .replace(/[\s\-()]/g, '')
-    }
-
-    /*
-     * A API recebe horários como uma lista de objetos.
-     * Apenas enviamos os dias que foram marcados como abertos.
-     */
-    if (hoursChanged) {
-      profilePayload.business_hours = businessHours
-        .filter((hour) => hour.isOpen)
-        .map((hour) => ({
-          week_day_id: hour.weekDayId,
-          open_time: hour.openTime,
-          close_time: hour.closeTime,
-        }))
-    }
-
-    /*
-     * A API exige platform_id para cada rede social.
-     *
-     * Não inventamos IDs: se o backend não devolveu o ID de uma rede,
-     * interrompemos o envio e explicamos o motivo ao utilizador.
-     */
-    if (socialLinksChanged) {
-      const linksWithUrl = socialLinks.filter((link) => link.url.trim())
-
-      const linksWithoutPlatformId = linksWithUrl.filter(
-        (link) => !link.platformId,
-      )
-
-      if (linksWithoutPlatformId.length > 0) {
-        const platformNames = linksWithoutPlatformId
-          .map((link) => link.name)
-          .join(', ')
-
-        throw new Error(
-          `A API ainda não disponibilizou o identificador para: ${platformNames}.`,
-        )
-      }
-
-      profilePayload.social_links = linksWithUrl.map((link) => ({
-        platform_id: link.platformId,
-        url: link.url.trim(),
-      }))
-    }
-
     return profilePayload
   }
 
   /*
-   * Envia primeiro os dados textuais e, de seguida, os ficheiros.
-   *
-   * O envio das imagens é sequencial dentro de uploadPortfolioImages,
-   * pois a API recebe uma imagem por pedido.
+   * Guarda primeiro os dados textuais e, se necessário, envia o novo
+   * logótipo. O portefólio é tratado na sua página independente.
    */
   async function handleSubmit(event) {
     event.preventDefault()
 
+    const context = getRequestContext()
+    if (!context || savingRef.current) return
+
+    if (!profileAddress.trim()) {
+      setStatus({
+        type: 'error',
+        message:
+          'Adiciona uma morada na secção “Contactos e redes” antes de guardar a montra.',
+      })
+
+      return
+    }
+
+    savingRef.current = true
     setIsSaving(true)
     setStatus(null)
     setFieldErrors({})
 
     try {
-      const clientFieldErrors = validateShowcaseFields()
+      await updateMemberProfile(buildShowcasePayload(), context)
 
-      if (Object.keys(clientFieldErrors).length > 0) {
-        setFieldErrors(clientFieldErrors)
-
-        setStatus({
-          type: 'error',
-          message: 'Corrige os campos assinalados antes de guardar.',
-        })
-
-        return
-      }
-
-      const profilePayload = buildProfilePayload()
-
-      await updateMemberProfile(profilePayload)
+      if (!isSessionCurrent(context)) return
 
       const shouldUploadLogo =
         logoFile && logoFile !== uploadedLogoFile
 
       if (shouldUploadLogo) {
-        await uploadMemberLogo(logoFile)
+        await uploadMemberLogo(logoFile, context)
+        if (!isSessionCurrent(context)) return
         setUploadedLogoFile(logoFile)
-      }
-
-      /*
-       * Selecionamos apenas imagens ainda não enviadas nesta sessão.
-       */
-      const newPortfolioFiles = portfolioFiles.filter(
-        (file) => !uploadedPortfolioFiles.includes(file),
-      )
-
-      if (newPortfolioFiles.length > 0) {
-        /*
-        * O serviço devolve as imagens já criadas no backend.
-        * Guardamo-las imediatamente para a galeria apresentar a versão
-        * persistida, sem ser necessário atualizar a página.
-        */
-        const uploadedImages = await uploadPortfolioImages(newPortfolioFiles)
-
-        setSavedPortfolio((currentPortfolio) => [
-          ...currentPortfolio,
-          ...uploadedImages,
-        ])
-
-        /*
-        * Mantemos a referência aos objetos File enviados nesta sessão.
-        * A galeria vai usar esta lista para remover as pré-visualizações
-        * locais correspondentes e evitar imagens duplicadas.
-        */
-        setUploadedPortfolioFiles((currentFiles) => [
-          ...currentFiles,
-          ...newPortfolioFiles,
-        ])
       }
 
       setStatus({
         type: 'success',
-        message: 'Alterações guardadas com sucesso.',
+        message: 'Informação da montra guardada com sucesso.',
       })
     } catch (error) {
+      if (!isSessionCurrent(context)) return
+
       const normalisedError = normalizeError(error)
 
-      /*
-       * Erros criados no próprio frontend, como um platform_id em falta,
-       * não têm resposta HTTP. Por isso usamos diretamente error.message.
-       */
-      const message =
-        error instanceof Error && !error.response
-          ? error.message
-          : normalisedError.message
-
-      setFieldErrors(normalisedError.fieldErrors)
+      setFieldErrors(normalisedError.fieldErrors ?? {})
 
       setStatus({
         type: 'error',
-        message: `Não foi possível concluir o envio. ${message}`,
+        message: `Não foi possível guardar as alterações. ${
+          normalisedError.message ?? ''
+        }`,
       })
     } finally {
-      setIsSaving(false)
+      savingRef.current = false
+      if (isSessionCurrent(context)) setIsSaving(false)
     }
   }
 
@@ -416,11 +213,6 @@ function validateShowcaseFields() {
         </h1>
 
         <p className="mt-2 text-red-800">{loadError}</p>
-
-        <p className="mt-3 text-sm text-red-700">
-          Confirma se o backend está ligado e se existe uma sessão iniciada
-          com uma conta de membro ativa.
-        </p>
       </section>
     )
   }
@@ -437,8 +229,8 @@ function validateShowcaseFields() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-slate-600">
-          Atualiza a informação apresentada aos visitantes na tua montra
-          digital.
+          Atualiza a apresentação visual da tua empresa e o logótipo
+          apresentado aos visitantes.
         </p>
       </div>
 
@@ -501,142 +293,9 @@ function validateShowcaseFields() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 p-6">
-          <h2 className="text-xl font-semibold text-[#0d1f35]">
-            Contactos
-          </h2>
-
-          <div className="mt-6 space-y-6">
-            <div>
-              <label
-                htmlFor="commercialContacts"
-                className="text-sm font-medium text-slate-700"
-              >
-                Contactos comerciais
-              </label>
-
-              <textarea
-                id="commercialContacts"
-                name="commercialContacts"
-                value={formData.commercialContacts}
-                onChange={handleTextChange}
-                rows="3"
-                placeholder="Exemplo: email comercial, contacto alternativo ou outras indicações."
-                className={`${inputClassName} resize-y`}
-              />
-
-              {fieldErrors.commercial_contacts && (
-                <p className="mt-2 text-sm text-red-700">
-                  {fieldErrors.commercial_contacts}
-                </p>
-              )}
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Telefone
-                </label>
-
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleTextChange}
-                  placeholder="+351 912 345 678"
-                  className={inputClassName}
-                />
-
-                {fieldErrors.phone && (
-                  <p className="mt-2 text-sm text-red-700">
-                    {fieldErrors.phone}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="website"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Website
-                </label>
-
-                <input
-                  id="website"
-                  name="website"
-                  type="url"
-                  value={formData.website}
-                  onChange={handleTextChange}
-                  placeholder="https://www.exemplo.pt"
-                  className={inputClassName}
-                />
-
-                {fieldErrors.website_url && (
-                  <p className="mt-2 text-sm text-red-700">
-                    {fieldErrors.website_url}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-                <label
-                  htmlFor="address"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Morada
-                </label>
-
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={formData.address}
-                  onChange={handleTextChange}
-                  autoComplete="street-address"
-                  placeholder="Exemplo: Rua Principal, 123, Aveiro"
-                  className={inputClassName}
-                />
-
-                {fieldErrors.address && (
-                  <p className="mt-2 text-sm text-red-700">
-                    {fieldErrors.address}
-                  </p>
-                )}
-              </div>
-
-            <p className="text-sm text-slate-500">
-              O email de acesso é alterado nas definições da conta, porque a
-              API exige a password atual para o modificar.
-            </p>
-          </div>
-        </section>
-
-        <BusinessHoursEditor
-          businessHours={businessHours}
-          onChange={handleBusinessHoursChange}
-        />
-
-        <SocialLinksEditor
-          socialLinks={socialLinks}
-          onChange={handleSocialLinksChange}
-        />
-
         <LogoUploader
           initialLogoUrl={savedLogoUrl}
           onLogoChange={handleLogoChange}
-        />
-
-        <PortfolioGallery
-          initialImages={savedPortfolio}
-          uploadedFiles={uploadedPortfolioFiles}
-          onImagesChange={handlePortfolioImagesChange}
-          onDeleteSavedImage={handleDeleteSavedPortfolioImage}
         />
 
         <div className="flex flex-wrap items-center gap-4">

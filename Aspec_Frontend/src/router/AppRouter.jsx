@@ -1,14 +1,23 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
 import PlaceholderPage from "../pages/PlaceholderPage"
 import RegisterPage from "../pages/RegisterPage"
 import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
+import ShowcaseContactsPage from '../pages/ShowcaseContactsPage'
+import PortfolioPage from '../pages/PortfolioPage'
+import SubscriptionPage from '../pages/SubscriptionPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
+import AdminLayout from '../components/layout/AdminLayout'
+import AdminUsersPage from '../pages/admin/AdminUsersPage'
+import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import HomePage from "../pages/HomePage"
+import EventsPage from "../pages/EventsPage"
+import MembersPage from '../pages/MembersPage'
+import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 
 /**
  * Centraliza as rotas da aplicação.
@@ -18,7 +27,11 @@ function AppRouter() {
     <Routes>
       {/* Rotas públicas */}
       <Route element={<MainLayout />}>
-      <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/eventos" element={<EventsPage />} />
+        <Route path="/membros" element={<MembersPage />} />
+        <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
+      </Route>
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       <Route path="/registo" element={<RegisterPage />} />
       <Route
@@ -31,15 +44,6 @@ function AppRouter() {
       />
       <Route path="/ativacao/:user" element={<AccountActivationPage />} />
       <Route
-        path="/membros"
-        element={<PlaceholderPage title="Diretório de membros" />}
-      />
-      <Route
-        path="/membros/:membroId"
-        element={<PlaceholderPage title="Perfil do membro" />}
-      />
-      <Route path="/eventos" element={<PlaceholderPage title="Eventos" />} />
-      <Route
         path="/eventos/:eventoId"
         element={<PlaceholderPage title="Detalhe do evento" />}
       />
@@ -49,15 +53,27 @@ function AppRouter() {
       />
 
       {/* Rotas do membro autenticado — exigem sessão válida */}
-      <Route element={<ProtectedRoute />}>
+      <Route element={<ProtectedRoute allowedRoles={["Member"]} allowedStatuses={["Active"]} />}>
         <Route
           path="/dashboard"
           element={<PlaceholderPage title="Dashboard" />}
         />
+        {/*
+         * Área privada da conta: apresenta apenas a subscrição do membro
+         * com sessão iniciada, sem expor dados de outros utilizadores.
+         */}
+        <Route path="/conta/subscricao" element={<SubscriptionPage />} />
+        {/*
+         * /perfil mantém-se como endereço de entrada compatível, mas conduz
+         * diretamente à primeira secção útil da área do membro.
+         */}
         <Route
           path="/perfil"
-          element={<PlaceholderPage title="O meu perfil" />}
+          element={<Navigate replace to="/perfil/montra" />}
         />
+        <Route path="/perfil/montra" element={<ShowcaseInfoPage />} />
+        <Route path="/perfil/contactos" element={<ShowcaseContactsPage />} />
+        <Route path="/perfil/portefolio" element={<PortfolioPage />} />
         <Route
           path="/perfil/editar"
           element={<PlaceholderPage title="Editar perfil" />}
@@ -66,27 +82,26 @@ function AppRouter() {
           path="/perfil/inscricoes-eventos"
           element={<PlaceholderPage title="Inscrições em eventos" />}
         />
-        <Route path="/perfil/portefolio" element={<ShowcaseInfoPage />} />
       </Route>
 
       {/* Rotas de administração — exigem sessão válida E role "Admin" */}
       <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
-        <Route
-          path="/admin"
-          element={<PlaceholderPage title="Administração" />}
-        />
-        <Route
-          path="/admin/utilizadores"
-          element={<PlaceholderPage title="Gestão de utilizadores" />}
-        />
-        <Route
-          path="/admin/eventos"
-          element={<PlaceholderPage title="Gestão de eventos" />}
-        />
-        <Route
-          path="/admin/moderacao"
-          element={<PlaceholderPage title="Moderação" />}
-        />
+        <Route element={<AdminLayout />}>
+          <Route
+            path="/admin"
+            element={<PlaceholderPage title="Administração" />}
+          />
+          <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
+          <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
+          <Route
+            path="/admin/eventos"
+            element={<PlaceholderPage title="Gestão de eventos" />}
+          />
+          <Route
+            path="/admin/moderacao"
+            element={<PlaceholderPage title="Moderação" />}
+          />
+        </Route>
       </Route>
 
       {/* Rota para URLs que não existem */}
@@ -94,7 +109,6 @@ function AppRouter() {
         path="*"
         element={<PlaceholderPage title="Página não encontrada" />}
       />
-      </Route>
     </Routes>
   );
 }
