@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import { AxiosError } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PublicMemberProfilePage from '../../src/pages/PublicMemberProfilePage'
@@ -9,8 +10,8 @@ const id = '019512a1-9999-7123-8123-123456789abc'
 const reference = { id, name: 'Referência' }
 const profile = {
   id, name: 'Membro de teste', business_name: null, description: null,
-  website_url: null, logo_url: null, sector: reference, location: reference,
-  average_rating: 4, reviews_count: 1, social_links: [], business_hours: [], portfolio: [],
+  members_only: null, logo_url: null, sector: reference, location: reference,
+  average_rating: 4, reviews_count: 1, business_hours: [], portfolio: [],
 }
 const reviews = {
   average_rating: 4, reviews_count: 1,
@@ -50,6 +51,8 @@ describe('Pedidos de comentários no perfil público', () => {
     useAuthStore.setState({ user: { ...member, role: { name: role } }, status: 'authenticated' })
     show()
     await screen.findByText('Comentário de teste')
+    expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
+    expect(document.querySelector('form')).toBeNull()
     expect(screen.getByRole('heading', { name: 'Classificação Global' })).toBeInTheDocument()
     const requestsBeforeLogout = adapter.mock.calls.filter(([config]) => config.url.endsWith('/reviews')).length
     expect(requestsBeforeLogout).toBe(1)
@@ -59,4 +62,30 @@ describe('Pedidos de comentários no perfil público', () => {
     await screen.findByRole('heading', { name: 'Classificação Global' })
     expect(adapter.mock.calls.filter(([config]) => config.url.endsWith('/reviews'))).toHaveLength(requestsBeforeLogout)
   })
+  it.each(['Member', 'Admin'])('trata 404 das avaliações como vazio para %s Active e preserva a classificação pública', async (role) => {
+    useAuthStore.setState({ user: { ...member, role: { name: role } }, status: 'authenticated' })
+    api.defaults.adapter = async (config) => {
+      if (config.url.endsWith('/reviews')) throw new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { status: 404 })
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { success: true, data: profile } }
+    }
+    show()
+    expect(await screen.findByText('Ainda não existem avaliações.')).toBeInTheDocument()
+    expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Baseado em 1 avaliação')).toBeInTheDocument()
+    expect(screen.getByText('4,0 (1 avaliação)')).toBeInTheDocument()
+  })
+
+  it.each([401, 403, 500])('mantém erro nas avaliações com HTTP %s', async (status) => {
+    useAuthStore.setState({ user: member, status: 'authenticated' })
+    api.defaults.adapter = async (config) => {
+      if (config.url.endsWith('/reviews')) throw new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { status })
+      return { config, status: 200, statusText: 'OK', headers: {}, data: { success: true, data: profile } }
+    }
+    show()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as avaliações.')
+    expect(screen.queryByText('Ainda não existem avaliações.')).not.toBeInTheDocument()
+    expect(screen.getByText('Baseado em 1 avaliação')).toBeInTheDocument()
+  })
+
 })

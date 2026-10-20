@@ -57,10 +57,11 @@ describe('Avaliações públicas de membros', () => {
     expect(data.items[0].reviewer).not.toHaveProperty('contacts')
   })
 
-  it('não mostra aviso de elegibilidade ao membro ativo nem cria formulário de avaliação', async () => {
-    render(<MemberReviews memberId={id} allowReview />)
+  it.each(['Member', 'Admin'])('não mostra aviso ao %s Active mesmo sem permissão de submissão nem cria formulário', async (role) => {
+    useAuthStore.setState({ user: { id, role: { name: role }, account_status: { name: 'Active' } }, status: 'authenticated' })
+    render(<MemberReviews memberId={id} allowReview={false} />)
     await screen.findByText('Maria Santos')
-    expect(screen.queryByText(/é necessário ser membro ASPEC ativo/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(document.querySelector('form')).toBeNull()
   })
@@ -69,7 +70,18 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, body(1, [], 0)))
     render(<MemberReviews memberId={id} />)
     expect(await screen.findByText('Ainda não existem avaliações.')).toBeInTheDocument()
+    expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('trata 404 como ausência de avaliações sem erro nem paginação', async () => {
+    api.defaults.adapter = (config) => Promise.reject(httpError(config, 404))
+    render(<MemberReviews memberId={id} />)
+    expect(await screen.findByText('Ainda não existem avaliações.')).toBeInTheDocument()
+    expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('pagina no servidor e mantém a ordem recebida sem calcular histograma', async () => {
@@ -87,7 +99,7 @@ describe('Avaliações públicas de membros', () => {
     expect(screen.queryByText(/histograma/i)).not.toBeInTheDocument()
   })
 
-  it.each([401, 403, 404, 500, undefined])('erro %s permite repetir a lista sem afetar o perfil', async (status) => {
+  it.each([401, 403, 500, undefined])('erro %s permite repetir a lista sem afetar o perfil', async (status) => {
     let failure = true
     api.defaults.adapter = (config) => failure
       ? Promise.reject(status === undefined ? new AxiosError('Network Error', AxiosError.ERR_NETWORK) : httpError(config, status))
