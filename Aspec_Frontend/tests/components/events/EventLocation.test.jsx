@@ -5,6 +5,18 @@ import EventLocation from "../../../src/components/events/EventLocation";
 vi.mock("../../../src/components/events/EventLocationMap", () => ({ default: () => <div role="region" aria-label="Mapa da localização do evento" /> }));
 
 describe("Localização do evento", () => {
+  it("apresenta o nome real do espaço sem inventar coordenadas ou pesquisa vazia", () => {
+    render(<EventLocation event={{ venue_name: "Auditório ASPEC", address: null, latitude: null, longitude: null }} />);
+    expect(screen.getByText("Auditório ASPEC")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Mapa da localização do evento" })).not.toBeInTheDocument();
+  });
+
+  it("nunca apresenta localização física de um evento explicitamente online", () => {
+    const { container } = render(<EventLocation event={{ is_online: true, venue_name: "Espaço indevido", address: "Rua indevida", latitude: 38, longitude: -9 }} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("omite a secção quando a API não fornece localização suficiente", () => {
     const { container } = render(<EventLocation event={{ address: null, latitude: null, longitude: null }} />);
     expect(container).toBeEmptyDOMElement();

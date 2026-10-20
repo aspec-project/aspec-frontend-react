@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarClock, Clock, MapPin } from "lucide-react";
+import { CalendarDays, CalendarClock, Clock, MapPin, Video } from "lucide-react";
 import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
 
 function SummaryInformation({ icon: Icon, label, children }) {
@@ -27,7 +27,7 @@ export default function EventRegistrationSummary({ event }) {
         <SummaryInformation icon={Clock} label="Horário">
           {startTime ? `${startTime}${endTime ? ` – ${endTime}` : ""}` : endTime ? `Hora de fim: ${endTime}` : "Horário por confirmar"}
         </SummaryInformation>
-        {(event.address || event.location?.name) && (
+        {event.is_online === true ? <SummaryInformation icon={Video} label="Modalidade">Evento online</SummaryInformation> : (event.address || event.location?.name) && (
           <SummaryInformation icon={MapPin} label={event.address ? "Morada" : "Localização"}>
             {event.address || event.location.name}
           </SummaryInformation>

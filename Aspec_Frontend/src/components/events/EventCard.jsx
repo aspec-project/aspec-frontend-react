@@ -1,9 +1,13 @@
 import { Link } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, ChevronRight } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users, ChevronRight, Video, Repeat } from "lucide-react";
 
 import { formatDate, formatTime, categoryColor, badgeTextColor } from "../../utils/eventFormatting";
+import EventTypeBadges from "./EventTypeBadges";
 
-export default function EventCard({ event }) {
+export default function EventCard({ event, sessionLabel = "" }) {
+  const isOnline = event.is_online === true;
+  const session = typeof sessionLabel === "string" ? sessionLabel.trim() : "";
+  const LocationIcon = isOnline ? Video : MapPin;
   const color = categoryColor(event.category);
   const startTime = formatTime(event.event_start_time);
   const endTime = formatTime(event.event_end_time);
@@ -27,12 +31,15 @@ export default function EventCard({ event }) {
     <article className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-shadow hover:shadow-md">
       <div aria-hidden="true" className="h-2" style={{ backgroundColor: color }} />
       <div className="flex flex-1 flex-col p-5">
-        <span
-          className="mb-3 max-w-full self-start break-words rounded-full px-2.5 py-1 text-xs font-semibold"
-          style={{ backgroundColor: color, color: badgeTextColor(color) }}
-        >
-          {typeof event.category?.name === "string" ? event.category.name : "Evento"}
-        </span>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            className="max-w-full break-words rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ backgroundColor: color, color: badgeTextColor(color) }}
+          >
+            {typeof event.category?.name === "string" ? event.category.name : "Evento"}
+          </span>
+          <EventTypeBadges isOnline={event.is_online} />
+        </div>
         <h2 className="mb-4 break-words text-base font-medium leading-snug text-[#0D1F35]">
           {event.name}
         </h2>
@@ -51,9 +58,15 @@ export default function EventCard({ event }) {
             <span>{startTime ? `${startTime}${endTime ? ` – ${endTime}` : ""}` : "Horário por confirmar"}</span>
           </p>
           <p className="flex items-start gap-1.5">
-            <MapPin size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8A7043]" />
-            <span className="min-w-0 break-words">{typeof event.location?.name === "string" ? event.location.name : "Local por confirmar"}</span>
+            <LocationIcon size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8A7043]" />
+            <span className="min-w-0 break-words">{isOnline ? "Evento online" : typeof event.location?.name === "string" ? event.location.name : "Local por confirmar"}</span>
           </p>
+          {session && (
+            <p className="flex items-start gap-1.5">
+              <Repeat size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8A7043]" />
+              <span className="min-w-0 break-words">{session}</span>
+            </p>
+          )}
           <p className="flex items-start gap-1.5">
             <Users size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8A7043]" />
             <span>{availability}</span>
