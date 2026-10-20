@@ -29,6 +29,7 @@ export function useRegisterForm() {
   const [formData, setFormData] = useState({
     firstName: "", lastName: "", email: "", phone: "",
     business_name: "", sector_id: "", description: "", website_url: "",
+    commercial_email: "", commercial_phone: "",
     location_id: "", address: "",
     congregation: "", role_in_congregation: "",
     password: "", password_confirmation: "", acceptTerms: false,
