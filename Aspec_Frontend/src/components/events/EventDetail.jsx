@@ -1,6 +1,7 @@
 import { CalendarDays, CalendarClock, Clock, Info, MapPin, Users } from "lucide-react";
 import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
 import EventLocation from "./EventLocation";
+import EventRegistrantsModal from "./EventRegistrantsModal";
 import EventRegistrationCard from "./EventRegistrationCard";
 
 function HeaderInformation({ icon: Icon, label, children }) {
@@ -70,6 +71,7 @@ export default function EventDetail({ event, onEventUpdate }) {
           <p className={`mt-3 text-xs ${fewSpots ? "font-medium text-red-700" : "text-gray-600"}`}>
             {available === null ? "Vagas por confirmar" : available === 0 ? "Evento lotado" : `${fewSpots ? "Apenas " : ""}${available} ${available === 1 ? "vaga disponível" : "vagas disponíveis"}${fewSpots ? "!" : ""}`}
           </p>
+          <EventRegistrantsModal event={event} />
           {deadline && (
             <p className="mt-4 flex items-start gap-2 border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500">
               <CalendarClock size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8A7043]" />
