@@ -44,7 +44,7 @@ export default function EventLocationMap({ latitude, longitude }) {
 
   return (
     <div>
-      <div ref={container} role="region" aria-label="Mapa da localização do evento" className="relative isolate z-0 h-72 w-full bg-gray-100" />
+      <div ref={container} role="region" aria-label="Mapa da localização do evento" className="relative isolate z-0 h-52 w-full bg-gray-100" />
       {failedCoordinates === coordinateKey && <p role="status" className="p-4 text-sm text-gray-600">Não foi possível carregar o mapa completo. Pode abrir a localização no Google Maps.</p>}
     </div>
   );

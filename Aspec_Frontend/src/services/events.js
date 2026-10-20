@@ -1,10 +1,25 @@
 import { api, normalizeError } from "./api";
+import { useAuthStore } from "../store/authStore";
+import { getOnlineMeetingUrl } from "../utils/eventAccess";
+
+function publicEventItem(item) {
+  const result = { ...item };
+  delete result.online_url;
+  if (Object.hasOwn(result, "is_online")) {
+    result.is_online = typeof result.is_online === "boolean" ? result.is_online : null;
+  }
+  if (result.is_online === true) {
+    for (const field of ["location", "venue_name", "address", "latitude", "longitude"]) delete result[field];
+  }
+  return result;
+}
 
 export const isEventId = (value) => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 export async function getEventDetail(id, signal) {
   if (!isEventId(id)) throw new Error("O identificador do evento é inválido.");
 
+  const viewer = useAuthStore.getState();
   const response = await api.get(`/events/${encodeURIComponent(id)}`, { signal });
   const event = response.data?.data;
   if (response.data?.success !== true || event?.id !== id || typeof event.name !== "string" || !event.name.trim()) {
@@ -14,14 +29,23 @@ export async function getEventDetail(id, signal) {
   const text = (value) => typeof value === "string" ? value.trim() : "";
   const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
   const coordinate = (value, limit) => typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit ? value : null;
+  const currentViewer = useAuthStore.getState();
+  const sameViewer = viewer.sessionGeneration === currentViewer.sessionGeneration &&
+    viewer.user?.id === currentViewer.user?.id && viewer.status === currentViewer.status &&
+    viewer.user?.role?.name === currentViewer.user?.role?.name &&
+    viewer.user?.account_status?.name === currentViewer.user?.account_status?.name &&
+    !viewer.sessionChanging;
+  const onlineUrl = sameViewer ? getOnlineMeetingUrl(event, currentViewer) : "";
+  const online = event.is_online === true;
 
   /*
-   * O detalhe só conserva os campos públicos utilizados nesta página.
-   * O link privado online pertence à ASPEC-258 e é descartado.
+   * A modalidade ausente mantém-se desconhecida, sem inferir pelo local ou URL.
+   * O URL privado só é conservado para a mesma sessão autorizada do pedido.
    */
   return {
     id: event.id,
     name: event.name.trim(),
+    is_online: typeof event.is_online === "boolean" ? event.is_online : null,
     description: text(event.description),
     event_date: text(event.event_date),
     event_start_time: text(event.event_start_time),
@@ -30,14 +54,16 @@ export async function getEventDetail(id, signal) {
     is_registered: typeof event.is_registered === "boolean" ? event.is_registered : null,
     registration_open: typeof event.registration_open === "boolean" ? event.registration_open : null,
     category: { name: text(event.category?.name), color: text(event.category?.color) },
-    location: { name: text(event.location?.name) },
+    location: { name: online ? "" : text(event.location?.name) },
     organizer_notes: text(event.organizer_notes),
-    address: text(event.address),
-    latitude: coordinate(event.latitude, 90),
-    longitude: coordinate(event.longitude, 180),
+    venue_name: online ? "" : text(event.venue_name),
+    address: online ? "" : text(event.address),
+    latitude: online ? null : coordinate(event.latitude, 90),
+    longitude: online ? null : coordinate(event.longitude, 180),
     max_attendees: count(event.max_attendees),
     registrations_count: count(event.registrations_count),
     available_spots: count(event.available_spots),
+    ...(onlineUrl ? { online_url: onlineUrl } : {}),
   };
 }
 
@@ -136,7 +162,7 @@ export async function getEventsPage(
    * A agenda apresenta apenas a página pedida, na ordem devolvida pela API.
    * Os metadados do backend determinam a navegação entre páginas.
    */
-  return { items, pagination };
+  return { items: items.map(publicEventItem), pagination };
 }
 
 export async function getEvents(signal) {
@@ -164,7 +190,7 @@ export async function getEvents(signal) {
       );
     }
 
-    eventos.push(...resposta.data.items);
+    eventos.push(...resposta.data.items.map(publicEventItem));
 
     ultimaPagina = Number(
       resposta.data.pagination?.last_page ?? 1

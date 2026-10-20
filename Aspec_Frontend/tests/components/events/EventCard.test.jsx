@@ -16,13 +16,69 @@ const evento = {
   registration_open: true,
 };
 
-function mostrarCard(alteracoes = {}) {
-  return render(<MemoryRouter><EventCard event={{ ...evento, ...alteracoes }} /></MemoryRouter>);
+function mostrarCard(alteracoes = {}, apresentacao = {}) {
+  return render(<MemoryRouter><EventCard event={{ ...evento, ...alteracoes }} {...apresentacao} /></MemoryRouter>);
 }
 
 afterEach(cleanup);
 
 describe("EventCard", () => {
+  it("identifica o evento online sem apresentar localização física nem URL de reunião", () => {
+    const meetingUrl = "https://example.com/reuniao-privada";
+    mostrarCard({ is_online: true, meeting_url: meetingUrl });
+
+    expect(screen.getByText("Online")).toBeInTheDocument();
+    expect(screen.getByText("Evento online")).toBeInTheDocument();
+    expect(screen.queryByText("Presencial")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lisboa")).not.toBeInTheDocument();
+    expect(screen.getByRole("article").outerHTML).not.toContain(meetingUrl);
+  });
+
+  it("identifica o evento presencial mantendo a localização recebida", () => {
+    mostrarCard({ is_online: false });
+
+    expect(screen.getByText("Presencial")).toBeInTheDocument();
+    expect(screen.getByText("Lisboa")).toBeInTheDocument();
+    expect(screen.queryByText("Online")).not.toBeInTheDocument();
+  });
+
+  it.each([undefined, null, 0, 1, "false", "true", {}])("não presume modalidade para is_online %j", (is_online) => {
+    mostrarCard({ is_online });
+
+    expect(screen.queryByText("Online")).not.toBeInTheDocument();
+    expect(screen.queryByText("Presencial")).not.toBeInTheDocument();
+    expect(screen.queryByText("Evento online")).not.toBeInTheDocument();
+  });
+
+  it.each([true, false])("apresenta uma fixture de recorrência em modalidade online %j", (is_online) => {
+    const apresentacaoRecorrenteFixture = { recurring: true, sessionLabel: "Sessão 2 de 4" };
+    mostrarCard({ is_online }, apresentacaoRecorrenteFixture);
+
+    expect(screen.queryByText("Recorrente")).not.toBeInTheDocument();
+    expect(screen.getByText("Sessão 2 de 4")).toBeInTheDocument();
+    expect(screen.getByText(is_online ? "Online" : "Presencial")).toBeInTheDocument();
+  });
+
+  it("não presume recorrência a partir de campos sem contrato", () => {
+    mostrarCard({ is_recurring: true, sessions: [{ id: "fixture-session" }] });
+
+    expect(screen.queryByText("Recorrente")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sessão/)).not.toBeInTheDocument();
+  });
+
+  it.each(["Encontro de profissionais", "Encontro — Presencial", "Estratégia — Online"])("preserva integralmente o nome recebido da API: %s", (name) => {
+    mostrarCard({ name, is_online: true });
+    expect(screen.getByRole("heading", { name })).toHaveTextContent(name);
+    expect(screen.getByRole("link", { name: `Ver evento: ${name}` })).toBeInTheDocument();
+  });
+
+  it.each([undefined, null, "", "   ", 2, { label: "Sessão inventada" }])("ignora metadados de sessão inválidos %j", (sessionLabel) => {
+    mostrarCard({}, { recurring: "true", sessionLabel });
+
+    expect(screen.queryByText("Recorrente")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sessão/)).not.toBeInTheDocument();
+  });
+
   it("apresenta os dados reais e a descrição recebida como texto", () => {
     mostrarCard({ description: "  Uma manhã dedicada à colaboração.  " });
 

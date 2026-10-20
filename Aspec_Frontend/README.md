@@ -24,6 +24,36 @@ A homepage mantém a consulta existente de todas as páginas para selecionar os
 três eventos futuros mais próximos. A sua otimização depende de o backend
 confirmar a ordenação completa ou um mecanismo para obter só esses eventos.
 
+## Contrato de modalidade e acesso online
+
+O detalhe prepara `is_online` como booleano estrito e `venue_name` como texto.
+Uma modalidade ausente ou inválida mantém-se desconhecida; a existência de
+morada, categoria ou URL não determina a modalidade. Para online, os serviços
+descartam localização física. As listagens descartam sempre `online_url`.
+
+No detalhe, o URL só é conservado para a mesma sessão autenticada, com papel
+Member/Admin, conta Active, inscrição confirmada e prazo ISO com fuso horário
+estritamente ultrapassado. URLs com protocolos diferentes de HTTP/HTTPS ou
+credenciais são descartados. Esta filtragem não substitui autorização na API.
+
+Verificação do backend local `dev` em `75602eb`: `is_online` existe no modelo,
+mas falta em `EventInstanceResource`; `venue_name` já é devolvido. O recurso
+público condiciona `online_url` à inscrição e ao prazo, mas ainda necessita de
+verificar papel, estado da conta e modalidade. Não existe contrato de séries ou
+sessões nos modelos e rotas consultados. A integração de recorrência depende
+desse contrato; o frontend não gera sessões nem chama endpoints presumidos.
+
+`EventSessions` aceita resumos explícitos e apresenta data, horário, prazo,
+estado e seleção por ID, incluindo estados de carregamento, erro e ausência.
+`EventDetailPage` aceita opcionalmente `sessions` e `recurrenceLabel` como
+modelo interno preparado para um adapter futuro. Esse adapter terá de confirmar
+que cada ID corresponde a uma instância consultável em `/events/:id` e obter
+os resumos para a identidade atual. A rota de produção fornece `sessions=null`;
+não lê campos de série presumidos. Os testes identificam essas listas como
+fixtures. A seleção refaz o GET do detalhe e preserva os estados reconciliados
+das sessões na identidade atual, sem guardar URLs entre sessões. Não existe
+inscrição conjunta na série sem contrato específico do backend.
+
 ## Testes do frontend
 
 Todos os testes partilhados ficam na pasta `tests/`, organizados por componente.
