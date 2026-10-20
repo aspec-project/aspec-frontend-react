@@ -1,6 +1,7 @@
 import { CalendarDays, CalendarClock, Clock, Info, MapPin, Users } from "lucide-react";
 import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
 import EventLocation from "./EventLocation";
+import EventRegistrationCard from "./EventRegistrationCard";
 
 function HeaderInformation({ icon: Icon, label, children }) {
   return (
@@ -12,7 +13,7 @@ function HeaderInformation({ icon: Icon, label, children }) {
   );
 }
 
-export default function EventDetail({ event }) {
+export default function EventDetail({ event, onEventUpdate }) {
   const startTime = formatTime(event.event_start_time);
   const endTime = formatTime(event.event_end_time);
   const deadline = formatRegistrationDeadline(event.registration_deadline);
@@ -52,7 +53,8 @@ export default function EventDetail({ event }) {
             </div>
           </section>
         </div>
-        <section className="min-w-0 self-start rounded-xl border border-gray-200 bg-white p-5 shadow-sm" aria-labelledby="event-capacity">
+        <div className="min-w-0 space-y-6 self-start">
+        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" aria-labelledby="event-capacity">
           <h2 id="event-capacity" className="text-base font-semibold">Lotação do Evento</h2>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm">
             <p className="inline-flex items-center gap-1.5 text-gray-500"><Users size={15} aria-hidden="true" /> Vagas preenchidas</p>
@@ -75,6 +77,8 @@ export default function EventDetail({ event }) {
             </p>
           )}
         </section>
+        <EventRegistrationCard event={event} onEventUpdate={onEventUpdate} />
+        </div>
       </div>
     </article>
   );
