@@ -171,6 +171,7 @@ export default function EventsPage() {
               <p className="mb-6 text-sm text-gray-500">
                 {data.pagination.total} {data.pagination.total === 1 ? "evento encontrado" : "eventos encontrados"}
               </p>
+              {/* Cada card partilha 11 linhas para alinhar as secções na mesma fila. */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {data.items.map((event, index) => <EventCard key={`${event.id}-${index}`} event={event} />)}
               </div>
