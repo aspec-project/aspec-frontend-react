@@ -1,48 +1,60 @@
 import { useId } from 'react'
-import UserActions from './UserActions'
-import UserStatusBadge from './UserStatusBadge'
+import { Briefcase, Church, Clock, Globe, Image, Link2, Mail, Phone, Star, UserRound } from 'lucide-react'
+import UserReviewCounts from './UserReviewCounts'
 import { safeMemberUrl } from '../../../services/members'
 import {
-  formatBusinessHours,
   formatFullDate,
   getDisplayName,
-  getInitial,
   getRoleLabel,
   getStatusBadge,
+  groupBusinessHours,
 } from '../../../utils/adminUsers'
 
+const NOT_PROVIDED = 'Não indicado'
+
 /**
- * Cartão branco com título, anunciado como região com o nome do título.
+ * Indica se um valor de campo está vazio (null, undefined ou texto vazio).
  *
- * @param {{title: string, children: React.ReactNode}} props
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isEmpty(value) {
+  return value === null || value === undefined || value === ''
+}
+
+/**
+ * Cartão branco com ícone e título, anunciado como região com o nome do título.
+ *
+ * @param {{title: string, icon: import('react').ComponentType, className?: string, children: import('react').ReactNode}} props
  * @returns {JSX.Element}
  */
-function DetailCard({ title, children }) {
+function DetailCard({ title, icon: Icon, className = '', children }) {
   const id = useId()
 
   return (
-    <section aria-labelledby={id} className="rounded-xl bg-white p-6 shadow-sm">
-      <h3 id={id} className="text-lg font-semibold text-[#0d1f35]">{title}</h3>
+    <section aria-labelledby={id} className={`rounded-xl bg-white p-6 shadow-sm ${className}`}>
+      <h2 id={id} className="flex items-center gap-2 font-semibold text-[#0d1f35]">
+        <Icon size={18} aria-hidden="true" className="shrink-0 text-[#8a7043]" />
+        {title}
+      </h2>
       {children}
     </section>
   )
 }
 
 /**
- * Lista de pares rótulo/valor; valores vazios aparecem como "Não indicado".
+ * Lista de pares rótulo/valor numa linha cada; valores vazios aparecem como "Não indicado".
  *
- * @param {{fields: [string, React.ReactNode][]}} props
+ * @param {{fields: [string, import('react').ReactNode][]}} props
  * @returns {JSX.Element}
  */
 function FieldList({ fields }) {
   return (
-    <dl className="mt-4 space-y-3">
+    <dl className="mt-4 divide-y divide-gray-100 text-sm">
       {fields.map(([label, value]) => (
-        <div key={label}>
-          <dt className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</dt>
-          <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-gray-800">
-            {value === null || value === undefined || value === '' ? 'Não indicado' : value}
-          </dd>
+        <div key={label} className="flex items-start justify-between gap-4 py-3">
+          <dt className="text-gray-500">{label}</dt>
+          <dd className="min-w-0 break-words text-right font-medium text-gray-800">{isEmpty(value) ? NOT_PROVIDED : value}</dd>
         </div>
       ))}
     </dl>
@@ -64,152 +76,159 @@ function ExternalLink({ href }) {
   }
 
   return (
-    <a href={safe} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-[#0d1f35] underline">
+    <a href={safe} target="_blank" rel="noopener noreferrer" className="break-all text-[#0d1f35] underline">
       {href}
     </a>
   )
 }
 
 /**
- * Detalhe de um utilizador do backoffice: cabeçalho com logótipo, nome, estado e ações, e os
- * cartões Perfil, Horário, Portefólio, Conta e Redes sociais. Sem perfil de membro mostra só a conta.
+ * Contactos comerciais, website e redes sociais, uma linha com ícone por item. Nunca usa os
+ * contactos pessoais da conta (o perfil da API também os repete em email/phone).
  *
- * @param {{
- *   user: object,
- *   actions: ('approve'|'reject'|'block'|'unblock')[],
- *   actionsDisabled?: boolean,
- *   busy?: boolean,
- *   onAction: (action: string, user: object) => void,
- * }} props
+ * @param {{profile: object}} props
  * @returns {JSX.Element}
  */
-export default function UserDetail({ user, actions, actionsDisabled = false, busy = false, onAction }) {
+function ContactList({ profile }) {
+  const socialLinks = profile.social_links ?? []
+  const rows = [
+    { key: 'email', Icon: Mail, label: 'Email profissional', value: profile.commercial_email },
+    { key: 'phone', Icon: Phone, label: 'Telefone da empresa', value: profile.commercial_phone },
+    { key: 'website', Icon: Globe, label: 'Website', value: profile.website_url ? <ExternalLink href={profile.website_url} /> : null },
+    ...socialLinks.map((link) => ({ key: link.platform_id, Icon: Link2, label: link.platform, value: <ExternalLink href={link.url} /> })),
+  ]
+
+  return (
+    <>
+      <ul className="mt-4 space-y-4 text-sm">
+        {rows.map(({ key, Icon, label, value }) => (
+          <li key={key} className="flex items-start gap-3">
+            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] text-gray-600">
+              <Icon size={16} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500">{label}</p>
+              <p className="break-words text-gray-800">{isEmpty(value) ? NOT_PROVIDED : value}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {socialLinks.length === 0 && <p className="mt-4 text-sm text-gray-600">Sem redes sociais.</p>}
+    </>
+  )
+}
+
+/**
+ * Detalhe de um utilizador do backoffice em cartões: Conta, Contactos e redes, Avaliações,
+ * Congregação, Sobre o negócio, Horário de atendimento e Imagens (logótipo primeiro).
+ * Sem perfil de membro (ex.: admins) mostra só a Conta e o aviso de que não há perfil.
+ * O cabeçalho com o nome e as ações fica na banda da página (UserDetailHeader).
+ *
+ * @param {{user: object, busy?: boolean}} props
+ * @returns {JSX.Element}
+ */
+export default function UserDetail({ user, busy = false }) {
   const profile = user.member_profile
   const name = getDisplayName(user)
-  const logoUrl = safeMemberUrl(profile?.logo_url, true)
-  const website = profile?.website_url ? <ExternalLink href={profile.website_url} /> : null
-  const portfolio = (profile?.portfolio ?? [])
+
+  const account = (
+    <DetailCard title="Conta" icon={UserRound}>
+      <FieldList
+        fields={[
+          ['Responsável', profile?.name],
+          ['Email pessoal', user.email],
+          ['Telefone pessoal', user.phone],
+          ['Perfil', getRoleLabel(user)],
+          ['Núcleo', profile?.location?.name],
+          ['Subscrição', getStatusBadge(user).label],
+          ['Membro desde', formatFullDate(user.created_at)],
+        ]}
+      />
+    </DetailCard>
+  )
+
+  if (!profile) {
+    return (
+      <div aria-busy={busy} className={`grid items-start gap-6 transition-opacity lg:grid-cols-3 ${busy ? 'opacity-60' : ''}`}>
+        {account}
+        <DetailCard title="Perfil de membro" icon={Briefcase}>
+          <p className="mt-4 text-sm text-gray-600">Este utilizador não tem perfil de membro.</p>
+        </DetailCard>
+      </div>
+    )
+  }
+
+  const logoUrl = safeMemberUrl(profile.logo_url, true)
+  const portfolio = (profile.portfolio ?? [])
     .map((image) => ({ id: image.id, url: safeMemberUrl(image.image_url, true) }))
     .filter((image) => image.url)
+  const images = [
+    ...(logoUrl ? [{ key: 'logo', url: logoUrl, alt: `Logótipo de ${name}`, logo: true }] : []),
+    ...portfolio.map((image, index) => ({ key: image.id, url: image.url, alt: `Imagem ${index + 1} do portefólio de ${name}` })),
+  ]
+  const hours = groupBusinessHours(profile.business_hours)
 
   return (
     <div aria-busy={busy} className={`space-y-6 transition-opacity ${busy ? 'opacity-60' : ''}`}>
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-4">
-          {logoUrl ? (
-            <img src={logoUrl} alt={`Logótipo de ${name}`} referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover" />
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        {account}
+
+        <DetailCard title="Contactos e redes" icon={Globe}>
+          <ContactList profile={profile} />
+        </DetailCard>
+
+        <DetailCard title="Avaliações" icon={Star}>
+          <UserReviewCounts counts={user.review_counts} />
+        </DetailCard>
+
+        <DetailCard title="Congregação" icon={Church}>
+          <FieldList fields={[['Congregação', profile.congregation], ['Cargo', profile.role_in_congregation]]} />
+        </DetailCard>
+
+        <DetailCard title="Sobre o negócio" icon={Briefcase}>
+          {isEmpty(profile.description) ? (
+            <p className="mt-4 text-sm text-gray-600">Sem descrição.</p>
           ) : (
-            <span aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#0d1f35] text-xl font-semibold text-white">
-              {getInitial(user)}
-            </span>
+            <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{profile.description}</p>
           )}
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-[#0d1f35]">{name}</h2>
-              {user.role?.name === 'Admin' && (
-                <span className="rounded-full bg-[#8a7043]/10 px-2 py-0.5 text-xs font-semibold text-[#8a7043]">Admin</span>
-              )}
-            </div>
-            {profile?.business_name && <p className="text-sm text-gray-500">{profile.business_name}</p>}
-            <UserStatusBadge user={user} />
-          </div>
-        </div>
-        {actions.length > 0 && (
-          <UserActions user={user} actions={actions} disabled={actionsDisabled} onAction={onAction} />
-        )}
-      </section>
+        </DetailCard>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {profile ? (
-            <>
-              <DetailCard title="Perfil">
-                <FieldList
-                  fields={[
-                    ['Nome profissional', profile.name],
-                    ['Setor', profile.sector?.name],
-                    ['Localidade', profile.location?.name],
-                    ['Congregação', profile.congregation],
-                    ['Função na congregação', profile.role_in_congregation],
-                    ['Morada', profile.address],
-                    ['Website', website],
-                    ['Contactos comerciais', profile.commercial_contacts],
-                    ['Descrição', profile.description],
-                  ]}
-                />
-              </DetailCard>
-
-              <DetailCard title="Horário">
-                {profile.business_hours?.length > 0 ? (
-                  <dl className="mt-4 space-y-2">
-                    {formatBusinessHours(profile.business_hours).map((day) => (
-                      <div key={day.label} className="flex justify-between gap-4 text-sm">
-                        <dt className="font-medium text-gray-700">{day.label}</dt>
-                        <dd className="text-gray-800">{day.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : (
-                  <p className="mt-4 text-sm text-gray-600">Sem horário definido.</p>
-                )}
-              </DetailCard>
-
-              <DetailCard title="Portefólio">
-                {portfolio.length > 0 ? (
-                  <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    {portfolio.map((image, index) => (
-                      <img
-                        key={image.id}
-                        src={image.url}
-                        alt={`Imagem ${index + 1} do portefólio de ${name}`}
-                        referrerPolicy="no-referrer"
-                        className="aspect-square w-full rounded-lg object-cover"
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-gray-600">Sem imagens no portefólio.</p>
-                )}
-              </DetailCard>
-            </>
+        <DetailCard title="Horário de atendimento" icon={Clock}>
+          {hours.length > 0 ? (
+            <dl className="mt-4 divide-y divide-gray-100 text-sm">
+              {hours.map((group) => (
+                <div key={group.label} className="flex justify-between gap-4 py-3">
+                  <dt className="text-gray-600">{group.label}</dt>
+                  <dd className={group.closed ? 'font-medium text-red-600' : 'font-medium text-gray-800'}>{group.value}</dd>
+                </div>
+              ))}
+            </dl>
           ) : (
-            <DetailCard title="Perfil">
-              <p className="mt-4 text-sm text-gray-600">Este utilizador não tem perfil de membro.</p>
-            </DetailCard>
+            <p className="mt-4 text-sm text-gray-600">Sem horário definido.</p>
           )}
-        </div>
-
-        <div className="space-y-6">
-          <DetailCard title="Conta">
-            <FieldList
-              fields={[
-                ['Email', user.email],
-                ['Telefone', user.phone],
-                ['Papel', getRoleLabel(user)],
-                ['Estado', getStatusBadge(user).label],
-                ['Data de registo', formatFullDate(user.created_at)],
-              ]}
-            />
-          </DetailCard>
-
-          {profile && (
-            <DetailCard title="Redes sociais">
-              {profile.social_links?.length > 0 ? (
-                <ul className="mt-4 space-y-3 text-sm text-gray-800">
-                  {profile.social_links.map((link) => (
-                    <li key={link.platform_id}>
-                      <p className="font-semibold">{link.platform}</p>
-                      <ExternalLink href={link.url} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-gray-600">Sem redes sociais.</p>
-              )}
-            </DetailCard>
-          )}
-        </div>
+        </DetailCard>
       </div>
+
+      <DetailCard title={`Imagens (${images.length})`} icon={Image}>
+        {images.length > 0 ? (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              {images.map((image) => (
+                <img
+                  key={image.key}
+                  src={image.url}
+                  alt={image.alt}
+                  referrerPolicy="no-referrer"
+                  className={`aspect-square w-full rounded-lg object-cover ${image.logo ? 'bg-[#f5f1e8]' : 'bg-slate-100'}`}
+                />
+              ))}
+            </div>
+            {logoUrl && <p className="mt-3 text-xs text-gray-500">A primeira imagem é o logótipo.</p>}
+          </>
+        ) : (
+          <p className="mt-4 text-sm text-gray-600">Sem imagens.</p>
+        )}
+      </DetailCard>
     </div>
   )
 }

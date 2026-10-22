@@ -1,16 +1,19 @@
+import { ShieldCheck, ShieldOff } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import {
   USER_ACTION_LABELS,
   USER_STATUS_TABS,
-  formatBusinessHours,
   formatFullDate,
+  formatMonthYear,
   getActionConfirmation,
   getAvailableActions,
+  getLockedActions,
   formatRegistrationDate,
   getDisplayName,
   getInitial,
   getRoleLabel,
   getStatusBadge,
+  groupBusinessHours,
 } from '../../src/utils/adminUsers'
 
 const user = (status, reason = null) => ({ account_status: { name: status }, inactive_reason: reason })
@@ -42,6 +45,28 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
     expect(formatFullDate('2024-01-15T09:30:00+00:00')).toBe('15/01/2024')
   })
 
+  it('formata só o mês e o ano', () => {
+    expect(formatMonthYear('2024-01-15T09:30:00+00:00')).toBe('Jan 2024')
+    expect(formatMonthYear('2023-11-02T14:00:00+00:00')).toBe('Nov 2023')
+    expect(formatMonthYear(null)).toBe('')
+    expect(formatMonthYear('lixo')).toBe('')
+  })
+
+  it('usa o estado da subscrição no badge quando a API o envia', () => {
+    const withState = (value, label) => ({ ...user('Active'), subscription_state: { value, label } })
+
+    expect(getStatusBadge(withState('trial', 'Em trial'))).toEqual({ label: 'Em trial', className: 'bg-indigo-50 text-indigo-800' })
+    expect(getStatusBadge(withState('grace', 'Em carência'))).toEqual({ label: 'Em carência', className: 'bg-orange-50 text-orange-800' })
+    expect(getStatusBadge(withState('lapsed', 'Subscrição caída'))).toEqual({ label: 'Subscrição caída', className: 'bg-slate-100 text-slate-700' })
+    expect(getStatusBadge(withState('exempt', 'Isento'))).toEqual({ label: 'Isento', className: 'bg-amber-50 text-[#8a7043]' })
+    expect(getStatusBadge(withState('novo', 'Novo'))).toEqual({ label: 'Novo', className: 'bg-slate-100 text-slate-700' })
+
+    expect(getStatusBadge({ ...user('Approved'), subscription_state: null }))
+      .toEqual({ label: 'Aprovado', className: 'bg-sky-50 text-sky-800', title: 'Aprovado, a aguardar pagamento' })
+    expect(getStatusBadge({ ...user('Pending'), subscription_state: { value: 'pending', label: '' } }).label).toBe('Pendente')
+    expect(getStatusBadge(user('Inactive', 'rejected')).label).toBe('Recusado')
+  })
+
   it('usa o nome profissional ou, sem perfil, o email como nome e inicial', () => {
     const withProfile = { email: 'manuel@x.pt', member_profile: { name: 'manuel Silva' } }
     const withoutProfile = { email: 'jose@x.pt', member_profile: null }
@@ -56,11 +81,12 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
 describe('ações disponíveis e textos de confirmação', () => {
   const member = (id, status, reason = null) => ({ id, role: { name: 'Member' }, account_status: { name: status }, inactive_reason: reason })
 
-  it('mostra as ações certas para cada estado e nenhuma para admins ou para a própria conta', () => {
+  it('mostra as ações certas para cada estado, promover em ativos e despromover em admins', () => {
+    const admin = (id, state = 'active') => ({ ...member(id, 'Active'), role: { name: 'Admin' }, subscription_state: { value: state, label: 'X' } })
     const cases = [
       [member('m1', 'Pending'), ['approve', 'reject']],
       [member('m2', 'Approved'), ['block']],
-      [member('m3', 'Active'), ['block']],
+      [member('m3', 'Active'), ['block', 'promote']],
       [member('m4', 'Inactive', 'blocked'), ['unblock']],
       [member('m5', 'Inactive', 'unpaid'), ['block']],
       [member('m6', 'Inactive', 'cancelled'), ['block']],
@@ -68,7 +94,10 @@ describe('ações disponíveis e textos de confirmação', () => {
       [member('m8', 'Inactive', 'deleted'), []],
       [member('m9', 'Inactive', null), []],
       [member('m10', 'Desconhecido'), []],
-      [{ ...member('admin-2', 'Active'), role: { name: 'Admin' } }, []],
+      [admin('admin-2'), ['demote']],
+      [{ ...member('admin-3', 'Active'), role: { name: 'Admin' } }, ['demote']],
+      [admin('admin-1'), ['demote']],
+      [admin('admin-tec', 'exempt'), []],
       [member('admin-1', 'Active'), []],
     ]
 
@@ -76,7 +105,21 @@ describe('ações disponíveis e textos de confirmação', () => {
       expect(getAvailableActions(target, 'admin-1')).toEqual(expected)
     }
 
-    expect(USER_ACTION_LABELS).toEqual({ approve: 'Aprovar', reject: 'Recusar', block: 'Bloquear', unblock: 'Desbloquear' })
+    expect(getLockedActions(admin('admin-1'), 'admin-1')).toEqual(['demote'])
+    expect(getLockedActions(admin('admin-2'), 'admin-1')).toEqual([])
+    expect(getLockedActions(member('m3', 'Active'), 'admin-1')).toEqual([])
+    expect(getLockedActions(member('admin-1', 'Active'), 'admin-1')).toEqual([])
+    expect(getLockedActions(admin('admin-1', 'exempt'), 'admin-1')).toEqual([])
+    expect(getLockedActions(admin('admin-tec', 'exempt'), 'admin-1')).toEqual([])
+
+    expect(USER_ACTION_LABELS).toEqual({
+      approve: 'Aprovar',
+      reject: 'Recusar',
+      block: 'Bloquear',
+      unblock: 'Desbloquear',
+      promote: 'Promover a administrador',
+      demote: 'Despromover',
+    })
   })
 
   it('explica o efeito de cada ação com o nome e o email do membro', () => {
@@ -112,28 +155,84 @@ describe('ações disponíveis e textos de confirmação', () => {
     expect(description).toContain('x@y.pt?')
     expect(description).not.toContain('(')
   })
+
+  it('explica a promoção a administrador com o nome e o email do membro', () => {
+    const maria = { email: 'maria@santos.pt', member_profile: { name: 'Maria Santos' } }
+
+    expect(getActionConfirmation('promote', maria)).toEqual({
+      title: 'Promover a administrador',
+      description: 'Maria Santos (maria@santos.pt) passa a ter acesso total ao backoffice: aprovar e bloquear membros, gerir eventos, moderar avaliações e promover ou despromover outros administradores.',
+      confirmLabel: 'Promover a administrador',
+      tone: 'primary',
+      icon: ShieldCheck,
+    })
+  })
+
+  it('explica a despromoção com contagem decrescente e o número de administradores', () => {
+    const helena = { id: 'admin-2', email: 'helena@brandao.pt', role: { name: 'Admin' }, member_profile: { name: 'Helena Brandão' } }
+    const fallbackNote = 'A plataforma tem sempre de ter pelo menos um administrador.'
+
+    expect(getActionConfirmation('demote', helena, { adminsCount: 2 })).toEqual({
+      title: 'Despromover administrador',
+      description: 'Helena Brandão deixa de ter acesso ao backoffice, à gestão de utilizadores, eventos e moderação. Continua a ser membro e só então pode ser gerido(a) como tal. Esta é uma decisão importante: só outro administrador a poderá reverter, promovendo-o(a) de novo.',
+      confirmLabel: 'Despromover',
+      tone: 'danger',
+      icon: ShieldOff,
+      confirmDelay: 2,
+      note: 'Existem 2 administradores. Depois desta ação ficam 1. A plataforma tem sempre de ter pelo menos um.',
+    })
+    expect(getActionConfirmation('demote', helena, { adminsCount: 5 }).note)
+      .toBe('Existem 5 administradores. Depois desta ação ficam 4. A plataforma tem sempre de ter pelo menos um.')
+    expect(getActionConfirmation('demote', helena).note).toBe(fallbackNote)
+
+    for (const adminsCount of [1, '2', null, Number.NaN]) {
+      expect(getActionConfirmation('demote', helena, { adminsCount }).note).toBe(fallbackNote)
+    }
+  })
 })
 
 describe('detalhe do membro', () => {
-  it('mostra o horário de segunda a domingo com Encerrado nos dias sem horas e o papel em português', () => {
-    const labels = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
-    const hours = formatBusinessHours([
-      { week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' },
-      { week_day_id: 6, week_day: 'Sábado', open_time: '10:00', close_time: '13:00' },
+  const hour = (week_day_id, open_time, close_time) => ({ week_day_id, open_time, close_time })
+
+  it('junta os dias consecutivos com o mesmo horário e os dias sem horas como Encerrado', () => {
+    const weekdays = [1, 2, 3, 4, 5].map((day) => hour(day, '09:00', '18:00'))
+
+    expect(groupBusinessHours(weekdays)).toEqual([
+      { label: 'Segunda — Sexta', value: '09:00 — 18:00', closed: false },
+      { label: 'Sábado — Domingo', value: 'Encerrado', closed: true },
     ])
+  })
 
-    expect(hours.map((day) => day.label)).toEqual(labels)
-    expect(hours.map((day) => day.value)).toEqual(['09:00 – 18:00', 'Encerrado', 'Encerrado', 'Encerrado', 'Encerrado', '10:00 – 13:00', 'Encerrado'])
-    expect(formatBusinessHours([
-      { week_day_id: 1, week_day: 'X', open_time: '09:00', close_time: '18:00' },
-      { week_day_id: 6, week_day: 'Y', open_time: '10:00', close_time: '13:00' },
-    ])).toEqual(hours)
+  it('não junta dias com horários diferentes nem dias não consecutivos', () => {
+    const hours = [hour(1, '09:00', '18:00'), hour(2, '09:00', '13:00'), hour(3, '09:00', '18:00')]
 
-    for (const empty of [formatBusinessHours(), formatBusinessHours([])]) {
-      expect(empty.map((day) => day.label)).toEqual(labels)
-      expect(empty.map((day) => day.value)).toEqual(Array(7).fill('Encerrado'))
-    }
+    expect(groupBusinessHours(hours)).toEqual([
+      { label: 'Segunda', value: '09:00 — 18:00', closed: false },
+      { label: 'Terça', value: '09:00 — 13:00', closed: false },
+      { label: 'Quarta', value: '09:00 — 18:00', closed: false },
+      { label: 'Quinta — Domingo', value: 'Encerrado', closed: true },
+    ])
+  })
 
+  it('sem horário devolve uma lista vazia e trata dias inválidos ou sem horas como fechados', () => {
+    expect(groupBusinessHours()).toEqual([])
+    expect(groupBusinessHours([])).toEqual([])
+
+    const hours = [
+      hour(0, '09:00', '18:00'),
+      hour(8, '09:00', '18:00'),
+      { week_day_id: 2, open_time: '09:00' },
+      hour(4, '10:00', '12:00'),
+    ]
+
+    expect(groupBusinessHours(hours)).toEqual([
+      { label: 'Segunda — Quarta', value: 'Encerrado', closed: true },
+      { label: 'Quinta', value: '10:00 — 12:00', closed: false },
+      { label: 'Sexta — Domingo', value: 'Encerrado', closed: true },
+    ])
+  })
+
+  it('mostra o papel em português', () => {
     expect(getRoleLabel({ role: { name: 'Admin' } })).toBe('Administrador')
     expect(getRoleLabel({ role: { name: 'Member' } })).toBe('Membro')
     expect(getRoleLabel({})).toBe('Não indicado')

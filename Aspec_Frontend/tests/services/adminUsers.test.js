@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../src/services/api'
-import { approveUser, blockUser, getAdminUser, getAdminUsers, rejectUser, unblockUser } from '../../src/services/adminUsers'
+import { approveUser, blockUser, demoteUser, getAdminUser, getAdminUsers, promoteUser, rejectUser, unblockUser } from '../../src/services/adminUsers'
 
 const payload = {
   items: [{ id: 'u1', email: 'ana@techbless.pt' }],
@@ -73,6 +73,27 @@ describe('ações sobre utilizadores', () => {
     patch.mockRejectedValue(error)
 
     await expect(blockUser('u1')).rejects.toBe(error)
+  })
+})
+
+describe('promover e despromover administradores', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('faz um PATCH sem corpo à rota certa com o id codificado e devolve a mensagem e o utilizador', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'M', data: { id: 'u 1' } } })
+
+    expect(await promoteUser('u 1')).toEqual({ message: 'M', user: { id: 'u 1' } })
+    expect(await demoteUser('u 1')).toEqual({ message: 'M', user: { id: 'u 1' } })
+
+    expect(patch.mock.calls).toEqual([['/admin/users/u%201/promote'], ['/admin/users/u%201/demote']])
+  })
+
+  it('propaga o erro do pedido', async () => {
+    const error = new Error('Falha de rede')
+    vi.spyOn(api, 'patch').mockRejectedValue(error)
+
+    await expect(promoteUser('u1')).rejects.toBe(error)
+    await expect(demoteUser('u1')).rejects.toBe(error)
   })
 })
 

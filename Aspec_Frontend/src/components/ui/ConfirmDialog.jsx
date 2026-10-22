@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 
 const TONE_CLASSES = {
@@ -11,7 +11,9 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
 
 /**
  * Diálogo de confirmação acessível: foco inicial em Cancelar, Escape cancela, Tab preso nos
- * botões e foco devolvido ao elemento que o tinha antes de abrir.
+ * botões e foco devolvido ao elemento que o tinha antes de abrir. Opcionalmente mostra um ícone
+ * antes do título, uma nota destacada e uma contagem decrescente (confirmDelay, em segundos) durante
+ * a qual o botão de confirmar fica desativado; a contagem recomeça sempre que o diálogo abre.
  *
  * @param {{
  *   open: boolean,
@@ -25,6 +27,9 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  *   onCancel: () => void,
  *   children?: import('react').ReactNode,
  *   showClose?: boolean,
+ *   icon?: import('react').ComponentType,
+ *   note?: string,
+ *   confirmDelay?: number,
  * }} props
  * @returns {JSX.Element|null}
  */
@@ -40,11 +45,34 @@ export default function ConfirmDialog({
   onCancel,
   children,
   showClose = false,
+  icon: Icon,
+  note,
+  confirmDelay = 0,
 }) {
   const titleId = useId()
   const descriptionId = useId()
   const dialogRef = useRef(null)
   const cancelRef = useRef(null)
+  const [remaining, setRemaining] = useState(confirmDelay)
+  const [wasOpen, setWasOpen] = useState(open)
+
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setRemaining(confirmDelay)
+  }
+
+  useEffect(() => {
+    if (!open || confirmDelay <= 0) return undefined
+
+    let left = confirmDelay
+    const timer = setInterval(() => {
+      left -= 1
+      setRemaining(left)
+      if (left <= 0) clearInterval(timer)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [open, confirmDelay])
 
   useEffect(() => {
     if (!open) return undefined
@@ -60,6 +88,8 @@ export default function ConfirmDialog({
   if (!open) {
     return null
   }
+
+  const waiting = remaining > 0
 
   /**
    * Escape cancela (exceto durante o pedido) e Tab/Shift+Tab mantêm o foco no diálogo.
@@ -116,8 +146,12 @@ export default function ConfirmDialog({
             <X size={18} aria-hidden="true" />
           </button>
         )}
-        <h2 id={titleId} className={`shrink-0 text-lg font-semibold text-[#0d1f35] ${showClose ? 'pr-7' : ''}`}>{title}</h2>
+        <h2 id={titleId} className={`shrink-0 text-lg font-semibold ${Icon && tone === 'danger' ? 'text-red-600' : 'text-[#0d1f35]'} ${Icon ? 'flex items-center gap-2' : ''} ${showClose ? 'pr-7' : ''}`}>
+          {Icon && <Icon size={20} aria-hidden="true" className="shrink-0" />}
+          {title}
+        </h2>
         <p id={descriptionId} className="mt-3 shrink-0 text-sm text-gray-600">{description}</p>
+        {note && <p role="note" className="mt-4 shrink-0 rounded-lg bg-[#f5f1e8] px-4 py-3 text-sm text-[#6b5631]">{note}</p>}
         {children && <div tabIndex={0} role="region" aria-label="Resumo da confirmação" className="min-h-0 overflow-y-auto">{children}</div>}
         <div className={`mt-6 flex shrink-0 justify-end gap-3 ${showClose ? 'flex-col-reverse sm:flex-row' : ''}`}>
           <button
@@ -132,10 +166,10 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={pending}
+            disabled={pending || waiting}
             className={`${buttonBase} text-white ${TONE_CLASSES[tone] ?? TONE_CLASSES.primary}`}
           >
-            {pending ? 'A processar...' : confirmLabel}
+            {pending ? 'A processar...' : waiting ? `${confirmLabel} (${remaining}s)` : confirmLabel}
           </button>
         </div>
       </div>

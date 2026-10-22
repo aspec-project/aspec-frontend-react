@@ -1,3 +1,5 @@
+import { ShieldCheck, ShieldOff } from 'lucide-react'
+
 /**
  * Separadores de estado da Gestão de Utilizadores, por ordem. A `key` é a chave em `counts`
  * e `filters` são os filtros enviados à API.
@@ -17,6 +19,18 @@ const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', '
 
 const INACTIVE_CLASS = 'bg-slate-100 text-slate-700'
 
+const SUBSCRIPTION_BADGE_CLASSES = {
+  pending: 'bg-amber-50 text-amber-800',
+  awaiting_activation: 'bg-sky-50 text-sky-800',
+  trial: 'bg-indigo-50 text-indigo-800',
+  active: 'bg-emerald-50 text-emerald-800',
+  grace: 'bg-orange-50 text-orange-800',
+  lapsed: INACTIVE_CLASS,
+  inactive: INACTIVE_CLASS,
+  blocked: 'bg-red-50 text-red-700',
+  exempt: 'bg-amber-50 text-[#8a7043]',
+}
+
 const INACTIVE_LABELS = {
   rejected: 'Recusado',
   unpaid: 'Pagamento em falta',
@@ -24,12 +38,19 @@ const INACTIVE_LABELS = {
 }
 
 /**
- * Etiqueta do estado de um utilizador, a partir do estado da conta e do motivo de inatividade.
+ * Etiqueta do estado de um utilizador: o estado da subscrição quando a API o envia (texto da API,
+ * cor pelo valor); senão, o estado da conta e o motivo de inatividade.
  *
- * @param {{account_status?: {name?: string}, inactive_reason?: string|null}} user
+ * @param {{account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string, label?: string}|null}} user
  * @returns {{label: string, className: string, title?: string}}
  */
 export function getStatusBadge(user) {
+  const state = user?.subscription_state
+
+  if (typeof state?.label === 'string' && state.label.trim() !== '') {
+    return { label: state.label, className: SUBSCRIPTION_BADGE_CLASSES[state.value] ?? INACTIVE_CLASS }
+  }
+
   switch (user?.account_status?.name) {
     case 'Pending':
       return { label: 'Pendente', className: 'bg-amber-50 text-amber-800' }
@@ -63,6 +84,18 @@ function parseDate(isoString) {
 }
 
 /**
+ * Mês abreviado e ano, em hora local (ex.: "Jan 2024").
+ *
+ * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
+ * @returns {string} A data formatada, ou "" se for inválida.
+ */
+export function formatMonthYear(isoString) {
+  const date = parseDate(isoString)
+
+  return date ? `${MONTHS[date.getMonth()]} ${date.getFullYear()}` : ''
+}
+
+/**
  * Data de registo curta, em hora local: "Hoje", "Ontem" ou mês e ano (ex.: "Jan 2024").
  *
  * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
@@ -87,7 +120,7 @@ export function formatRegistrationDate(isoString, now = new Date()) {
     return 'Ontem'
   }
 
-  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`
+  return formatMonthYear(isoString)
 }
 
 /**
@@ -146,46 +179,91 @@ export function getRoleLabel(user) {
   }
 }
 
-const WEEK_DAY_LABELS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+const WEEK_DAY_SHORT_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+
+const CLOSED_LABEL = 'Encerrado'
 
 /**
- * Horário semanal para mostrar, de segunda a domingo, com "Encerrado" nos dias sem horas.
+ * Agrupa o horário semanal em intervalos de dias consecutivos com o mesmo horário (segunda a domingo).
  *
- * @param {{week_day_id: number, open_time: string, close_time: string}[]|undefined} hours Horário da API (dia pelo id 1–7).
- * @returns {{label: string, value: string}[]} Os 7 dias por ordem.
+ * @param {{week_day_id: number, open_time: string, close_time: string}[]|undefined} hours Horário da API.
+ * @returns {{label: string, value: string, closed: boolean}[]} Intervalos por ordem; [] se não houver horário.
  */
-export function formatBusinessHours(hours = []) {
-  return WEEK_DAY_LABELS.map((label, index) => {
-    const day = hours.find((item) => item.week_day_id === index + 1)
+export function groupBusinessHours(hours = []) {
+  const days = WEEK_DAY_SHORT_LABELS.map((label, index) => {
+    const day = (hours ?? []).find((item) => item?.week_day_id === index + 1 && item.open_time && item.close_time)
 
-    return { label, value: day ? `${day.open_time} – ${day.close_time}` : 'Encerrado' }
+    return { label, value: day ? `${day.open_time} — ${day.close_time}` : CLOSED_LABEL, closed: !day }
   })
+
+  if (days.every((day) => day.closed)) {
+    return []
+  }
+
+  const groups = []
+
+  for (const day of days) {
+    const last = groups.at(-1)
+
+    if (last && last.value === day.value) {
+      last.end = day.label
+    } else {
+      groups.push({ start: day.label, end: day.label, value: day.value, closed: day.closed })
+    }
+  }
+
+  return groups.map(({ start, end, value, closed }) => ({
+    label: start === end ? start : `${start} — ${end}`,
+    value,
+    closed,
+  }))
 }
 
 /**
  * Nomes das ações de administração sobre um utilizador, por chave da API.
  *
- * @type {{approve: string, reject: string, block: string, unblock: string}}
+ * @type {{approve: string, reject: string, block: string, unblock: string, promote: string, demote: string}}
  */
 export const USER_ACTION_LABELS = {
   approve: 'Aprovar',
   reject: 'Recusar',
   block: 'Bloquear',
   unblock: 'Desbloquear',
+  promote: 'Promover a administrador',
+  demote: 'Despromover',
 }
 
 const BLOCKABLE_INACTIVE_REASONS = ['unpaid', 'cancelled']
 
 /**
- * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins e a própria conta
- * não têm ações (a API responderia sempre 409).
+ * Indica se o utilizador é o administrador técnico (isento de subscrição, nunca despromovível).
  *
- * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null}} user
+ * @param {{subscription_state?: {value?: string}|null}} user
+ * @returns {boolean}
+ */
+function isExemptAdmin(user) {
+  return user?.subscription_state?.value === 'exempt'
+}
+
+/**
+ * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins só podem ser
+ * despromovidos (exceto o administrador técnico); na própria conta de membro não há ações.
+ * Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
+ *
+ * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string}|null}} user
  * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
- * @returns {('approve'|'reject'|'block'|'unblock')[]}
+ * @returns {('approve'|'reject'|'block'|'unblock'|'promote'|'demote')[]}
  */
 export function getAvailableActions(user, currentUserId) {
-  if (!user || user.role?.name === 'Admin' || user.id === currentUserId) {
+  if (!user) {
+    return []
+  }
+
+  if (user.role?.name === 'Admin') {
+    return isExemptAdmin(user) ? [] : ['demote']
+  }
+
+  if (user.id === currentUserId) {
     return []
   }
 
@@ -193,8 +271,9 @@ export function getAvailableActions(user, currentUserId) {
     case 'Pending':
       return ['approve', 'reject']
     case 'Approved':
-    case 'Active':
       return ['block']
+    case 'Active':
+      return ['block', 'promote']
     case 'Inactive':
       if (user.inactive_reason === 'blocked') {
         return ['unblock']
@@ -207,16 +286,65 @@ export function getAvailableActions(user, currentUserId) {
 }
 
 /**
+ * Ações que aparecem desativadas: o "Despromover" na própria conta de admin (o backend recusaria
+ * com 409), para explicar a regra em vez de esconder o botão.
+ *
+ * @param {{id?: string, role?: {name?: string}, subscription_state?: {value?: string}|null}} user
+ * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
+ * @returns {'demote'[]}
+ */
+export function getLockedActions(user, currentUserId) {
+  if (user && user.id === currentUserId && user.role?.name === 'Admin' && !isExemptAdmin(user)) {
+    return ['demote']
+  }
+
+  return []
+}
+
+/**
+ * Nota do diálogo de despromover: o número de administradores antes e depois, quando é conhecido.
+ *
+ * @param {unknown} adminsCount Total de administradores devolvido pela API.
+ * @returns {string}
+ */
+function demoteNote(adminsCount) {
+  if (Number.isSafeInteger(adminsCount) && adminsCount >= 2) {
+    return `Existem ${adminsCount} administradores. Depois desta ação ficam ${adminsCount - 1}. A plataforma tem sempre de ter pelo menos um.`
+  }
+
+  return 'A plataforma tem sempre de ter pelo menos um administrador.'
+}
+
+/**
  * Textos do diálogo de confirmação de uma ação, com o efeito real no backend (incluindo emails).
  *
- * @param {'approve'|'reject'|'block'|'unblock'} action
+ * @param {'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action
  * @param {{email?: string, member_profile?: {name?: string}|null}} user
- * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger'}}
+ * @param {{adminsCount?: number}} [context] Total de administradores, para a nota do despromover.
+ * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string}}
  */
-export function getActionConfirmation(action, user) {
+export function getActionConfirmation(action, user, context = {}) {
   const who = user?.member_profile?.name ? `${getDisplayName(user)} (${user.email})` : getDisplayName(user)
 
   switch (action) {
+    case 'promote':
+      return {
+        title: 'Promover a administrador',
+        description: `${who} passa a ter acesso total ao backoffice: aprovar e bloquear membros, gerir eventos, moderar avaliações e promover ou despromover outros administradores.`,
+        confirmLabel: USER_ACTION_LABELS.promote,
+        tone: 'primary',
+        icon: ShieldCheck,
+      }
+    case 'demote':
+      return {
+        title: 'Despromover administrador',
+        description: `${getDisplayName(user)} deixa de ter acesso ao backoffice, à gestão de utilizadores, eventos e moderação. Continua a ser membro e só então pode ser gerido(a) como tal. Esta é uma decisão importante: só outro administrador a poderá reverter, promovendo-o(a) de novo.`,
+        confirmLabel: USER_ACTION_LABELS.demote,
+        tone: 'danger',
+        icon: ShieldOff,
+        confirmDelay: 2,
+        note: demoteNote(context?.adminsCount),
+      }
     case 'approve':
       return {
         title: 'Aprovar candidatura',

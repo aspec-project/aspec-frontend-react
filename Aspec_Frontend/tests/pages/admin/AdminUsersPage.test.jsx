@@ -4,7 +4,7 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminUsersPage from '../../../src/pages/admin/AdminUsersPage'
-import { approveUser, blockUser, getAdminUsers, rejectUser, unblockUser } from '../../../src/services/adminUsers'
+import { approveUser, blockUser, demoteUser, getAdminUsers, promoteUser, rejectUser, unblockUser } from '../../../src/services/adminUsers'
 import { useAuthStore } from '../../../src/store/authStore'
 
 vi.mock('../../../src/services/adminUsers', () => ({
@@ -13,6 +13,8 @@ vi.mock('../../../src/services/adminUsers', () => ({
   rejectUser: vi.fn(),
   blockUser: vi.fn(),
   unblockUser: vi.fn(),
+  promoteUser: vi.fn(),
+  demoteUser: vi.fn(),
 }))
 
 function member(id, name, business, sector, location, email, status, reason = null, createdAt = '2024-01-15T09:30:00+00:00') {
@@ -49,6 +51,7 @@ function list(listItems = items, pagination = {}) {
     items: listItems,
     pagination: { current_page: 1, per_page: 12, total: listItems.length, last_page: 1, ...pagination },
     counts,
+    admins_count: 2,
   }
 }
 
@@ -80,6 +83,22 @@ async function waitForTable() {
 
 function rowOf(name) {
   return within(screen.getByText(name).closest('tr'))
+}
+
+function adminRow(id, email) {
+  return {
+    id,
+    email,
+    created_at: '2024-01-15T09:30:00+00:00',
+    role: { id: 'role-admin', name: 'Admin' },
+    account_status: { id: 'status-Active', name: 'Active' },
+    inactive_reason: null,
+    member_profile: null,
+  }
+}
+
+function rowOfEmail(email) {
+  return within(screen.getAllByText(email)[0].closest('tr'))
 }
 
 function apiError(status, message) {
@@ -347,14 +366,16 @@ describe('Gestão de Utilizadores', () => {
     await waitFor(() => expect(lastCall()).toEqual([{ status: 'Inactive', blocked: false, search: '', includeAdmins: false, page: 1 }, expect.any(AbortSignal)]))
   })
 
-  it('mostra na coluna Ações só os botões que fazem sentido para cada estado', async () => {
+  it('mostra na coluna Ações só os botões que fazem sentido para cada estado, com promover nos ativos', async () => {
     show()
     await waitForTable()
 
     const labels = (name) => rowOf(name).getAllByRole('button').map((button) => button.getAttribute('aria-label'))
 
     expect(rowOf('Ana Costa').getByRole('button', { name: 'Bloquear Ana Costa' })).toHaveAttribute('title', 'Bloquear')
-    expect(labels('Ana Costa')).toEqual(['Bloquear Ana Costa'])
+    expect(labels('Ana Costa')).toEqual(['Bloquear Ana Costa', 'Promover a administrador Ana Costa'])
+    expect(rowOf('Ana Costa').getByRole('button', { name: 'Promover a administrador Ana Costa' })).toHaveAttribute('title', 'Promover a administrador')
+    expect(labels('Beatriz Lima')).toEqual(['Bloquear Beatriz Lima', 'Promover a administrador Beatriz Lima'])
     expect(labels('José Oliveira')).toEqual(['Desbloquear José Oliveira'])
     expect(labels('Maria Santos')).toEqual(['Aprovar Maria Santos', 'Recusar Maria Santos'])
     expect(rowOf('Maria Santos').getByRole('button', { name: 'Aprovar Maria Santos' })).toHaveAttribute('title', 'Aprovar')
@@ -364,33 +385,77 @@ describe('Gestão de Utilizadores', () => {
     expect(actionsCell.getByText('Sem ações')).toBeInTheDocument()
     expect(actionsCell.getByText('—')).toHaveAttribute('aria-hidden', 'true')
     expect(labels('Tiago Sousa')).toEqual(['Bloquear Tiago Sousa'])
-    expect(within(screen.getByRole('table')).queryByRole('button', { name: /detalhe|ver/i })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('table')).queryByRole('button', { name: /detalhe/i })).not.toBeInTheDocument()
   })
 
-  it('não mostra ações na própria conta nem noutros admins', async () => {
-    const admin = (id, email) => ({
-      id,
-      email,
-      created_at: '2024-01-15T09:30:00+00:00',
-      role: { id: 'role-admin', name: 'Admin' },
-      account_status: { id: 'status-Active', name: 'Active' },
-      inactive_reason: null,
-      member_profile: null,
-    })
+  it('com Mostrar admins marca os admins, a própria conta com (você) e despromover desativado só nela', async () => {
     const user = userEvent.setup()
     show()
     await waitForTable()
-    getAdminUsers.mockResolvedValue(list([admin('admin-1', 'admin@aspec.pt'), admin('admin-2', 'outro@aspec.pt'), ...items]))
+    getAdminUsers.mockResolvedValue(list([adminRow('admin-1', 'admin@aspec.pt'), adminRow('admin-2', 'outro@aspec.pt'), ...items]))
 
     await user.click(screen.getByRole('checkbox', { name: 'Mostrar admins' }))
     await screen.findAllByText('outro@aspec.pt')
 
     expect(rowOf('Maria Santos').getByRole('button', { name: 'Aprovar Maria Santos' })).toBeInTheDocument()
-    for (const email of ['admin@aspec.pt', 'outro@aspec.pt']) {
-      const row = within(screen.getAllByText(email)[0].closest('tr'))
-      expect(row.queryAllByRole('button')).toHaveLength(0)
-      expect(within(row.getAllByRole('cell').at(-1)).getByText('Sem ações')).toBeInTheDocument()
-    }
+
+    const own = rowOfEmail('admin@aspec.pt')
+    expect(own.getByText('Admin')).toBeInTheDocument()
+    expect(own.getByText('(você)')).toBeInTheDocument()
+    expect(own.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Despromover admin@aspec.pt (indisponível na própria conta)'])
+    expect(own.getByRole('button', { name: 'Despromover admin@aspec.pt (indisponível na própria conta)' })).toBeDisabled()
+
+    const other = rowOfEmail('outro@aspec.pt')
+    expect(other.getByText('Admin')).toBeInTheDocument()
+    expect(other.queryByText('(você)')).not.toBeInTheDocument()
+    expect(other.getByRole('button', { name: 'Despromover outro@aspec.pt' })).toBeEnabled()
+
+    expect(screen.getAllByText('(você)')).toHaveLength(1)
+  })
+
+  it('promove um membro ativo e recarrega a lista com os mesmos filtros', async () => {
+    const message = 'Utilizador promovido a administrador.'
+    promoteUser.mockResolvedValue({ message, user: { id: 'u1' } })
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    await user.click(tab('Ativos'))
+    await waitFor(() => expect(lastCall()[0]).toEqual({ status: 'Active', search: '', includeAdmins: false, page: 1 }))
+    const callsBefore = getAdminUsers.mock.calls.length
+
+    const dialog = await openAction(user, 'Promover a administrador Ana Costa')
+    expect(screen.getByRole('dialog', { name: 'Promover a administrador' })).toBe(dialog)
+    await confirmAction(user, 'Promover a administrador')
+
+    expect(promoteUser).toHaveBeenCalledTimes(1)
+    expect(promoteUser).toHaveBeenCalledWith('u1')
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
+    expect(lastCall()[0]).toEqual({ status: 'Active', search: '', includeAdmins: false, page: 1 })
+  })
+
+  it('despromove outro admin com a contagem de administradores da lista e num 409 mostra o erro e recarrega', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const message = 'O administrador técnico não pode ser despromovido.'
+    demoteUser.mockRejectedValue(apiError(409, message))
+    getAdminUsers.mockResolvedValue(list([adminRow('admin-2', 'outro@aspec.pt'), ...items]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    show()
+    await waitForTable()
+    const callsBefore = getAdminUsers.mock.calls.length
+
+    const dialog = await openAction(user, 'Despromover outro@aspec.pt')
+    expect(screen.getByRole('dialog', { name: 'Despromover administrador' })).toBe(dialog)
+    expect(within(dialog).getByRole('note')).toHaveTextContent('Existem 2 administradores. Depois desta ação ficam 1. A plataforma tem sempre de ter pelo menos um.')
+    expect(within(dialog).getByRole('button', { name: 'Despromover (2s)' })).toBeDisabled()
+
+    act(() => vi.advanceTimersByTime(2000))
+    await confirmAction(user, 'Despromover')
+
+    expect(demoteUser).toHaveBeenCalledWith('admin-2')
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
   })
 
   it('pede confirmação antes de aprovar e explica o que acontece', async () => {
@@ -666,15 +731,7 @@ describe('Gestão de Utilizadores', () => {
   })
 
   it('cada linha tem uma ligação Ver detalhe para a página do membro, incluindo admins sem perfil', async () => {
-    const otherAdmin = {
-      id: 'admin-2',
-      email: 'outro@aspec.pt',
-      created_at: '2024-01-15T09:30:00+00:00',
-      role: { id: 'role-admin', name: 'Admin' },
-      account_status: { id: 'status-Active', name: 'Active' },
-      inactive_reason: null,
-      member_profile: null,
-    }
+    const otherAdmin = adminRow('admin-2', 'outro@aspec.pt')
     const user = userEvent.setup()
     show()
     await waitForTable()
@@ -689,8 +746,8 @@ describe('Gestão de Utilizadores', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Mostrar admins' }))
     await screen.findAllByText('outro@aspec.pt')
 
-    const adminRow = within(screen.getAllByText('outro@aspec.pt')[0].closest('tr'))
-    expect(adminRow.getByRole('link', { name: 'Ver detalhe de outro@aspec.pt' })).toHaveAttribute('href', '/admin/utilizadores/admin-2')
-    expect(adminRow.queryAllByRole('button')).toHaveLength(0)
+    const otherRow = rowOfEmail('outro@aspec.pt')
+    expect(otherRow.getByRole('link', { name: 'Ver detalhe de outro@aspec.pt' })).toHaveAttribute('href', '/admin/utilizadores/admin-2')
+    expect(otherRow.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Despromover outro@aspec.pt'])
   })
 })
