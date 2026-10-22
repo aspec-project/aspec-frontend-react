@@ -14,17 +14,16 @@ const ADMIN_TABS = [
 ]
 
 /**
- * Títulos do herói para páginas dentro de um separador (o separador continua ativo).
+ * Rotas "página inteira": sem herói nem separadores; a própria página desenha a sua banda e o contentor.
  */
-const ADMIN_PAGE_TITLES = [
-  { path: '/admin/utilizadores/:id', title: 'Detalhe do membro' },
-]
+const FULL_PAGE_ROUTES = ['/admin/utilizadores/:id']
 
 const todayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
  * Layout de todas as páginas /admin: Header, herói escuro com o título da secção, separadores
  * Dashboard · Utilizadores · Eventos · Moderação, conteúdo em fundo cinzento e Footer.
+ * Nas rotas "página inteira" (ex.: detalhe de um membro) desenha só Header, conteúdo e Footer.
  *
  * @returns {JSX.Element}
  */
@@ -33,8 +32,20 @@ export default function AdminLayout() {
   const [today] = useState(() => todayFormatter.format(new Date()))
   const currentTab = ADMIN_TABS.find((tab) => matchPath({ path: tab.to, end: tab.end ?? false }, pathname))
   const isDashboard = currentTab?.to === '/admin'
-  const pageTitle = ADMIN_PAGE_TITLES.find((page) => matchPath({ path: page.path, end: true }, pathname))?.title
-  const title = pageTitle ?? currentTab?.title ?? 'Área de Administração'
+  const title = currentTab?.title ?? 'Área de Administração'
+  const isFullPage = FULL_PAGE_ROUTES.some((path) => matchPath({ path, end: true }, pathname))
+
+  if (isFullPage) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 bg-[#f5f5f4]">
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

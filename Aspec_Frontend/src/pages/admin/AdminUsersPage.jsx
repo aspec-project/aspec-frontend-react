@@ -12,7 +12,8 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
 
 /**
  * Página Gestão de Utilizadores do backoffice: separadores de estado com contagens, pesquisa,
- * "Mostrar admins", tabela com ações (aprovar, recusar, bloquear, desbloquear) e paginação.
+ * "Mostrar admins", tabela com ações (aprovar, recusar, bloquear, desbloquear, promover e despromover)
+ * e paginação.
  * Cada ação pede confirmação num diálogo e o resultado aparece numa mensagem com o texto da API.
  * A lógica vive nos hooks useAdminUsers (lista) e useAdminUserActions (ações).
  *
@@ -37,7 +38,7 @@ export default function AdminUsersPage() {
 
   const pagination = data?.pagination
   const confirmation = actions.confirming
-    ? getActionConfirmation(actions.confirming.action, actions.confirming.user)
+    ? getActionConfirmation(actions.confirming.action, actions.confirming.user, { adminsCount: data?.admins_count })
     : null
 
   return (

@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
 import axios from 'axios'
 import { normalizeError } from '../services/api'
-import { approveUser, blockUser, rejectUser, unblockUser } from '../services/adminUsers'
+import { approveUser, blockUser, demoteUser, promoteUser, rejectUser, unblockUser } from '../services/adminUsers'
 
 const ACTION_SERVICES = {
   approve: approveUser,
   reject: rejectUser,
   block: blockUser,
   unblock: unblockUser,
+  promote: promoteUser,
+  demote: demoteUser,
 }
 
 /**
@@ -33,7 +35,7 @@ export default function useAdminUserActions({ onChanged }) {
   /**
    * Abre a confirmação de uma ação sobre um utilizador.
    *
-   * @param {string} action Chave da ação (approve, reject, block, unblock).
+   * @param {string} action Chave da ação (approve, reject, block, unblock, promote, demote).
    * @param {object} user Utilizador da linha.
    */
   const requestAction = (action, user) => {

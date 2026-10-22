@@ -1,7 +1,8 @@
 import { getStatusBadge } from '../../../utils/adminUsers'
 
 /**
- * Etiqueta colorida com o estado do utilizador (inclui o motivo, quando está inativo).
+ * Etiqueta colorida com o estado do utilizador: o estado da subscrição quando a API o envia;
+ * senão, o estado da conta (com o motivo, quando está inativo).
  *
  * @param {{user: object}} props
  * @returns {JSX.Element}

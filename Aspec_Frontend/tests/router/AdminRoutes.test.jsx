@@ -13,6 +13,8 @@ vi.mock('../../src/services/adminUsers', () => ({
   rejectUser: vi.fn(),
   blockUser: vi.fn(),
   unblockUser: vi.fn(),
+  promoteUser: vi.fn(),
+  demoteUser: vi.fn(),
 }))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
@@ -80,14 +82,14 @@ describe('Rotas de administração', () => {
     expect(getAdminUsers).not.toHaveBeenCalled()
   })
 
-  it('um admin abre o detalhe de um membro no layout de administração e um membro não chega lá', async () => {
+  it('um admin abre o detalhe de um membro com o nome como título e um membro não chega lá', async () => {
     getAdminUser.mockResolvedValue(maria)
     useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
 
     const { unmount } = show(`/admin/utilizadores/${memberId}`)
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Detalhe do membro' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Maria Santos' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Maria Santos' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(getAdminUser.mock.calls[0][0]).toBe(memberId)
     unmount()
 
@@ -97,7 +99,7 @@ describe('Rotas de administração', () => {
     show(`/admin/utilizadores/${memberId}`)
 
     await waitFor(() => expect(getEvents).toHaveBeenCalled())
-    expect(screen.queryByRole('heading', { name: 'Detalhe do membro' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Maria Santos' })).not.toBeInTheDocument()
     expect(getAdminUser).not.toHaveBeenCalled()
   })
 })

@@ -47,10 +47,10 @@ export async function getAdminUser(id, signal) {
 }
 
 /**
- * Muda o estado de um utilizador do backoffice através de uma ação de administração.
+ * Aplica uma ação de administração a um utilizador do backoffice (PATCH sem corpo).
  *
  * @param {string} id Id do utilizador.
- * @param {'approve'|'reject'|'block'|'unblock'} action Ação da API.
+ * @param {'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action Ação da API.
  * @returns {Promise<{message: string, user: object}>} Mensagem da API e utilizador atualizado.
  */
 async function changeUserStatus(id, action) {
@@ -97,4 +97,24 @@ export function blockUser(id) {
  */
 export function unblockUser(id) {
   return changeUserStatus(id, 'unblock')
+}
+
+/**
+ * Promove um membro ativo a administrador.
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function promoteUser(id) {
+  return changeUserStatus(id, 'promote')
+}
+
+/**
+ * Despromove um administrador a membro (a API garante que fica pelo menos um administrador).
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, user: object}>}
+ */
+export function demoteUser(id) {
+  return changeUserStatus(id, 'demote')
 }

@@ -64,12 +64,14 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Eventos' })).toBeInTheDocument()
   })
 
-  it('no detalhe de um membro mostra o título próprio e mantém o separador Utilizadores ativo', () => {
+  it('no detalhe de um membro mostra só o Header, o conteúdo da página e o Footer', () => {
     show('/admin/utilizadores/u3')
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Detalhe do membro' })).toBeInTheDocument()
-    expect(screen.getByText('Área de Administração')).toBeInTheDocument()
-    expect(sectionTabs().getByRole('link', { name: 'Utilizadores' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByText('Conteúdo do detalhe')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Secções da administração' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Área de Administração')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    expect(screen.getByRole('main')).toContainElement(screen.getByText('Conteúdo do detalhe'))
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
   })
 })

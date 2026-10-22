@@ -1,14 +1,29 @@
-import { Eye } from 'lucide-react'
+import { Eye, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import UserActions from './UserActions'
 import UserStatusBadge from './UserStatusBadge'
-import { formatFullDate, formatRegistrationDate, getAvailableActions, getDisplayName, getInitial } from '../../../utils/adminUsers'
+import { formatFullDate, formatRegistrationDate, getAvailableActions, getDisplayName, getInitial, getLockedActions } from '../../../utils/adminUsers'
 
 const HEADERS = ['Nome / Negócio', 'Setor', 'Localidade', 'Email', 'Data registo', 'Estado', 'Ações']
 
 /**
+ * Badge "Admin" (fundo navy, ícone de escudo), usado na lista e no detalhe.
+ *
+ * @returns {JSX.Element}
+ */
+export function AdminBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[#0d1f35] px-2 py-0.5 text-xs font-semibold text-white">
+      <Shield size={12} aria-hidden="true" />
+      Admin
+    </span>
+  )
+}
+
+/**
  * Tabela da lista de utilizadores do backoffice. Mostra os itens pela ordem recebida do servidor,
  * com a ligação "Ver detalhe" (👁) em todas as linhas e as ações disponíveis para cada utilizador.
+ * Os admins têm o badge "Admin" e a linha do admin com sessão iniciada é marcada com "(você)".
  *
  * @param {{
  *   users: object[],
@@ -46,9 +61,8 @@ export default function UsersTable({ users, busy = false, currentUserId, onActio
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 font-semibold text-[#0d1f35]">
                         <span>{getDisplayName(user)}</span>
-                        {user.role?.name === 'Admin' && (
-                          <span className="rounded-full bg-[#8a7043]/10 px-2 py-0.5 text-xs font-semibold text-[#8a7043]">Admin</span>
-                        )}
+                        {user.role?.name === 'Admin' && <AdminBadge />}
+                        {user.id === currentUserId && <span className="text-xs font-normal text-gray-400">(você)</span>}
                       </p>
                       {profile?.business_name && <p className="text-xs text-gray-500">{profile.business_name}</p>}
                     </div>
@@ -74,6 +88,7 @@ export default function UsersTable({ users, busy = false, currentUserId, onActio
                     <UserActions
                       user={user}
                       actions={getAvailableActions(user, currentUserId)}
+                      locked={getLockedActions(user, currentUserId)}
                       disabled={actionsDisabled}
                       onAction={onAction}
                     />
