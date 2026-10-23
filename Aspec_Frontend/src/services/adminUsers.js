@@ -118,3 +118,29 @@ export function promoteUser(id) {
 export function demoteUser(id) {
   return changeUserStatus(id, 'demote')
 }
+
+/**
+ * Anonimiza um membro (POST sem corpo): a API apaga os dados pessoais, fecha a conta e envia
+ * um email de confirmação ao titular. A confirmação escrita é só do frontend.
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, data: {id: string, anonymized_at: string}}>} Mensagem da API e dados da anonimização.
+ */
+export async function anonymizeUser(id) {
+  const response = await api.post(`/admin/users/${encodeURIComponent(id)}/anonymize`)
+
+  return { message: response.data.message, data: response.data.data }
+}
+
+/**
+ * Envia ao email pessoal do membro o email de pagamento adequado ao estado da conta (POST sem corpo):
+ * ativação, reativação ou lembrete. Não altera a conta.
+ *
+ * @param {string} id Id do utilizador.
+ * @returns {Promise<{message: string, data: {id: string, type: 'activation'|'reactivation'|'payment_reminder'}}>} Mensagem da API e tipo de email enviado.
+ */
+export async function sendPaymentLink(id) {
+  const response = await api.post(`/admin/users/${encodeURIComponent(id)}/payment-link`)
+
+  return { message: response.data.message, data: response.data.data }
+}

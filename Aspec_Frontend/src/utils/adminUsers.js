@@ -1,4 +1,4 @@
-import { ShieldCheck, ShieldOff } from 'lucide-react'
+import { Mail, ShieldCheck, ShieldOff } from 'lucide-react'
 
 /**
  * Separadores de estado da Gestão de Utilizadores, por ordem. A `key` é a chave em `counts`
@@ -222,7 +222,7 @@ export function groupBusinessHours(hours = []) {
 /**
  * Nomes das ações de administração sobre um utilizador, por chave da API.
  *
- * @type {{approve: string, reject: string, block: string, unblock: string, promote: string, demote: string}}
+ * @type {{approve: string, reject: string, block: string, unblock: string, promote: string, demote: string, paymentLink: string, anonymize: string}}
  */
 export const USER_ACTION_LABELS = {
   approve: 'Aprovar',
@@ -231,7 +231,47 @@ export const USER_ACTION_LABELS = {
   unblock: 'Desbloquear',
   promote: 'Promover a administrador',
   demote: 'Despromover',
+  paymentLink: 'Enviar email',
+  anonymize: 'Anonimizar',
 }
+
+/**
+ * Palavra que o admin tem de escrever para confirmar a anonimização.
+ *
+ * @type {string}
+ */
+export const ANONYMIZE_CONFIRMATION_WORD = 'ANONIMIZAR'
+
+/**
+ * Indica se o texto escrito confirma a anonimização: a palavra exata, em maiúsculas,
+ * ignorando só os espaços nas pontas.
+ *
+ * @param {unknown} value Texto escrito no campo de confirmação.
+ * @returns {boolean}
+ */
+export function isAnonymizationConfirmed(value) {
+  return typeof value === 'string' && value.trim() === ANONYMIZE_CONFIRMATION_WORD
+}
+
+/**
+ * Textos do diálogo de anonimização de um membro.
+ *
+ * @type {{title: string, description: string, note: string, confirmLabel: string}}
+ */
+export const ANONYMIZE_TEXTS = {
+  title: 'Anonimizar membro',
+  description: 'A conta é fechada e o membro deixa de poder iniciar sessão. É enviado um email de confirmação ao titular.',
+  note: 'Esta ação é irreversível. Os dados pessoais e o perfil são apagados; ficam apenas as faturas (obrigação fiscal), as inscrições em eventos passados sem dados pessoais e o registo de quem anonimizou e quando.',
+  confirmLabel: USER_ACTION_LABELS.anonymize,
+}
+
+/**
+ * Estados da subscrição (valor da API) em que o backend envia um email de pagamento:
+ * ativação, reativação ou lembrete.
+ *
+ * @type {string[]}
+ */
+export const PAYMENT_LINK_STATES = ['awaiting_activation', 'lapsed', 'grace']
 
 const BLOCKABLE_INACTIVE_REASONS = ['unpaid', 'cancelled']
 
@@ -248,19 +288,22 @@ function isExemptAdmin(user) {
 /**
  * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins só podem ser
  * despromovidos (exceto o administrador técnico); na própria conta de membro não há ações.
- * Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
+ * "Enviar email" aparece primeiro quando o estado da subscrição pede um email de pagamento,
+ * nunca na própria conta. Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
  *
  * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string}|null}} user
  * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
- * @returns {('approve'|'reject'|'block'|'unblock'|'promote'|'demote')[]}
+ * @returns {('paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote')[]}
  */
 export function getAvailableActions(user, currentUserId) {
   if (!user) {
     return []
   }
 
+  const paymentLink = PAYMENT_LINK_STATES.includes(user.subscription_state?.value) && user.id !== currentUserId ? ['paymentLink'] : []
+
   if (user.role?.name === 'Admin') {
-    return isExemptAdmin(user) ? [] : ['demote']
+    return isExemptAdmin(user) ? [] : [...paymentLink, 'demote']
   }
 
   if (user.id === currentUserId) {
@@ -271,17 +314,52 @@ export function getAvailableActions(user, currentUserId) {
     case 'Pending':
       return ['approve', 'reject']
     case 'Approved':
-      return ['block']
+      return [...paymentLink, 'block']
     case 'Active':
-      return ['block', 'promote']
+      return [...paymentLink, 'block', 'promote']
     case 'Inactive':
       if (user.inactive_reason === 'blocked') {
         return ['unblock']
       }
 
-      return BLOCKABLE_INACTIVE_REASONS.includes(user.inactive_reason) ? ['block'] : []
+      return BLOCKABLE_INACTIVE_REASONS.includes(user.inactive_reason) ? [...paymentLink, 'block'] : []
     default:
       return []
+  }
+}
+
+/**
+ * Título e descrição do diálogo de envio do email de pagamento, conforme o estado da subscrição
+ * (o backend escolhe o email pela mesma regra).
+ *
+ * @param {{email?: string, member_profile?: {name?: string}|null, subscription_state?: {value?: string}|null}} user
+ * @returns {{title: string, description: string}}
+ */
+function paymentLinkTexts(user) {
+  const name = getDisplayName(user)
+  const email = user?.email
+
+  switch (user?.subscription_state?.value) {
+    case 'awaiting_activation':
+      return {
+        title: 'Reenviar email de ativação',
+        description: `Será enviado para ${email} um email com uma ligação para ${name} concluir a ativação da conta e pagar a quota.`,
+      }
+    case 'lapsed':
+      return {
+        title: 'Enviar email de reativação',
+        description: `Será enviado para ${email} um email com uma ligação para ${name} atualizar o método de pagamento e reativar a subscrição.`,
+      }
+    case 'grace':
+      return {
+        title: 'Enviar lembrete de pagamento',
+        description: `Será enviado para ${email} um lembrete para ${name} atualizar o cartão e pagar a quota antes do fim do período de carência.`,
+      }
+    default:
+      return {
+        title: 'Enviar email',
+        description: `Será enviado para ${email} o email de pagamento adequado ao estado da conta.`,
+      }
   }
 }
 
@@ -318,15 +396,23 @@ function demoteNote(adminsCount) {
 /**
  * Textos do diálogo de confirmação de uma ação, com o efeito real no backend (incluindo emails).
  *
- * @param {'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action
- * @param {{email?: string, member_profile?: {name?: string}|null}} user
+ * @param {'paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action
+ * @param {{email?: string, member_profile?: {name?: string}|null, subscription_state?: {value?: string}|null}} user
  * @param {{adminsCount?: number}} [context] Total de administradores, para a nota do despromover.
- * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string}}
+ * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string, showClose?: boolean}}
  */
 export function getActionConfirmation(action, user, context = {}) {
   const who = user?.member_profile?.name ? `${getDisplayName(user)} (${user.email})` : getDisplayName(user)
 
   switch (action) {
+    case 'paymentLink':
+      return {
+        ...paymentLinkTexts(user),
+        confirmLabel: USER_ACTION_LABELS.paymentLink,
+        tone: 'primary',
+        icon: Mail,
+        showClose: true,
+      }
     case 'promote':
       return {
         title: 'Promover a administrador',

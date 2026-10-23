@@ -4,11 +4,24 @@ import { AxiosError } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminUserDetailPage from '../../../src/pages/admin/AdminUserDetailPage'
-import { approveUser, blockUser, demoteUser, getAdminUser, promoteUser } from '../../../src/services/adminUsers'
+import AdminUsersPage from '../../../src/pages/admin/AdminUsersPage'
+import {
+  anonymizeUser,
+  approveUser,
+  blockUser,
+  demoteUser,
+  getAdminUser,
+  getAdminUsers,
+  promoteUser,
+  sendPaymentLink,
+} from '../../../src/services/adminUsers'
 import { useAuthStore } from '../../../src/store/authStore'
 
 vi.mock('../../../src/services/adminUsers', () => ({
   getAdminUser: vi.fn(),
+  getAdminUsers: vi.fn(),
+  anonymizeUser: vi.fn(),
+  sendPaymentLink: vi.fn(),
   approveUser: vi.fn(),
   rejectUser: vi.fn(),
   blockUser: vi.fn(),
@@ -594,5 +607,199 @@ describe('Despromover administrador no detalhe', () => {
     const dialog = await openAction(user, 'Despromover Helena Brandão')
 
     expect(within(dialog).getByRole('note')).toHaveTextContent('A plataforma tem sempre de ter pelo menos um administrador.')
+  })
+})
+
+describe('Zona de risco e envio do email de pagamento no detalhe', () => {
+  const sara = {
+    ...maria,
+    id: 'u9',
+    email: 'sara@floresdovale.pt',
+    account_status: { name: 'Inactive' },
+    inactive_reason: 'unpaid',
+    subscription_state: { value: 'lapsed', label: 'Subscrição caída' },
+    member_profile: { ...maria.member_profile, name: 'Sara Antunes', business_name: 'Flores do Vale' },
+  }
+
+  beforeEach(() => {
+    getAdminUser.mockResolvedValue(maria)
+    getAdminUsers.mockResolvedValue({
+      items: [],
+      pagination: { current_page: 1, per_page: 12, total: 0, last_page: 1 },
+      counts: { all: 0, active: 0, pending: 0, approved: 0, blocked: 0, inactive: 0 },
+      admins_count: 1,
+    })
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+  })
+  afterEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.getState().clearSession()
+  })
+
+  function showWithList() {
+    return render(
+      <MemoryRouter initialEntries={['/admin/utilizadores/u3']}>
+        <Routes>
+          <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
+          <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+  }
+
+  function riskButton() {
+    return within(screen.getByRole('region', { name: 'Zona de risco · RGPD' })).getByRole('button', { name: 'Anonimizar membro' })
+  }
+
+  async function anonymize(user) {
+    await waitFor(() => expect(riskButton()).toBeEnabled())
+    await user.click(riskButton())
+    const dialog = await screen.findByRole('dialog', { name: 'Anonimizar membro' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Para confirmar, escreva ANONIMIZAR' }), 'ANONIMIZAR')
+    await user.click(within(dialog).getByRole('button', { name: 'Anonimizar' }))
+
+    return dialog
+  }
+
+  it('mostra a zona de risco com Anonimizar membro ativo num membro e desativado num admin', async () => {
+    const { unmount } = show()
+
+    await loaded()
+    await waitFor(() => expect(riskButton()).toBeEnabled())
+    unmount()
+
+    getAdminUser.mockResolvedValue(helena)
+    show()
+
+    await loaded('Helena Brandão')
+    expect(riskButton()).toBeDisabled()
+  })
+
+  it('anonimiza o membro depois de escrever ANONIMIZAR e volta à lista com a mensagem da API', async () => {
+    const message = 'Membro anonimizado com sucesso.'
+    anonymizeUser.mockResolvedValue({ message, data: { id: 'u3', anonymized_at: '2026-10-22T10:15:00+00:00' } })
+    const user = userEvent.setup()
+    showWithList()
+
+    await loaded()
+    await anonymize(user)
+
+    expect(anonymizeUser).toHaveBeenCalledTimes(1)
+    expect(anonymizeUser).toHaveBeenCalledWith('u3')
+    expect(await screen.findByRole('group', { name: 'Filtrar por estado' })).toBeInTheDocument()
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Maria Santos' })).not.toBeInTheDocument()
+    expect(getAdminUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('num 409 ao anonimizar fica no detalhe, mostra o erro e recarrega', async () => {
+    const message = 'Não é possível anonimizar um administrador.'
+    anonymizeUser.mockRejectedValue(apiError(409, message))
+    const user = userEvent.setup()
+    show()
+
+    await loaded()
+    await anonymize(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Maria Santos' })).toBeInTheDocument()
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2))
+  })
+
+  it('num 429 ao anonimizar mostra o erro sem recarregar', async () => {
+    const message = 'Demasiados pedidos. Tente novamente mais tarde.'
+    anonymizeUser.mockRejectedValue(apiError(429, message))
+    const user = userEvent.setup()
+    show()
+
+    await loaded()
+    await anonymize(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(getAdminUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('envia o email de reativação a um membro com a subscrição caída e recarrega o detalhe', async () => {
+    const message = 'Foi enviado o email de reativação.'
+    getAdminUser.mockResolvedValue(sara)
+    sendPaymentLink.mockResolvedValue({ message, data: { id: 'u9', type: 'reactivation' } })
+    const user = userEvent.setup()
+    show()
+
+    await loaded('Sara Antunes')
+    const send = screen.getByRole('button', { name: 'Enviar email Sara Antunes' })
+    const block = screen.getByRole('button', { name: 'Bloquear Sara Antunes' })
+    expect(send.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    const dialog = await openAction(user, 'Enviar email Sara Antunes')
+    expect(screen.getByRole('dialog', { name: 'Enviar email de reativação' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription('Será enviado para sara@floresdovale.pt um email com uma ligação para Sara Antunes atualizar o método de pagamento e reativar a subscrição.')
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar email' }))
+
+    expect(sendPaymentLink).toHaveBeenCalledTimes(1)
+    expect(sendPaymentLink).toHaveBeenCalledWith('u9')
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2))
+  })
+
+  it('explica o reenvio da ativação a quem está por ativar e o lembrete a quem está em carência', async () => {
+    const user = userEvent.setup()
+    getAdminUser.mockResolvedValue({ ...maria, account_status: { name: 'Approved' }, subscription_state: { value: 'awaiting_activation', label: 'Por ativar' } })
+    const { unmount } = show()
+
+    await loaded()
+    await openAction(user, 'Enviar email Maria Santos')
+    expect(screen.getByRole('dialog', { name: 'Reenviar email de ativação' })).toBeInTheDocument()
+    unmount()
+
+    getAdminUser.mockResolvedValue({ ...maria, subscription_state: { value: 'grace', label: 'Em carência' } })
+    show()
+
+    await loaded()
+    await openAction(user, 'Enviar email Maria Santos')
+    expect(screen.getByRole('dialog', { name: 'Enviar lembrete de pagamento' })).toBeInTheDocument()
+  })
+
+  it.each(['active', 'trial'])('um membro com a subscrição %s não tem Enviar email', async (value) => {
+    getAdminUser.mockResolvedValue({ ...maria, subscription_state: { value, label: 'X' } })
+    show()
+
+    await loaded()
+    expect(screen.getByRole('button', { name: 'Bloquear Maria Santos' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Enviar email/ })).not.toBeInTheDocument()
+  })
+
+  it('num 409 ao enviar o email mostra o erro e recarrega o detalhe', async () => {
+    const message = 'A conta já está ativa.'
+    getAdminUser.mockResolvedValue(sara)
+    sendPaymentLink.mockRejectedValue(apiError(409, message))
+    const user = userEvent.setup()
+    show()
+
+    await loaded('Sara Antunes')
+    const dialog = await openAction(user, 'Enviar email Sara Antunes')
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar email' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2))
+  })
+
+  it('durante a anonimização desativa a zona de risco e as ações do cabeçalho', async () => {
+    const pending = deferred()
+    anonymizeUser.mockImplementation(() => pending.promise)
+    const user = userEvent.setup()
+    show()
+
+    await loaded()
+    const dialog = await anonymize(user)
+
+    expect(within(dialog).getByRole('button', { name: 'A processar...' })).toBeDisabled()
+    expect(riskButton()).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Bloquear Maria Santos' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Promover a administrador Maria Santos' })).toBeDisabled()
+
+    await act(async () => { pending.resolve({ message: 'Membro anonimizado com sucesso.', data: { id: 'u3' } }) })
   })
 })

@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Search } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import UserStatusTabs from '../../components/admin/users/UserStatusTabs'
 import UsersTable from '../../components/admin/users/UsersTable'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -15,6 +17,8 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * "Mostrar admins", tabela com ações (aprovar, recusar, bloquear, desbloquear, promover e despromover)
  * e paginação.
  * Cada ação pede confirmação num diálogo e o resultado aparece numa mensagem com o texto da API.
+ * Também mostra a mensagem trazida pela navegação (ex.: depois de anonimizar no detalhe) e limpa-a
+ * do histórico para não reaparecer ao recarregar.
  * A lógica vive nos hooks useAdminUsers (lista) e useAdminUserActions (ações).
  *
  * @returns {JSX.Element}
@@ -34,7 +38,16 @@ export default function AdminUsersPage() {
     error,
   } = useAdminUsers()
   const currentUserId = useAuthStore((state) => state.user?.id)
-  const actions = useAdminUserActions({ onChanged: refresh })
+  const location = useLocation()
+  const navigate = useNavigate()
+  const navigationFeedback = location.state?.feedback ?? null
+  const actions = useAdminUserActions({ onChanged: refresh, initialFeedback: navigationFeedback })
+
+  useEffect(() => {
+    if (navigationFeedback) {
+      navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+    }
+  }, [navigationFeedback, navigate, location.pathname, location.search])
 
   const pagination = data?.pagination
   const confirmation = actions.confirming

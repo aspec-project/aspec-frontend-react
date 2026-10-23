@@ -12,7 +12,7 @@ import { formatMonthYear, getDisplayName, getInitial } from '../../../utils/admi
  *
  * @param {{
  *   user: object,
- *   actions: ('approve'|'reject'|'block'|'unblock'|'promote'|'demote')[],
+ *   actions: ('paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote')[],
  *   locked?: 'demote'[],
  *   actionsDisabled?: boolean,
  *   onAction: (action: string, user: object) => void,
