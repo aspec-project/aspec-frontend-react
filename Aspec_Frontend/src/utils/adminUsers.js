@@ -236,6 +236,20 @@ export const USER_ACTION_LABELS = {
 }
 
 /**
+ * Ações cujo diálogo tem um campo de justificação opcional, enviada ao backend e incluída no email ao membro.
+ *
+ * @type {('reject'|'block')[]}
+ */
+export const REASON_ACTIONS = ['reject', 'block']
+
+/**
+ * Número máximo de caracteres da justificação (igual ao `max:2000` do backend).
+ *
+ * @type {number}
+ */
+export const REASON_MAX_LENGTH = 2000
+
+/**
  * Palavra que o admin tem de escrever para confirmar a anonimização.
  *
  * @type {string}
@@ -399,7 +413,7 @@ function demoteNote(adminsCount) {
  * @param {'paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action
  * @param {{email?: string, member_profile?: {name?: string}|null, subscription_state?: {value?: string}|null}} user
  * @param {{adminsCount?: number}} [context] Total de administradores, para a nota do despromover.
- * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string, showClose?: boolean}}
+ * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string, showClose?: boolean, maxLength?: number}}
  */
 export function getActionConfirmation(action, user, context = {}) {
   const who = user?.member_profile?.name ? `${getDisplayName(user)} (${user.email})` : getDisplayName(user)
@@ -441,16 +455,20 @@ export function getActionConfirmation(action, user, context = {}) {
     case 'reject':
       return {
         title: 'Recusar candidatura',
-        description: `Recusar a candidatura de ${who}? A conta fica inativa e não é enviado nenhum email.`,
+        description: `Vai recusar a candidatura de ${getDisplayName(user)}. É enviado um email para ${user?.email} a informar da decisão; pode indicar uma justificação, que segue nesse email.`,
+        note: 'A conta é apagada e os dados da candidatura são anonimizados. Esta ação não pode ser desfeita, mas a pessoa pode voltar a candidatar-se com o mesmo email.',
         confirmLabel: USER_ACTION_LABELS.reject,
         tone: 'danger',
+        maxLength: REASON_MAX_LENGTH,
       }
     case 'block':
       return {
         title: 'Bloquear membro',
-        description: `Bloquear ${who}? A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Não é enviado nenhum email.`,
+        description: `${getDisplayName(user)} deixa de poder aceder à plataforma. É enviado um email para ${user?.email} a informar da decisão; pode indicar uma justificação, que segue nesse email.`,
+        note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde.',
         confirmLabel: USER_ACTION_LABELS.block,
         tone: 'danger',
+        maxLength: REASON_MAX_LENGTH,
       }
     case 'unblock':
     default:

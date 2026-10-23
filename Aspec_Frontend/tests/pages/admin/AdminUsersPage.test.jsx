@@ -533,7 +533,7 @@ describe('Gestão de Utilizadores', () => {
     await openAction(user, 'Recusar Maria Santos')
     await confirmAction(user, 'Recusar')
 
-    expect(rejectUser).toHaveBeenCalledWith('u3')
+    expect(rejectUser).toHaveBeenCalledWith('u3', '')
     expect(await screen.findByText('Utilizador rejeitado com sucesso.')).toBeInTheDocument()
     await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
   })
@@ -550,9 +550,86 @@ describe('Gestão de Utilizadores', () => {
     expect(dialog).toHaveAccessibleDescription(/subscrição/)
     await confirmAction(user, 'Bloquear')
 
-    expect(blockUser).toHaveBeenCalledWith('u1')
+    expect(blockUser).toHaveBeenCalledWith('u1', '')
     expect(await screen.findByText('Utilizador bloqueado com sucesso.')).toBeInTheDocument()
     await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
+  })
+
+  it('o diálogo de recusar explica o email e o efeito e põe o foco na justificação', async () => {
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    const dialog = await openAction(user, 'Recusar Maria Santos')
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Recusar candidatura' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription(/Maria Santos/)
+    expect(dialog).toHaveAccessibleDescription(/maria@santos\.pt/)
+    expect(dialog).toHaveAccessibleDescription(/voltar a candidatar-se/)
+    expect(within(dialog).getByRole('textbox', { name: 'Justificação (opcional)' })).toHaveFocus()
+  })
+
+  it('recusa um pendente com justificação, mostra a mensagem e recarrega a lista', async () => {
+    rejectUser.mockResolvedValue({ message: 'Utilizador rejeitado com sucesso.', user: null })
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+    const callsBefore = getAdminUsers.mock.calls.length
+
+    const dialog = await openAction(user, 'Recusar Maria Santos')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Justificação (opcional)' }), 'Não cumpre os critérios.')
+    await confirmAction(user, 'Recusar')
+
+    expect(rejectUser).toHaveBeenCalledTimes(1)
+    expect(rejectUser).toHaveBeenCalledWith('u3', 'Não cumpre os critérios.')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect((await screen.findByText('Utilizador rejeitado com sucesso.')).closest('[role="status"]')).not.toBeNull()
+    await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
+  })
+
+  it('bloqueia um membro ativo com justificação depois de explicar o email e a subscrição', async () => {
+    blockUser.mockResolvedValue({ message: 'Utilizador bloqueado com sucesso.' })
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+    const callsBefore = getAdminUsers.mock.calls.length
+
+    const dialog = await openAction(user, 'Bloquear Ana Costa')
+    expect(screen.getByRole('dialog', { name: 'Bloquear membro' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription(/Ana Costa/)
+    expect(dialog).toHaveAccessibleDescription(/ana@techbless\.pt/)
+    expect(dialog).toHaveAccessibleDescription(/subscrição/)
+
+    await user.type(within(dialog).getByRole('textbox', { name: 'Justificação (opcional)' }), 'Faltas repetidas.')
+    await confirmAction(user, 'Bloquear')
+
+    expect(blockUser).toHaveBeenCalledTimes(1)
+    expect(blockUser).toHaveBeenCalledWith('u1', 'Faltas repetidas.')
+    expect(await screen.findByText('Utilizador bloqueado com sucesso.')).toBeInTheDocument()
+    await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
+  })
+
+  it('aprovar e desbloquear não pedem justificação e chamam o serviço só com o id', async () => {
+    approveUser.mockResolvedValue({ message: 'Utilizador aprovado. Foi enviado o email de ativação.' })
+    unblockUser.mockResolvedValue({ message: 'Utilizador desbloqueado. Foi enviado o email de reativação.' })
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    let dialog = await openAction(user, 'Aprovar Maria Santos')
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+    await confirmAction(user, 'Aprovar')
+
+    expect(approveUser).toHaveBeenCalledWith('u3')
+    await screen.findByText('Utilizador aprovado. Foi enviado o email de ativação.')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    dialog = await openAction(user, 'Desbloquear José Oliveira')
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+    await confirmAction(user, 'Desbloquear')
+
+    expect(unblockUser).toHaveBeenCalledWith('u2')
   })
 
   it('desbloqueia um membro bloqueado depois de avisar sobre o email', async () => {

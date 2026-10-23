@@ -1,6 +1,8 @@
 import { ShieldCheck, ShieldOff } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import {
+  REASON_ACTIONS,
+  REASON_MAX_LENGTH,
   USER_ACTION_LABELS,
   USER_STATUS_TABS,
   formatFullDate,
@@ -135,27 +137,47 @@ describe('ações disponíveis e textos de confirmação', () => {
       confirmLabel: 'Aprovar',
       tone: 'primary',
     })
-    expect(getActionConfirmation('reject', maria)).toEqual({
-      title: 'Recusar candidatura',
-      description: `Recusar a candidatura de ${who}? A conta fica inativa e não é enviado nenhum email.`,
-      confirmLabel: 'Recusar',
-      tone: 'danger',
-    })
-    expect(getActionConfirmation('block', maria)).toEqual({
-      title: 'Bloquear membro',
-      description: `Bloquear ${who}? A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Não é enviado nenhum email.`,
-      confirmLabel: 'Bloquear',
-      tone: 'danger',
-    })
     expect(getActionConfirmation('unblock', maria)).toEqual({
       title: 'Desbloquear membro',
       description: `Desbloquear ${who}? A conta não fica logo ativa: é enviado um email com o link para pagar a quota e só fica ativa depois do pagamento.`,
       confirmLabel: 'Desbloquear',
       tone: 'primary',
     })
+  })
+
+  it('define as ações com justificação e o limite igual ao do backend', () => {
+    expect(REASON_ACTIONS).toEqual(['reject', 'block'])
+    expect(REASON_MAX_LENGTH).toBe(2000)
+  })
+
+  it('explica que recusar envia sempre um email ao email pessoal e apaga a conta', () => {
+    const maria = { email: 'maria@santos.pt', member_profile: { name: 'Maria Santos' } }
+
+    expect(getActionConfirmation('reject', maria)).toEqual({
+      title: 'Recusar candidatura',
+      description: 'Vai recusar a candidatura de Maria Santos. É enviado um email para maria@santos.pt a informar da decisão; pode indicar uma justificação, que segue nesse email.',
+      note: 'A conta é apagada e os dados da candidatura são anonimizados. Esta ação não pode ser desfeita, mas a pessoa pode voltar a candidatar-se com o mesmo email.',
+      confirmLabel: 'Recusar',
+      tone: 'danger',
+      maxLength: 2000,
+    })
+  })
+
+  it('explica que bloquear envia sempre um email e usa o email como nome quando não há perfil', () => {
+    const maria = { email: 'maria@santos.pt', member_profile: { name: 'Maria Santos' } }
+
+    expect(getActionConfirmation('block', maria)).toEqual({
+      title: 'Bloquear membro',
+      description: 'Maria Santos deixa de poder aceder à plataforma. É enviado um email para maria@santos.pt a informar da decisão; pode indicar uma justificação, que segue nesse email.',
+      note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde.',
+      confirmLabel: 'Bloquear',
+      tone: 'danger',
+      maxLength: 2000,
+    })
 
     const { description } = getActionConfirmation('block', { email: 'x@y.pt', member_profile: null })
-    expect(description).toContain('x@y.pt?')
+    expect(description.startsWith('x@y.pt deixa de poder aceder à plataforma.')).toBe(true)
+    expect(description).toContain('para x@y.pt')
     expect(description).not.toContain('(')
   })
 

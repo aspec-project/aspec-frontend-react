@@ -5,10 +5,11 @@ import UserStatusTabs from '../../components/admin/users/UserStatusTabs'
 import UsersTable from '../../components/admin/users/UsersTable'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import FeedbackBanner from '../../components/ui/FeedbackBanner'
+import ReasonDialog from '../../components/ui/ReasonDialog'
 import useAdminUserActions from '../../hooks/useAdminUserActions'
 import useAdminUsers from '../../hooks/useAdminUsers'
 import { useAuthStore } from '../../store/authStore'
-import { getActionConfirmation } from '../../utils/adminUsers'
+import { REASON_ACTIONS, getActionConfirmation } from '../../utils/adminUsers'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -16,7 +17,8 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * Página Gestão de Utilizadores do backoffice: separadores de estado com contagens, pesquisa,
  * "Mostrar admins", tabela com ações (aprovar, recusar, bloquear, desbloquear, promover e despromover)
  * e paginação.
- * Cada ação pede confirmação num diálogo e o resultado aparece numa mensagem com o texto da API.
+ * Cada ação pede confirmação num diálogo (recusar e bloquear com uma justificação opcional, que segue
+ * no email ao membro) e o resultado aparece numa mensagem com o texto da API.
  * Também mostra a mensagem trazida pela navegação (ex.: depois de anonimizar no detalhe) e limpa-a
  * do histórico para não reaparecer ao recarregar.
  * A lógica vive nos hooks useAdminUsers (lista) e useAdminUserActions (ações).
@@ -53,6 +55,7 @@ export default function AdminUsersPage() {
   const confirmation = actions.confirming
     ? getActionConfirmation(actions.confirming.action, actions.confirming.user, { adminsCount: data?.admins_count })
     : null
+  const withReason = REASON_ACTIONS.includes(actions.confirming?.action)
 
   return (
     <div className="space-y-6">
@@ -137,8 +140,15 @@ export default function AdminUsersPage() {
       )}
 
       <ConfirmDialog
-        open={Boolean(confirmation)}
-        {...confirmation}
+        open={Boolean(confirmation) && !withReason}
+        {...(withReason ? null : confirmation)}
+        pending={actions.pending}
+        onConfirm={actions.confirm}
+        onCancel={actions.cancel}
+      />
+      <ReasonDialog
+        open={withReason}
+        {...(withReason ? confirmation : null)}
         pending={actions.pending}
         onConfirm={actions.confirm}
         onCancel={actions.cancel}
