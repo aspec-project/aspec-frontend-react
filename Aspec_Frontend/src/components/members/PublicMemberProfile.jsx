@@ -135,14 +135,14 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
     <>
-    <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)] pb-16 pt-8 text-white">
+    <section className="bg-white pb-16 pt-10 text-[#0d1f35]">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col items-start gap-6 md:flex-row">
           <ProfileImage key={member.id} src={member.logo_url} title={title} logo />
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-medium leading-normal">{title}</h1>
-            <p className="mb-3 mt-2 text-sm leading-relaxed text-gray-300">{member.sector.name}</p>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300">
+            <p className="mb-3 mt-2 text-sm leading-relaxed text-gray-600">{member.sector.name}</p>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <p className="flex items-center gap-2"><MapPin size={13} aria-hidden="true" />{member.location.name}, Portugal</p>
               <p className="flex items-center gap-2">
                 <RatingStars rating={hasRating ? member.average_rating : null} size={13} />

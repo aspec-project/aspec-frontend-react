@@ -2,34 +2,37 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../pages/ResetPasswordPage'
-import PlaceholderPage from "../pages/PlaceholderPage"
-import RegisterPage from "../pages/RegisterPage"
-import ShowcaseInfoPage from '../pages/ShowcaseInfoPage'
-import ShowcaseContactsPage from '../pages/ShowcaseContactsPage'
+import PlaceholderPage from '../pages/PlaceholderPage'
+import RegisterPage from '../pages/RegisterPage'
 import PortfolioPage from '../pages/PortfolioPage'
 import SubscriptionPage from '../pages/SubscriptionPage'
+import MemberProfilePage from '../pages/MemberProfilePage'
+import MemberRegistrationsPage from '../pages/MemberRegistrationsPage'
+import MemberReviewsPage from '../pages/MemberReviewsPage'
+import AccountInformationPage from '../pages/AccountInformationPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
+import MemberAreaLayout from '../components/layout/MemberAreaLayout'
 import AdminLayout from '../components/layout/AdminLayout'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminEventsPage from '../pages/admin/AdminEventsPage'
-import HomePage from "../pages/HomePage"
-import EventsPage from "../pages/EventsPage"
-import EventDetailPage from "../pages/EventDetailPage"
+import HomePage from '../pages/HomePage'
+import EventsPage from '../pages/EventsPage'
+import EventDetailPage from '../pages/EventDetailPage'
 import MembersPage from '../pages/MembersPage'
 import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 
-/**
+/*
  * Centraliza as rotas da aplicação.
  */
 function AppRouter() {
   return (
     <Routes>
-      {/* Rotas públicas */}
+      {/* Rotas públicas com cabeçalho e rodapé. */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/eventos" element={<EventsPage />} />
@@ -37,6 +40,8 @@ function AppRouter() {
         <Route path="/membros" element={<MembersPage />} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
       </Route>
+
+      {/* Rotas públicas sem o layout global. */}
       <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
       {/* Recuperação de password: rotas públicas abertas através do login e email. */}
       <Route path="/esqueci-password" element={<ForgotPasswordPage />} />
@@ -56,40 +61,77 @@ function AppRouter() {
         element={<PlaceholderPage title="Conta pendente" />}
       />
 
-      {/* Rotas do membro autenticado — exigem sessão válida */}
-      <Route element={<ProtectedRoute allowedRoles={["Member"]} allowedStatuses={["Active"]} />}>
+      {/* Área privada do membro: exige sessão ativa e mostra o layout do Figma. */}
+      <Route
+        element={
+          <ProtectedRoute
+            allowedRoles={['Member']}
+            allowedStatuses={['Active']}
+          />
+        }
+      >
         <Route
           path="/dashboard"
           element={<PlaceholderPage title="Dashboard" />}
         />
-        {/*
-         * Área privada da conta: apresenta apenas a subscrição do membro
-         * com sessão iniciada, sem expor dados de outros utilizadores.
-         */}
-        <Route path="/conta/subscricao" element={<SubscriptionPage />} />
-        {/*
-         * /perfil mantém-se como endereço de entrada compatível, mas conduz
-         * diretamente à primeira secção útil da área do membro.
-         */}
+
+        <Route element={<MainLayout />}>
+          <Route element={<MemberAreaLayout />}>
+            <Route path="/perfil" element={<MemberProfilePage />} />
+            {/* A edição é feita diretamente nos cartões da página de perfil. */}
+            <Route path="/perfil/editar" element={<Navigate replace to="/perfil" />} />
+            <Route path="/perfil/portefolio" element={<PortfolioPage />} />
+
+            {/*
+             * A aba de avaliações aguarda um endpoint autenticado próprio.
+             * Não apresentamos dados fictícios enquanto a API não existir.
+             */}
+            <Route
+              path="/perfil/inscricoes"
+              element={<MemberRegistrationsPage />}
+            />
+            <Route
+              path="/perfil/avaliacoes"
+              element={<MemberReviewsPage />}
+            />
+
+            <Route
+              path="/perfil/conta"
+              element={<AccountInformationPage />}
+            />
+            <Route
+              path="/perfil/subscricao"
+              element={<SubscriptionPage />}
+            />
+
+            {/*
+             * Compatibilidade com endereços usados pela antiga área da montra.
+             * A edição passa a ser feita diretamente em “Perfil”.
+             */}
+            <Route
+              path="/perfil/montra"
+              element={<Navigate replace to="/perfil" />}
+            />
+            <Route
+              path="/perfil/contactos"
+              element={<Navigate replace to="/perfil" />}
+            />
+            <Route
+              path="/perfil/inscricoes-eventos"
+              element={<Navigate replace to="/perfil/inscricoes" />}
+            />
+          </Route>
+        </Route>
+
+        {/* Endereço antigo da subscrição, preservado para links já existentes. */}
         <Route
-          path="/perfil"
-          element={<Navigate replace to="/perfil/montra" />}
-        />
-        <Route path="/perfil/montra" element={<ShowcaseInfoPage />} />
-        <Route path="/perfil/contactos" element={<ShowcaseContactsPage />} />
-        <Route path="/perfil/portefolio" element={<PortfolioPage />} />
-        <Route
-          path="/perfil/editar"
-          element={<PlaceholderPage title="Editar perfil" />}
-        />
-        <Route
-          path="/perfil/inscricoes-eventos"
-          element={<PlaceholderPage title="Inscrições em eventos" />}
+          path="/conta/subscricao"
+          element={<Navigate replace to="/perfil/subscricao" />}
         />
       </Route>
 
-      {/* Rotas de administração — exigem sessão válida E role "Admin" */}
-      <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
+      {/* Rotas de administração — exigem sessão válida e role Admin. */}
+      <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
         <Route element={<AdminLayout />}>
           <Route
             path="/admin"
@@ -105,13 +147,13 @@ function AppRouter() {
         </Route>
       </Route>
 
-      {/* Rota para URLs que não existem */}
+      {/* Rota para URLs que não existem. */}
       <Route
         path="*"
         element={<PlaceholderPage title="Página não encontrada" />}
       />
     </Routes>
-  );
+  )
 }
 
-export default AppRouter;
+export default AppRouter

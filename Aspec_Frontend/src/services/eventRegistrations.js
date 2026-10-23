@@ -20,6 +20,39 @@ export function getRegistrationErrorMessage(error) {
   return "Não foi possível confirmar o resultado da operação. Consulte o estado atualizado da inscrição.";
 }
 
+/*
+ * Devolve as inscrições do membro autenticado. O backend já ordena os
+ * próximos eventos antes dos eventos passados.
+ */
+export async function getMyEventRegistrations(
+  signal,
+  context = getSessionContext(),
+) {
+  if (!isSessionCurrent(context)) {
+    throw new Error('O contexto da sessão é inválido.')
+  }
+
+  const config = {
+    signal: signal
+      ? AbortSignal.any([signal, context.signal])
+      : context.signal,
+    sessionGeneration: context.generation,
+  }
+
+  const response = await api.get('/me/registrations', config)
+  const registrations = response.data?.data
+
+  if (
+    !isSessionCurrent(context) ||
+    response.data?.success !== true ||
+    !Array.isArray(registrations)
+  ) {
+    throw new Error('Não foi possível confirmar a lista de inscrições.')
+  }
+
+  return registrations
+}
+
 export async function changeEventRegistration(id, action, signal, context = getSessionContext()) {
   if (!isEventId(id) || !["register", "cancel"].includes(action) || !isSessionCurrent(context)) {
     throw new Error("O contexto da inscrição é inválido.");
