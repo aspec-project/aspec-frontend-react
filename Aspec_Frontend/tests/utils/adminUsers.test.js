@@ -1,10 +1,12 @@
 import { ShieldCheck, ShieldOff } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import {
+  NON_PROMOTABLE_STATES,
   REASON_ACTIONS,
   REASON_MAX_LENGTH,
   USER_ACTION_LABELS,
   USER_STATUS_TABS,
+  canPromote,
   formatFullDate,
   formatMonthYear,
   getActionConfirmation,
@@ -15,6 +17,7 @@ import {
   getInitial,
   getRoleLabel,
   getStatusBadge,
+  getStatusTabCounts,
   groupBusinessHours,
   isAnonymizationConfirmed,
 } from '../../src/utils/adminUsers'
@@ -33,7 +36,28 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
     expect(getStatusBadge(user('Inactive', null)).label).toBe('Inativo')
     expect(getStatusBadge(user('Inactive', 'deleted')).label).toBe('Inativo')
 
-    expect(USER_STATUS_TABS.map((tab) => tab.label)).toEqual(['Todos', 'Ativos', 'Pendentes', 'Aprovados', 'Bloqueados', 'Inativos'])
+    expect(USER_STATUS_TABS).toEqual([
+      { key: 'all', label: 'Todos' },
+      { key: 'pending', label: 'Pendentes' },
+      { key: 'awaiting_activation', label: 'Por ativar' },
+      { key: 'trial', label: 'Em trial' },
+      { key: 'active', label: 'Ativos' },
+      { key: 'grace', label: 'Em carência' },
+      { key: 'lapsed', label: 'Subscrição caída' },
+      { key: 'blocked', label: 'Bloqueados' },
+    ])
+  })
+
+  it('soma as contagens por estado da subscrição em Todos e ignora valores inválidos', () => {
+    const counts = { pending: 3, awaiting_activation: 1, trial: 1, active: 3, grace: 1, lapsed: 1, blocked: 1, inactive: 2, exempt: 1 }
+
+    expect(getStatusTabCounts(counts)).toEqual({ ...counts, all: 14 })
+    expect(getStatusTabCounts({ pending: 2, active: -1, trial: 1.5, grace: '3', lapsed: null, blocked: 1 })).toEqual({ pending: 2, blocked: 1, all: 3 })
+    expect(getStatusTabCounts({})).toEqual({ all: 0 })
+
+    for (const value of [undefined, null, [], 'x']) {
+      expect(getStatusTabCounts(value)).toBeNull()
+    }
   })
 
   it('formata a data de registo como Hoje, Ontem ou mês e ano, e a data completa', () => {
@@ -63,6 +87,11 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
     expect(getStatusBadge(withState('lapsed', 'Subscrição caída'))).toEqual({ label: 'Subscrição caída', className: 'bg-slate-100 text-slate-700' })
     expect(getStatusBadge(withState('exempt', 'Isento'))).toEqual({ label: 'Isento', className: 'bg-amber-50 text-[#8a7043]' })
     expect(getStatusBadge(withState('novo', 'Novo'))).toEqual({ label: 'Novo', className: 'bg-slate-100 text-slate-700' })
+    expect(getStatusBadge(withState('pending', 'Pendente'))).toEqual({ label: 'Pendente', className: 'bg-amber-50 text-amber-800' })
+    expect(getStatusBadge(withState('awaiting_activation', 'Por ativar'))).toEqual({ label: 'Por ativar', className: 'bg-sky-50 text-sky-800' })
+    expect(getStatusBadge(withState('active', 'Ativo'))).toEqual({ label: 'Ativo', className: 'bg-emerald-50 text-emerald-800' })
+    expect(getStatusBadge(withState('blocked', 'Bloqueado'))).toEqual({ label: 'Bloqueado', className: 'bg-red-50 text-red-700' })
+    expect(getStatusBadge(withState('inactive', 'Inativo'))).toEqual({ label: 'Inativo', className: 'bg-slate-100 text-slate-700' })
 
     expect(getStatusBadge({ ...user('Approved'), subscription_state: null }))
       .toEqual({ label: 'Aprovado', className: 'bg-sky-50 text-sky-800', title: 'Aprovado, a aguardar pagamento' })
@@ -242,9 +271,9 @@ describe('envio do email de pagamento e anonimização', () => {
       [member('m1', 'Approved', null, 'awaiting_activation'), ['paymentLink', 'block']],
       [member('m2', 'Inactive', 'unpaid', 'lapsed'), ['paymentLink', 'block']],
       [member('m3', 'Inactive', 'cancelled', 'lapsed'), ['paymentLink', 'block']],
-      [member('m4', 'Active', null, 'grace'), ['paymentLink', 'block', 'promote']],
+      [member('m4', 'Active', null, 'grace'), ['paymentLink', 'block']],
       [member('m5', 'Active', null, 'active'), ['block', 'promote']],
-      [member('m6', 'Active', null, 'trial'), ['block', 'promote']],
+      [member('m6', 'Active', null, 'trial'), ['block']],
       [member('m7', 'Pending', null, 'pending'), ['approve', 'reject']],
       [member('m8', 'Inactive', 'blocked', 'blocked'), ['unblock']],
     ]
@@ -265,6 +294,35 @@ describe('envio do email de pagamento e anonimização', () => {
     expect(getAvailableActions(admin('admin-tec', 'exempt'), 'admin-1')).toEqual([])
     expect(getAvailableActions(member('admin-1', 'Active', null, 'grace'), 'admin-1')).not.toContain('paymentLink')
     expect(getAvailableActions(admin('admin-1', 'grace'), 'admin-1')).not.toContain('paymentLink')
+  })
+
+  it('só deixa promover membros ativos fora do trial e da carência', () => {
+    expect(NON_PROMOTABLE_STATES).toEqual(['trial', 'grace'])
+
+    expect(canPromote(member('m1', 'Active', null, 'active'))).toBe(true)
+    expect(canPromote(member('m2', 'Active', null))).toBe(true)
+
+    expect(canPromote(member('m3', 'Active', null, 'trial'))).toBe(false)
+    expect(canPromote(member('m4', 'Active', null, 'grace'))).toBe(false)
+    expect(canPromote(member('m5', 'Pending', null, 'pending'))).toBe(false)
+    expect(canPromote(member('m6', 'Pending', null))).toBe(false)
+    expect(canPromote(member('m7', 'Approved', null, 'awaiting_activation'))).toBe(false)
+    expect(canPromote(member('m8', 'Approved', null))).toBe(false)
+    expect(canPromote(member('m9', 'Inactive', 'unpaid', 'lapsed'))).toBe(false)
+    expect(canPromote(member('m10', 'Inactive', 'blocked'))).toBe(false)
+    expect(canPromote(admin('admin-2', 'active'))).toBe(false)
+    expect(canPromote(null)).toBe(false)
+    expect(canPromote(undefined)).toBe(false)
+  })
+
+  it('esconde Promover nos membros em trial e em carência', () => {
+    expect(getAvailableActions(member('m1', 'Active', null, 'active'), 'admin-1')).toEqual(['block', 'promote'])
+    expect(getAvailableActions(member('m2', 'Active', null, 'trial'), 'admin-1')).toEqual(['block'])
+    expect(getAvailableActions(member('m3', 'Active', null, 'grace'), 'admin-1')).toEqual(['paymentLink', 'block'])
+    expect(getAvailableActions(member('m4', 'Active', null), 'admin-1')).toEqual(['block', 'promote'])
+    expect(getAvailableActions(member('admin-1', 'Active', null, 'active'), 'admin-1')).toEqual([])
+    expect(getAvailableActions(admin('admin-2', 'grace'), 'admin-1')).toEqual(['paymentLink', 'demote'])
+    expect(getAvailableActions(admin('admin-2', 'trial'), 'admin-1')).toEqual(['demote'])
   })
 
   it('explica o email de reativação com o email pessoal e o nome do membro', () => {

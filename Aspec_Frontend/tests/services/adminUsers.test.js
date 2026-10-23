@@ -17,6 +17,10 @@ const payload = {
   items: [{ id: 'u1', email: 'ana@techbless.pt' }],
   pagination: { current_page: 1, per_page: 12, total: 1, last_page: 1 },
   counts: { all: 1, active: 1, pending: 0, approved: 0, blocked: 0, inactive: 0 },
+  subscription_state_counts: {
+    pending: 0, awaiting_activation: 0, blocked: 0, lapsed: 0, inactive: 0, exempt: 0, grace: 0, trial: 0, active: 1,
+  },
+  admins_count: 2,
 }
 
 function mockGet() {
@@ -36,16 +40,22 @@ describe('getAdminUsers', () => {
     expect(result).toEqual(payload)
   })
 
-  it('traduz os filtros para a query string e omite os que não se aplicam', async () => {
+  it('envia o estado da subscrição, a pesquisa sem espaços e os admins', async () => {
     const get = mockGet()
 
-    await getAdminUsers({ status: 'Inactive', blocked: true, search: '  ana ', includeAdmins: true, page: 2 })
-    await getAdminUsers({ status: 'Inactive', blocked: false })
+    await getAdminUsers({ subscriptionState: 'grace', search: '  ana ', includeAdmins: true, page: 2 })
+
+    expect(get.mock.calls[0][1].params).toEqual({ page: 2, subscription_state: 'grace', search: 'ana', include_admins: 1 })
+  })
+
+  it('não envia o estado da conta nem filtros vazios', async () => {
+    const get = mockGet()
+
+    await getAdminUsers({ status: 'Inactive', blocked: true })
+    await getAdminUsers({ subscriptionState: '' })
     await getAdminUsers({ search: '   ', includeAdmins: false })
 
-    expect(get.mock.calls[0][1].params).toEqual({ page: 2, status: 'Inactive', blocked: 1, search: 'ana', include_admins: 1 })
-    expect(get.mock.calls[1][1].params).toEqual({ page: 1, status: 'Inactive', blocked: 0 })
-    expect(get.mock.calls[2][1].params).toEqual({ page: 1 })
+    expect(get.mock.calls.map((call) => call[1].params)).toEqual([{ page: 1 }, { page: 1 }, { page: 1 }])
   })
 
   it('propaga o erro do pedido', async () => {
