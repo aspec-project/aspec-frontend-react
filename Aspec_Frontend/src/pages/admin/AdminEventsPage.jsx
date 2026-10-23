@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download, Plus } from 'lucide-react'
 import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
+import EditEventDialog from '../../components/admin/events/EditEventDialog'
 import EventListFilters from '../../components/admin/events/EventListFilters'
 import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
 import EventsTable from '../../components/admin/events/EventsTable'
@@ -24,8 +25,9 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * Página Gestão de Eventos do backoffice: separadores Agendados/Passados com contagens, filtros de datas,
  * tipo e distrito, tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
  * (diálogo com o aviso do RGPD antes de descarregar; só os erros aparecem numa mensagem).
- * O botão "Criar Evento" abre o modal de criação; depois de criar, a lista recarrega com os mesmos filtros
- * e aparece a mensagem da API.
+ * O botão "Criar Evento" abre o modal de criação e o ✎ de cada evento agendado abre o modal de edição;
+ * depois de guardar, a lista recarrega com os mesmos filtros e aparece a mensagem da API. Se o evento já
+ * decorreu ou já não existe, o modal de edição fecha, aparece o erro e a lista recarrega.
  * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal) e
  * useAttendeesExport (exportação).
  *
@@ -48,7 +50,8 @@ export default function AdminEventsPage() {
   const options = useEventFilterOptions()
   const exporter = useAttendeesExport({ onStale: retry })
   const [creating, setCreating] = useState(false)
-  const [createFeedback, setCreateFeedback] = useState('')
+  const [editing, setEditing] = useState(null)
+  const [formFeedback, setFormFeedback] = useState(null)
 
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === filters.period) ?? EVENT_PERIOD_TABS[0]
   const pagination = data?.pagination
@@ -68,8 +71,8 @@ export default function AdminEventsPage() {
         </button>
       </div>
 
-      {createFeedback && (
-        <FeedbackBanner type="success" message={createFeedback} onClose={() => setCreateFeedback('')} />
+      {formFeedback && (
+        <FeedbackBanner type={formFeedback.type} message={formFeedback.message} onClose={() => setFormFeedback(null)} />
       )}
 
       {exporter.feedback && (
@@ -105,6 +108,7 @@ export default function AdminEventsPage() {
             period={filters.period}
             busy={loading}
             onExport={exporter.requestExport}
+            onEdit={setEditing}
             actionsDisabled={loading || exporter.pending}
           />
 
@@ -139,7 +143,26 @@ export default function AdminEventsPage() {
           onClose={() => setCreating(false)}
           onSuccess={(message) => {
             setCreating(false)
-            setCreateFeedback(message)
+            setFormFeedback({ type: 'success', message })
+            retry()
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditEventDialog
+          key={editing.id}
+          event={editing}
+          options={options}
+          onClose={() => setEditing(null)}
+          onSuccess={(message) => {
+            setEditing(null)
+            setFormFeedback({ type: 'success', message })
+            retry()
+          }}
+          onStale={(message) => {
+            setEditing(null)
+            setFormFeedback({ type: 'error', message })
             retry()
           }}
         />

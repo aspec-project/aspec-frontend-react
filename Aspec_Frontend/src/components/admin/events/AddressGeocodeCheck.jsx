@@ -1,19 +1,21 @@
 import { MapPin } from 'lucide-react'
-import { EVENT_FORM_MESSAGES, GEOCODE_ATTRIBUTION } from '../../../utils/adminEventForm'
+import { EVENT_EDIT_TEXTS, EVENT_FORM_MESSAGES, GEOCODE_ATTRIBUTION } from '../../../utils/adminEventForm'
 
 /**
  * Botão opcional "Verificar no mapa" e o resultado da verificação da morada. A morada encontrada vem do
- * OpenStreetMap (editável por qualquer pessoa) e por isso só é mostrada como texto.
+ * OpenStreetMap (editável por qualquer pessoa) e por isso só é mostrada como texto. Na edição, o estado
+ * `saved` indica que se mantém a localização guardada do evento.
  *
  * @param {{
- *   geocode: {status: 'idle'|'loading'|'found'|'error', result: {display_name?: string, attribution?: string}|null, message: string},
+ *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: {display_name?: string, attribution?: string}|null, message: string},
  *   canVerify: boolean,
  *   onVerify: () => void,
  *   disabled?: boolean,
+ *   idleHint?: string,
  * }} props
  * @returns {JSX.Element}
  */
-export default function AddressGeocodeCheck({ geocode, canVerify, onVerify, disabled = false }) {
+export default function AddressGeocodeCheck({ geocode, canVerify, onVerify, disabled = false, idleHint = EVENT_FORM_MESSAGES.geocodeHint }) {
   return (
     <div className="mt-2 flex flex-wrap items-start gap-3">
       <button
@@ -35,7 +37,8 @@ export default function AddressGeocodeCheck({ geocode, canVerify, onVerify, disa
           </>
         )}
         {geocode.status === 'error' && <p className="text-red-700">{geocode.message}</p>}
-        {geocode.status === 'idle' && <p className="text-gray-500">{EVENT_FORM_MESSAGES.geocodeHint}</p>}
+        {geocode.status === 'saved' && <p className="text-gray-600">{EVENT_EDIT_TEXTS.geocodeSaved}</p>}
+        {geocode.status === 'idle' && <p className="text-gray-500">{idleHint}</p>}
       </div>
     </div>
   )

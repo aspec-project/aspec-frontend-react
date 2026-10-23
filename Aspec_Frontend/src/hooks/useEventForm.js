@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { normalizeError } from '../services/api'
-import { createAdminEvent, geocodeAddress } from '../services/adminEvents'
+import { createAdminEvent, geocodeAddress, updateAdminEvent } from '../services/adminEvents'
 import {
   EMPTY_EVENT_FORM,
+  EVENT_EDIT_TEXTS,
   EVENT_FIELD_ORDER,
   EVENT_FORM_MESSAGES,
   buildEventPayload,
+  buildEventUpdatePayload,
+  eventToFormValues,
   formatMissingFields,
+  getChangedEventFields,
   getEventFormErrors,
   getMissingEventFields,
+  getSavedGeocode,
   mapEventServerErrors,
 } from '../utils/adminEventForm'
 
@@ -17,9 +22,16 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
 
 /**
  * Estado e envio do formulário de evento do backoffice: valores, campos em falta, erros do browser e do
- * servidor, verificação opcional da morada no mapa e criação do evento.
+ * servidor, verificação opcional da morada no mapa e criação ou edição do evento.
+ * Sem `event` cria um evento novo; com `event` (item da lista) edita-o: começa com os dados dele e a
+ * localização guardada, só deixa guardar com alterações, aceita uma justificação para os inscritos e
+ * chama `onStale` quando o evento já decorreu (409) ou já não existe (404).
  *
- * @param {{onSuccess: (message: string) => void}} options onSuccess recebe a mensagem da API depois de criar.
+ * @param {{
+ *   onSuccess: (message: string) => void,
+ *   onStale?: (message: string) => void,
+ *   event?: object|null,
+ * }} options onSuccess recebe a mensagem da API depois de guardar; onStale a mensagem a mostrar na página.
  * @returns {{
  *   values: typeof EMPTY_EVENT_FORM,
  *   setField: (name: string, value: string) => void,
@@ -31,30 +43,42 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  *   canSubmit: boolean,
  *   footerMessage: string,
  *   submit: () => Promise<void>,
- *   geocode: {status: 'idle'|'loading'|'found'|'error', result: object|null, message: string, query: object|null},
+ *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string, query: object|null},
  *   verifyAddress: () => Promise<void>,
  *   focusField: {name: string, key: number}|null,
+ *   isEditing: boolean,
+ *   hasChanges: boolean,
+ *   justification: string,
+ *   setJustification: (value: string) => void,
+ *   registrationsCount: number|null,
  * }}
  */
-export default function useEventForm({ onSuccess }) {
-  const [values, setValues] = useState(EMPTY_EVENT_FORM)
+export default function useEventForm({ onSuccess, onStale, event = null }) {
+  const isEditing = Boolean(event)
+  const [initialValues] = useState(() => (event ? eventToFormValues(event) : EMPTY_EVENT_FORM))
+  const [values, setValues] = useState(initialValues)
+  const [justification, setJustificationValue] = useState('')
   const [serverErrors, setServerErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [geocode, setGeocode] = useState(IDLE_GEOCODE)
+  const [geocode, setGeocode] = useState(() => (event ? getSavedGeocode(event) : IDLE_GEOCODE))
   const [focusField, setFocusField] = useState(null)
   const submittingRef = useRef(false)
   const geocodeControllerRef = useRef(null)
 
   useEffect(() => () => geocodeControllerRef.current?.abort(), [])
 
+  const registrationsCount = Number.isInteger(event?.registrations_count) && event.registrations_count >= 0
+    ? event.registrations_count
+    : null
   const missingFields = getMissingEventFields(values)
-  const browserErrors = getEventFormErrors(values)
+  const browserErrors = getEventFormErrors(values, undefined, isEditing ? { initialValues, registrationsCount } : undefined)
   const hasBrowserErrors = Object.keys(browserErrors).length > 0
-  const canSubmit = missingFields.length === 0 && !hasBrowserErrors && !submitting
+  const hasChanges = !isEditing || getChangedEventFields(initialValues, values).length > 0
+  const canSubmit = missingFields.length === 0 && !hasBrowserErrors && hasChanges && !submitting
   const footerMessage = missingFields.length > 0
     ? formatMissingFields(missingFields)
-    : hasBrowserErrors ? EVENT_FORM_MESSAGES.fixErrors : ''
+    : hasBrowserErrors ? EVENT_FORM_MESSAGES.fixErrors : !hasChanges ? EVENT_EDIT_TEXTS.noChanges : ''
 
   /**
    * Descarta a verificação da morada e cancela o pedido pendente.
@@ -66,6 +90,20 @@ export default function useEventForm({ onSuccess }) {
   }
 
   /**
+   * Apaga o erro do servidor de um campo.
+   *
+   * @param {string} name Nome do campo.
+   */
+  const clearServerError = (name) => {
+    setServerErrors((current) => {
+      if (!(name in current)) return current
+      const next = { ...current }
+      delete next[name]
+      return next
+    })
+  }
+
+  /**
    * Muda um campo e apaga o erro do servidor desse campo e a mensagem geral. Mudar a morada ou a delegação
    * descarta a verificação (as coordenadas deixam de corresponder ao que está escrito).
    *
@@ -74,17 +112,23 @@ export default function useEventForm({ onSuccess }) {
    */
   const setField = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }))
-    setServerErrors((current) => {
-      if (!(name in current)) return current
-      const next = { ...current }
-      delete next[name]
-      return next
-    })
+    clearServerError(name)
     setFormError('')
 
     if (name === 'address' || name === 'locationId') {
       resetGeocode()
     }
+  }
+
+  /**
+   * Muda a justificação enviada aos inscritos e apaga o erro do servidor dela e a mensagem geral.
+   *
+   * @param {string} value Novo texto.
+   */
+  const setJustification = (value) => {
+    setJustificationValue(value)
+    clearServerError('justification')
+    setFormError('')
   }
 
   /**
@@ -110,8 +154,9 @@ export default function useEventForm({ onSuccess }) {
   }
 
   /**
-   * Cria o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores e mostra as mensagens
-   * da API junto aos campos ou na mensagem geral.
+   * Cria ou atualiza o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores e mostra
+   * as mensagens da API junto aos campos ou na mensagem geral; na edição, um 409 ou um 404 do evento
+   * chamam `onStale`.
    *
    * @returns {Promise<void>}
    */
@@ -124,7 +169,9 @@ export default function useEventForm({ onSuccess }) {
     setServerErrors({})
 
     try {
-      const response = await createAdminEvent(buildEventPayload(values, geocode))
+      const response = isEditing
+        ? await updateAdminEvent(event.id, buildEventUpdatePayload(values, geocode, justification))
+        : await createAdminEvent(buildEventPayload(values, geocode))
       onSuccess(response.message)
     } catch (err) {
       if (axios.isCancel(err)) return
@@ -136,6 +183,10 @@ export default function useEventForm({ onSuccess }) {
         setServerErrors(mapped.fieldErrors)
         setFormError([message, ...mapped.unmatched].join(' '))
         focusFirstInvalid(mapped.fieldErrors)
+      } else if (isEditing && status === 409) {
+        onStale?.(message)
+      } else if (isEditing && status === 404 && message !== EVENT_EDIT_TEXTS.addressNotFound) {
+        onStale?.(EVENT_EDIT_TEXTS.notFound)
       } else if (status === 404) {
         setServerErrors({ address: message })
         focusFirstInvalid({ address: message })
@@ -194,5 +245,10 @@ export default function useEventForm({ onSuccess }) {
     geocode,
     verifyAddress,
     focusField,
+    isEditing,
+    hasChanges,
+    justification,
+    setJustification,
+    registrationsCount,
   }
 }

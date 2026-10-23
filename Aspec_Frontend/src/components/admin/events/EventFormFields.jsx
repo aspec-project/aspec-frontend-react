@@ -2,7 +2,7 @@ import { useId } from 'react'
 import { MapPin, Video } from 'lucide-react'
 import AddressGeocodeCheck from './AddressGeocodeCheck'
 import EventField from './EventField'
-import { EVENT_FORM_LIMITS, EVENT_FORM_MESSAGES, getLisbonNow } from '../../../utils/adminEventForm'
+import { EVENT_EDIT_TEXTS, EVENT_FORM_LIMITS, EVENT_FORM_MESSAGES, getCapacityHint, getLisbonNow } from '../../../utils/adminEventForm'
 
 const controlClass = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] aria-invalid:border-red-400 disabled:cursor-not-allowed disabled:bg-gray-100'
 
@@ -33,8 +33,9 @@ function describedBy(id, { hint, counter, error }) {
 
 /**
  * Campos do formulário de evento do backoffice (formato, dados, local ou link, capacidade e textos), pela
- * ordem do design. Não sabe se está a criar ou a editar: recebe os valores e avisa as alterações.
- * Cada controlo tem `name` igual à chave do formulário, para o modal o poder focar.
+ * ordem do design. Recebe os valores e avisa as alterações; na edição (`isEditing`) só muda os hints: a
+ * capacidade mostra o número de inscritos e a verificação da morada explica que o servidor a localiza ao
+ * guardar. Cada controlo tem `name` igual à chave do formulário, para o modal o poder focar.
  *
  * @param {{
  *   values: object,
@@ -42,13 +43,15 @@ function describedBy(id, { hint, counter, error }) {
  *   options: {categories: object[], locations: object[], loading: boolean, error: string, retry: () => void},
  *   onFieldChange: (name: string, value: string) => void,
  *   onFormatChange: (isOnline: boolean) => void,
- *   geocode: {status: 'idle'|'loading'|'found'|'error', result: object|null, message: string},
+ *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string},
  *   onVerifyAddress: () => void,
  *   disabled?: boolean,
+ *   isEditing?: boolean,
+ *   registrationsCount?: number|null,
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, geocode, onVerifyAddress, disabled = false }) {
+export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, geocode, onVerifyAddress, disabled = false, isEditing = false, registrationsCount = null }) {
   const prefix = useId()
   const today = getLisbonNow().date
   const selectsDisabled = options.loading || Boolean(options.error)
@@ -94,6 +97,7 @@ export default function EventFormFields({ values, errors, options, onFieldChange
 
   const descriptionCounter = `${values.description.length}/${EVENT_FORM_LIMITS.description} caracteres`
   const notesCounter = `${values.organizerNotes.length}/${EVENT_FORM_LIMITS.organizerNotes} caracteres`
+  const capacityHint = isEditing ? getCapacityHint(registrationsCount) : ''
 
   return (
     <div className="space-y-5">
@@ -225,20 +229,21 @@ export default function EventFormFields({ values, errors, options, onFieldChange
               canVerify={values.address.trim() !== '' && geocode.status !== 'loading'}
               onVerify={onVerifyAddress}
               disabled={disabled}
+              idleHint={isEditing ? EVENT_EDIT_TEXTS.geocodeHint : undefined}
             />
           </div>
         </>
       )}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <EventField {...fieldProps('maxAttendees', 'Capacidade máxima')}>
+        <EventField {...fieldProps('maxAttendees', 'Capacidade máxima', { hint: capacityHint })}>
           <input
             type="number"
             min={1}
             max={EVENT_FORM_LIMITS.maxAttendees}
             step={1}
             inputMode="numeric"
-            {...controlProps('maxAttendees')}
+            {...controlProps('maxAttendees', { hint: capacityHint })}
           />
         </EventField>
       </div>

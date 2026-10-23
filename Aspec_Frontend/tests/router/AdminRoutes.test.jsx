@@ -28,6 +28,7 @@ vi.mock('../../src/services/adminEvents', () => ({
   exportEventAttendees: vi.fn(),
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
+  updateAdminEvent: vi.fn(),
 }))
 vi.mock('../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(() => Promise.resolve([])),

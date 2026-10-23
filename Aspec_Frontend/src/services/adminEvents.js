@@ -84,6 +84,20 @@ export async function createAdminEvent(payload) {
 }
 
 /**
+ * Atualiza um evento no backoffice (PUT com o corpo completo). Se houver inscritos, o backend envia-lhes um
+ * email com a justificação, quando vem preenchida.
+ *
+ * @param {string} eventId Id do evento.
+ * @param {object} payload Corpo completo do pedido, já em snake_case (ver buildEventUpdatePayload).
+ * @returns {Promise<{success: boolean, message: string, data: object}>} Resposta inteira da API.
+ */
+export async function updateAdminEvent(eventId, payload) {
+  const response = await api.put(`/admin/events/${encodeURIComponent(eventId)}`, payload)
+
+  return response.data
+}
+
+/**
  * Localiza uma morada no mapa (OpenStreetMap) para o admin confirmar o sítio antes de criar o evento.
  * O distrito só é enviado quando foi escolhido.
  *
