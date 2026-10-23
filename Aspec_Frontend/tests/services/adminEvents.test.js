@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
 import { api, normalizeError } from '../../src/services/api'
-import { exportEventAttendees, getAdminEvents } from '../../src/services/adminEvents'
+import { createAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents } from '../../src/services/adminEvents'
 
 const payload = {
   items: [{ id: 'e1', name: 'Jantar — Lisboa' }],
@@ -104,5 +104,52 @@ describe('exportEventAttendees', () => {
     expect(normalizeError(caught).message).toBe('Erro do servidor (500).')
 
     await expect(exportEventAttendees(EVENT_ID)).rejects.toBe(networkError)
+  })
+})
+
+describe('createAdminEvent', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('envia o corpo para /admin/events e devolve a resposta inteira da API', async () => {
+    const body = { name: 'Jantar de Networking Lisboa', is_online: false, max_attendees: 40 }
+    const response = { success: true, message: 'Evento criado com sucesso.', data: { id: EVENT_ID, name: 'Jantar de Networking Lisboa' } }
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: response })
+
+    const result = await createAdminEvent(body)
+
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/admin/events', body)
+    expect(result).toEqual(response)
+  })
+
+  it('relança o erro do pedido tal como está', async () => {
+    const error = blobError(422, { success: false, message: 'Os dados enviados são inválidos.', errors: {} })
+    vi.spyOn(api, 'post').mockRejectedValue(error)
+
+    await expect(createAdminEvent({})).rejects.toBe(error)
+  })
+})
+
+describe('geocodeAddress', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('pede a morada com o distrito e o signal e devolve os dados encontrados', async () => {
+    const found = { latitude: 38.71, longitude: -9.14, display_name: 'Rua Augusta, Lisboa', attribution: '© OpenStreetMap contributors' }
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, message: 'Morada localizada com sucesso.', data: found } })
+    const signal = new AbortController().signal
+
+    const result = await geocodeAddress('Rua Augusta 1', 'l1', signal)
+
+    expect(get).toHaveBeenCalledWith('/admin/geocode', { params: { address: 'Rua Augusta 1', location_id: 'l1' }, signal })
+    expect(result).toEqual(found)
+  })
+
+  it('sem delegação envia só a morada', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, message: 'ok', data: {} } })
+    const signal = new AbortController().signal
+
+    await geocodeAddress('Rua Augusta 1', '', signal)
+
+    expect(get).toHaveBeenCalledWith('/admin/geocode', { params: { address: 'Rua Augusta 1' }, signal })
   })
 })
