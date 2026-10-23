@@ -9,8 +9,10 @@ import {
 import InvoiceList from '../components/subscription/InvoiceList'
 
 /*
- * Tradução dos estados técnicos devolvidos pelo Stripe para texto legível
- * para o membro autenticado.
+ * Página privada onde o membro consulta e gere a própria subscrição.
+ *
+ * É apresentada dentro da área de perfil, na aba “Subscrição”, mantendo
+ * os pedidos reais ao backend separados da estrutura visual comum.
  */
 const statusLabels = {
   active: 'Subscrição ativa',
@@ -200,17 +202,14 @@ export default function SubscriptionPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-[#f5f5f4] px-6 py-12">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-slate-600">A carregar a subscrição...</p>
-        </div>
-      </main>
+      <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <p className="text-slate-600">A carregar a subscrição...</p>
+      </section>
     )
   }
 
   if (loadError) {
     return (
-      <main className="min-h-screen bg-[#f5f5f4] px-6 py-12">
         <section className="mx-auto max-w-2xl rounded-2xl border border-red-200 bg-red-50 p-8">
           <h1 className="text-2xl font-bold text-red-950">
             Não foi possível carregar a subscrição
@@ -226,7 +225,6 @@ export default function SubscriptionPage() {
             Tentar novamente
           </button>
         </section>
-      </main>
     )
   }
 
@@ -250,7 +248,7 @@ export default function SubscriptionPage() {
   const graceEndsAt = formatDate(subscription.grace_ends_at)
 
   return (
-    <main className="min-h-screen bg-[#f5f5f4] px-6 py-12">
+    <section>
       <div className="mx-auto max-w-5xl">
         <header className="border-b border-slate-200 pb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7043]">
@@ -462,6 +460,6 @@ export default function SubscriptionPage() {
          */}
         <InvoiceList />
       </div>
-    </main>
+    </section>
   )
 }

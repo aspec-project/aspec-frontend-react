@@ -51,17 +51,17 @@ export default function AdminLayout() {
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)]">
+      <section className="bg-white">
         <div className="max-w-7xl mx-auto px-6 py-10">
           {isDashboard ? (
             <>
               <h1 className="text-2xl font-semibold text-[#8a7043]">Área de Administração</h1>
-              <p className="mt-2 text-gray-300">{today}</p>
+              <p className="mt-2 text-gray-600">{today}</p>
             </>
           ) : (
             <>
               <p className="uppercase tracking-wider text-[#8a7043] text-sm font-semibold">Área de Administração</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">{title}</h1>
+              <h1 className="mt-2 text-2xl font-semibold text-[#0d1f35]">{title}</h1>
             </>
           )}
         </div>

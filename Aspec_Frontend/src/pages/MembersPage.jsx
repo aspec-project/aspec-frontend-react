@@ -102,11 +102,11 @@ export default function MembersPage() {
 
   return (
     <div className="bg-gray-50 text-gray-800">
-      <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)] py-14">
+      <section className="bg-white py-14">
         <div className="mx-auto max-w-7xl px-6">
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">Diretório ASPEC</p>
-          <h1 className="mt-3 text-2xl font-semibold text-white">Diretório de Confiança</h1>
-          <p className="mt-4 text-gray-300">Encontre profissionais e negócios cristãos verificados em todo Portugal</p>
+          <h1 className="mt-3 text-2xl font-semibold text-[#0D1F35]">Diretório de Confiança</h1>
+          <p className="mt-4 text-gray-600">Encontre profissionais e negócios cristãos verificados em todo Portugal</p>
         </div>
       </section>
       <div className="mx-auto max-w-7xl space-y-6 px-6 py-10">

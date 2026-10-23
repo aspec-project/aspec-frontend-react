@@ -32,24 +32,58 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
 
   return (
     <article>
-      <header className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)] pb-12 pt-8">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-block max-w-full break-words rounded-full border border-[#8A7043]/30 bg-[#8A7043]/20 px-2.5 py-1 text-xs font-semibold text-[#C3A572]">
+    <header className="bg-white py-10">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-block max-w-full break-words rounded-full border border-[#D8C698] bg-[#F6F3EA] px-2.5 py-1 text-xs font-semibold text-[#796038]">
             {event.category.name || "Evento"}
           </span>
-          <EventTypeBadges isOnline={event.is_online} recurring={recurring} dark />
-          </div>
-          <h1 className="mt-4 max-w-4xl break-words text-2xl font-semibold leading-snug text-white">{event.name}</h1>
-          {recurring && recurrenceLabel && <p className="mt-3 break-words text-sm text-[#b89d6e]">{recurrenceLabel}</p>}
-          <dl className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/80">
-            <HeaderInformation icon={CalendarDays} label="Data">{dateLabel}</HeaderInformation>
-            <HeaderInformation icon={Clock} label="Horário">{startTime ? `${startTime}${endTime ? ` – ${endTime}` : ""}` : endTime ? `Hora de fim: ${endTime}` : "Horário por confirmar"}</HeaderInformation>
-            {event.is_online === true ? <HeaderInformation icon={Video} label="Modalidade">Evento online</HeaderInformation> : <HeaderInformation icon={MapPin} label="Localização">{event.venue_name || event.location.name || "Localização por confirmar"}</HeaderInformation>}
-            {deadline && <HeaderInformation icon={CalendarClock} label="Data limite de inscrição">Inscrições até <time dateTime={event.registration_deadline}>{deadline}</time></HeaderInformation>}
-          </dl>
+
+          <EventTypeBadges isOnline={event.is_online} recurring={recurring} />
         </div>
-      </header>
+
+        <h1 className="mt-4 max-w-4xl break-words text-3xl font-semibold leading-snug text-[#0D1F35]">
+          {event.name}
+        </h1>
+
+        {recurring && recurrenceLabel && (
+          <p className="mt-3 break-words text-sm text-[#796038]">
+            {recurrenceLabel}
+          </p>
+        )}
+
+        <dl className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#506580]">
+          <HeaderInformation icon={CalendarDays} label="Data">
+            {dateLabel}
+          </HeaderInformation>
+
+          <HeaderInformation icon={Clock} label="Horário">
+            {startTime
+              ? `${startTime}${endTime ? ` – ${endTime}` : ""}`
+              : endTime
+                ? `Hora de fim: ${endTime}`
+                : "Horário por confirmar"}
+          </HeaderInformation>
+
+          {event.is_online === true ? (
+            <HeaderInformation icon={Video} label="Modalidade">
+              Evento online
+            </HeaderInformation>
+          ) : (
+            <HeaderInformation icon={MapPin} label="Localização">
+              {event.venue_name || event.location.name || "Localização por confirmar"}
+            </HeaderInformation>
+          )}
+
+          {deadline && (
+            <HeaderInformation icon={CalendarClock} label="Data limite de inscrição">
+              Inscrições até{" "}
+              <time dateTime={event.registration_deadline}>{deadline}</time>
+            </HeaderInformation>
+          )}
+        </dl>
+      </div>
+    </header>
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
           {event.is_online === true ? <EventOnlineAccess key={`${event.id}:${event.registration_deadline}`} event={event} onRefresh={onRefresh} /> : <EventLocation event={event} />}

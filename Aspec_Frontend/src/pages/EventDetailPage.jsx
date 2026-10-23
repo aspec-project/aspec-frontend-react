@@ -63,9 +63,15 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
 
   return (
     <div className="min-h-[65vh] bg-gray-50 text-[#0D1F35]">
-      <nav aria-label="Navegação do evento" className="bg-[#0D1F35]">
+      <nav
+        aria-label="Navegação do evento"
+        className="bg-white"
+      >
         <div className="mx-auto max-w-7xl px-6 py-4">
-          <Link to="/eventos" className="inline-flex items-center gap-2 rounded text-sm text-white/80 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+          <Link
+            to="/eventos"
+            className="inline-flex items-center gap-2 rounded text-sm font-medium text-[#506580] hover:text-[#0D1F35] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0D1F35]"
+          >
             <ArrowLeft size={16} aria-hidden="true" /> Voltar à agenda
           </Link>
         </div>
