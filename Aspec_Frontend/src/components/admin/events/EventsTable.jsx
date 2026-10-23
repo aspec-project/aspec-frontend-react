@@ -1,4 +1,5 @@
 import { CalendarClock, CalendarDays, Clock, MapPin, Video } from 'lucide-react'
+import EventActions from './EventActions'
 import EventOccupancy from './EventOccupancy'
 import { EVENT_PERIOD_TABS, formatDeadline, formatEventDate, formatSession, formatTimeRange, getRegistrationState } from '../../../utils/adminEvents'
 import { badgeTextColor, categoryColor } from '../../../utils/eventFormatting'
@@ -10,19 +11,25 @@ const REGISTRATION_BADGES = {
 
 /**
  * Tabela da lista de eventos do backoffice: evento (nome, categoria e "Sessão X/Y" quando existe), data e hora,
- * local, prazo de inscrição com o estado (Abertas/Encerradas) e lotação ("Participação" nos passados).
- * O link dos eventos online não é mostrado.
+ * local, prazo de inscrição com o estado (Abertas/Encerradas), lotação ("Participação" nos passados) e ações
+ * (exportar a lista de presenças). O link dos eventos online não é mostrado.
  *
- * @param {{events: object[], period: 'upcoming'|'past', busy?: boolean}} props
+ * @param {{
+ *   events: object[],
+ *   period: 'upcoming'|'past',
+ *   busy?: boolean,
+ *   onExport: (event: object) => void,
+ *   actionsDisabled?: boolean,
+ * }} props
  * @returns {JSX.Element}
  */
-export default function EventsTable({ events, period, busy = false }) {
+export default function EventsTable({ events, period, busy = false, onExport, actionsDisabled = false }) {
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === period) ?? EVENT_PERIOD_TABS[0]
-  const headers = ['Evento', 'Data e hora', 'Local', 'Inscrições até', tab.capacityLabel]
+  const headers = ['Evento', 'Data e hora', 'Local', 'Inscrições até', tab.capacityLabel, 'Ações']
 
   return (
     <div aria-busy={busy} className={`overflow-x-auto rounded-xl bg-white shadow-sm transition-opacity ${busy ? 'opacity-60' : ''}`}>
-      <table className="w-full min-w-[900px] text-left text-sm">
+      <table className="w-full min-w-[1000px] text-left text-sm">
         <caption className="sr-only">{tab.caption}</caption>
         <thead className="bg-gray-50">
           <tr>
@@ -94,6 +101,9 @@ export default function EventsTable({ events, period, busy = false }) {
                 </td>
                 <td className="px-5 py-4">
                   <EventOccupancy registrations={event.registrations_count} max={event.max_attendees} period={period} />
+                </td>
+                <td className="px-5 py-4">
+                  <EventActions event={event} disabled={actionsDisabled} onExport={onExport} />
                 </td>
               </tr>
             )

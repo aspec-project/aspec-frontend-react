@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import * as adminEventsUtils from '../../src/utils/adminEvents'
 import {
+  ATTENDEES_EXPORT_TEXTS,
   countActiveFilters,
   formatDeadline,
   formatEventDate,
   formatResultsRange,
   formatSession,
   formatTimeRange,
+  getAttendeesExportDescription,
+  getAttendeesFallbackFilename,
   getDateRangeError,
   getEventSeries,
+  getFilenameFromContentDisposition,
   getOccupancy,
   getRegistrationState,
 } from '../../src/utils/adminEvents'
@@ -139,5 +144,76 @@ describe('formatSession', () => {
   it('mostra Sessão X/Y só quando o evento pertence a uma série', () => {
     expect(formatSession({ series: { position: 2, total: 5 } })).toBe('Sessão 2/5')
     expect(formatSession({})).toBeNull()
+  })
+})
+
+describe('getFilenameFromContentDisposition', () => {
+  it('lê o nome do ficheiro com e sem aspas', () => {
+    expect(getFilenameFromContentDisposition('attachment; filename=presencas_2030-11-15_jantar-lisboa.csv')).toBe('presencas_2030-11-15_jantar-lisboa.csv')
+    expect(getFilenameFromContentDisposition('attachment; filename="presencas_2030-11-15.csv"')).toBe('presencas_2030-11-15.csv')
+  })
+
+  it('dá prioridade ao filename* e cai no filename quando a codificação é inválida', () => {
+    expect(getFilenameFromContentDisposition("attachment; filename=x.csv; filename*=UTF-8''presen%C3%A7as.csv")).toBe('presenças.csv')
+    expect(getFilenameFromContentDisposition("attachment; filename*=UTF-8''%E0%A4%A; filename=ok.csv")).toBe('ok.csv')
+  })
+
+  it('fica só com o nome-base, sem caminhos', () => {
+    expect(getFilenameFromContentDisposition('attachment; filename="../../etc/passwd"')).toBe('passwd')
+    expect(getFilenameFromContentDisposition('attachment; filename="..\\pasta\\a.csv"')).toBe('a.csv')
+  })
+
+  it('devolve null sem nome de ficheiro', () => {
+    for (const header of ['attachment', '', null, undefined, 'attachment; filename=""']) {
+      expect(getFilenameFromContentDisposition(header)).toBeNull()
+    }
+  })
+})
+
+describe('getAttendeesFallbackFilename', () => {
+  it('usa a data do evento quando é válida', () => {
+    expect(getAttendeesFallbackFilename({ event_date: '2030-11-15' })).toBe('presencas_2030-11-15.csv')
+  })
+
+  it('usa um nome genérico sem data válida', () => {
+    for (const event of [{ event_date: null }, { event_date: '15/11/2030' }, {}]) {
+      expect(getAttendeesFallbackFilename(event)).toBe('presencas.csv')
+    }
+  })
+})
+
+describe('getAttendeesExportDescription', () => {
+  const dinner = (registrations) => ({ name: 'Jantar — Lisboa', event_date: '2030-11-15', registrations_count: registrations })
+
+  it('diz as colunas do ficheiro e o número de inscritos', () => {
+    expect(getAttendeesExportDescription(dinner(28))).toBe('Vai descarregar a lista de presenças de «Jantar — Lisboa» (15 Nov 2030) com o nome, a empresa e o email e telefone pessoais dos 28 inscritos.')
+    expect(getAttendeesExportDescription(dinner(1))).toBe('Vai descarregar a lista de presenças de «Jantar — Lisboa» (15 Nov 2030) com o nome, a empresa e o email e telefone pessoais do 1 inscrito.')
+  })
+
+  it('avisa que sem inscritos o ficheiro só tem os cabeçalhos', () => {
+    expect(getAttendeesExportDescription(dinner(0))).toBe('Vai descarregar a lista de presenças de «Jantar — Lisboa» (15 Nov 2030). O evento não tem inscritos: o ficheiro terá só os cabeçalhos.')
+  })
+
+  it('sem um número de inscritos válido não mostra o número', () => {
+    for (const registrations of [undefined, -1, 2.5]) {
+      expect(getAttendeesExportDescription(dinner(registrations))).toBe('Vai descarregar a lista de presenças de «Jantar — Lisboa» (15 Nov 2030) com o nome, a empresa e o email e telefone pessoais dos inscritos.')
+    }
+  })
+})
+
+describe('ATTENDEES_EXPORT_TEXTS', () => {
+  it('tem os textos do botão e do diálogo com o aviso do art. 9.º do RGPD', () => {
+    expect(ATTENDEES_EXPORT_TEXTS).toEqual({
+      buttonLabel: 'Exportar lista de presenças',
+      unavailableHint: 'Disponível depois do prazo de inscrição',
+      title: 'Exportar lista de presenças',
+      note: 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use a lista só dentro da ASPEC, não a envie a terceiros (ao local do evento indique só o número de inscritos) e apague o ficheiro depois de usado.',
+      confirmLabel: 'Descarregar CSV',
+      notFound: 'O evento já não existe. A lista foi atualizada.',
+    })
+  })
+
+  it('não há mensagem de sucesso da exportação', () => {
+    expect(adminEventsUtils).not.toHaveProperty('getExportSuccessMessage')
   })
 })

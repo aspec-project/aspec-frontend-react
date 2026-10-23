@@ -1,14 +1,15 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError } from 'axios'
+import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminEventsPage from '../../../src/pages/admin/AdminEventsPage'
-import { getAdminEvents } from '../../../src/services/adminEvents'
+import { exportEventAttendees, getAdminEvents } from '../../../src/services/adminEvents'
 import { getEventCategories, getLocations } from '../../../src/services/referenceLists'
 
 vi.mock('../../../src/services/adminEvents', () => ({
   getAdminEvents: vi.fn(),
+  exportEventAttendees: vi.fn(),
 }))
 vi.mock('../../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(),
@@ -181,7 +182,7 @@ describe('Gestão de Eventos', () => {
     expect(periodTab('Passados')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('heading', { level: 2, name: 'Eventos Agendados' })).toBeInTheDocument()
     expect(within(table).getAllByRole('columnheader').map((header) => header.textContent.trim()))
-      .toEqual(['Evento', 'Data e hora', 'Local', 'Inscrições até', 'Lotação'])
+      .toEqual(['Evento', 'Data e hora', 'Local', 'Inscrições até', 'Lotação', 'Ações'])
   })
 
   it('mostra a linha de um evento presencial com categoria, datas, local, prazo e lotação', async () => {
@@ -242,12 +243,12 @@ describe('Gestão de Eventos', () => {
     expect(screen.queryByText(/quase esgotado/)).not.toBeInTheDocument()
   })
 
-  it('não mostra coluna de ações nem botões de editar, apagar, exportar ou criar', async () => {
+  it('mostra a coluna de ações sem botões de editar, apagar ou criar', async () => {
     show()
     await screen.findByRole('table')
 
-    expect(screen.queryByRole('columnheader', { name: 'Ações' })).not.toBeInTheDocument()
-    for (const name of [/Editar/i, /Apagar/i, /Exportar/i, /Criar Evento/i]) {
+    expect(screen.getByRole('columnheader', { name: 'Ações' })).toBeInTheDocument()
+    for (const name of [/Editar/i, /Apagar/i, /Criar Evento/i]) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
   })
@@ -470,5 +471,235 @@ describe('Gestão de Eventos', () => {
 
     expect(within(rowOf('Grupo de Oração')).getByText('Sessão 2/5')).toBeInTheDocument()
     expect(within(rowOf('Evento Pontual')).queryByText(/^Sessão/)).not.toBeInTheDocument()
+  })
+
+  describe('Exportar lista de presenças', () => {
+    const OPEN_MESSAGE = 'As inscrições ainda estão abertas. A lista de presenças só pode ser exportada depois do prazo de inscrição.'
+    const NOTE = 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use a lista só dentro da ASPEC, não a envie a terceiros (ao local do evento indique só o número de inscritos) e apague o ficheiro depois de usado.'
+    const closed = event('a1', 'Jantar — Lisboa', { registration_deadline: CLOSED_DEADLINE, registrations_count: 28, max_attendees: 40 })
+    const open = event('b1', 'Workshop Aberto')
+    const noDeadline = event('c1', 'Evento Sem Prazo', { registration_deadline: null })
+    const originalCreateObjectURL = URL.createObjectURL
+    const originalRevokeObjectURL = URL.revokeObjectURL
+    let clicks
+    let anchorClick
+
+    function exportButton(name) {
+      return screen.getByRole('button', { name: `Exportar lista de presenças de ${name}` })
+    }
+
+    async function openExportDialog(user) {
+      await screen.findByRole('table')
+      await user.click(exportButton('Jantar — Lisboa'))
+
+      return screen.findByRole('dialog', { name: 'Exportar lista de presenças' })
+    }
+
+    async function downloadWith(user, result) {
+      const dialog = await openExportDialog(user)
+      exportEventAttendees.mockImplementationOnce(result)
+      await user.click(within(dialog).getByRole('button', { name: 'Descarregar CSV' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    }
+
+    function expectNoExportMessage() {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      for (const status of screen.queryAllByRole('status')) {
+        expect(status).not.toHaveTextContent(/presenças|descarreg|export/i)
+      }
+      expect(screen.queryByText(/descarregada/i)).not.toBeInTheDocument()
+    }
+
+    function restoreUrl(name, original) {
+      if (original === undefined) {
+        delete URL[name]
+      } else {
+        URL[name] = original
+      }
+    }
+
+    beforeEach(() => {
+      getAdminEvents.mockResolvedValue(list([closed, open, noDeadline]))
+      clicks = []
+      URL.createObjectURL = vi.fn(() => 'blob:mock-1')
+      URL.revokeObjectURL = vi.fn()
+      anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+        clicks.push({ href: this.getAttribute('href'), download: this.download, connected: this.isConnected })
+      })
+    })
+    afterEach(() => {
+      anchorClick.mockRestore()
+      restoreUrl('createObjectURL', originalCreateObjectURL)
+      restoreUrl('revokeObjectURL', originalRevokeObjectURL)
+    })
+
+    it('o botão de exportar só fica ativo quando as inscrições estão encerradas', async () => {
+      show()
+      await screen.findByRole('table')
+
+      const available = exportButton('Jantar — Lisboa')
+      expect(cellOf('Jantar — Lisboa', 'Ações')).toContainElement(available)
+      expect(available).toBeEnabled()
+      expect(available).toHaveAttribute('title', 'Exportar lista de presenças')
+
+      for (const name of ['Workshop Aberto', 'Evento Sem Prazo']) {
+        const locked = exportButton(`${name} (disponível depois do prazo de inscrição)`)
+        expect(cellOf(name, 'Ações')).toContainElement(locked)
+        expect(locked).toBeDisabled()
+        expect(locked).toHaveAttribute('title', 'Disponível depois do prazo de inscrição')
+      }
+    })
+
+    it('nos passados o botão de exportar está ativo e não há editar nem apagar', async () => {
+      getAdminEvents.mockResolvedValue(list([closed]))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+
+      expect(exportButton('Jantar — Lisboa')).toBeEnabled()
+      expect(screen.queryByRole('button', { name: /Editar/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Apagar/i })).not.toBeInTheDocument()
+    })
+
+    it('abre o diálogo com o evento, o número de inscritos e o aviso do RGPD sem descarregar nada', async () => {
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openExportDialog(user)
+
+      expect(dialog).toHaveAccessibleDescription('Vai descarregar a lista de presenças de «Jantar — Lisboa» (21 Jan 2099) com o nome, a empresa e o email e telefone pessoais dos 28 inscritos.')
+      expect(within(dialog).getByRole('note')).toHaveTextContent(NOTE)
+      expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+      expect(within(dialog).getByRole('button', { name: 'Descarregar CSV' })).toBeEnabled()
+      expect(exportEventAttendees).not.toHaveBeenCalled()
+    })
+
+    it('Cancelar e Escape fecham o diálogo sem descarregar e devolvem o foco ao botão', async () => {
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openExportDialog(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(exportButton('Jantar — Lisboa')).toHaveFocus()
+
+      await user.click(exportButton('Jantar — Lisboa'))
+      await screen.findByRole('dialog', { name: 'Exportar lista de presenças' })
+      await user.keyboard('{Escape}')
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(exportButton('Jantar — Lisboa')).toHaveFocus()
+      expect(exportEventAttendees).not.toHaveBeenCalled()
+    })
+
+    it('enquanto descarrega mostra A processar e desativa os botões do diálogo e da tabela', async () => {
+      const pending = deferred()
+      exportEventAttendees.mockImplementationOnce(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openExportDialog(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Descarregar CSV' }))
+
+      expect(exportEventAttendees).toHaveBeenCalledTimes(1)
+      expect(exportEventAttendees).toHaveBeenCalledWith('a1')
+      expect(within(dialog).getByRole('button', { name: 'A processar...' })).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+      expect(exportButton('Jantar — Lisboa')).toBeDisabled()
+
+      await act(async () => { pending.resolve({ blob: new Blob(['x']), filename: 'presencas.csv' }) })
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('descarrega o CSV com o nome do backend, revoga o URL e não mostra mensagem de sucesso', async () => {
+      const blob = new Blob(['Nome;Empresa'], { type: 'text/csv' })
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.resolve({ blob, filename: 'presencas_2099-01-21_jantar-lisboa.csv' }))
+
+      expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
+      expect(clicks).toEqual([{ href: 'blob:mock-1', download: 'presencas_2099-01-21_jantar-lisboa.csv', connected: true }])
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-1')
+      expectNoExportMessage()
+      await waitFor(() => expect(exportButton('Jantar — Lisboa')).toHaveFocus())
+      expect(document.querySelector('a[download]')).toBeNull()
+    })
+
+    it('sem nome do backend usa o nome com a data do evento', async () => {
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.resolve({ blob: new Blob(['x']), filename: null }))
+
+      expect(clicks).toHaveLength(1)
+      expect(clicks[0].download).toBe('presencas_2099-01-21.csv')
+    })
+
+    it('mostra a mensagem do backend quando as inscrições ainda estão abertas', async () => {
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.reject(apiError(409, OPEN_MESSAGE)))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(OPEN_MESSAGE)
+      expect(URL.createObjectURL).not.toHaveBeenCalled()
+      expect(getAdminEvents).toHaveBeenCalledTimes(1)
+    })
+
+    it('se o evento já não existir avisa e recarrega a lista com os mesmos filtros', async () => {
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.reject(apiError(404, 'Recurso não encontrado.')))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('O evento já não existe. A lista foi atualizada.')
+      expect(screen.queryByText('Recurso não encontrado.')).not.toBeInTheDocument()
+      await waitFor(() => expect(getAdminEvents).toHaveBeenCalledTimes(2))
+      expect(getAdminEvents).toHaveBeenLastCalledWith(getAdminEvents.mock.calls[0][0], expect.any(AbortSignal))
+    })
+
+    it('mostra a mensagem de demasiados pedidos', async () => {
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.reject(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.')))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Demasiados pedidos. Tente novamente mais tarde.')
+    })
+
+    it('um pedido cancelado fecha o diálogo sem mensagem nem download', async () => {
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.reject(new CanceledError()))
+
+      expectNoExportMessage()
+      expect(URL.createObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('a mensagem de erro fecha-se e o botão fica desativado enquanto a lista recarrega', async () => {
+      getAdminEvents.mockResolvedValue(list([closed, open, noDeadline], { total: 13, last_page: 3 }))
+      const user = userEvent.setup()
+      show()
+
+      await downloadWith(user, () => Promise.reject(apiError(409, OPEN_MESSAGE)))
+      await screen.findByRole('alert')
+      await user.click(screen.getByRole('button', { name: 'Fechar mensagem' }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      const reload = deferred()
+      getAdminEvents.mockImplementationOnce(() => reload.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+
+      await waitFor(() => expect(exportButton('Jantar — Lisboa')).toBeDisabled())
+
+      await act(async () => { reload.resolve(list([closed, open, noDeadline], { current_page: 2, total: 13, last_page: 3 })) })
+    })
   })
 })
