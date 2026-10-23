@@ -6,10 +6,11 @@ import UserDetailHeader from '../../components/admin/users/UserDetailHeader'
 import UserRiskZone from '../../components/admin/users/UserRiskZone'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import FeedbackBanner from '../../components/ui/FeedbackBanner'
+import ReasonDialog from '../../components/ui/ReasonDialog'
 import useAdminUser from '../../hooks/useAdminUser'
 import useAdminUserActions from '../../hooks/useAdminUserActions'
 import { useAuthStore } from '../../store/authStore'
-import { getActionConfirmation, getAvailableActions, getLockedActions } from '../../utils/adminUsers'
+import { REASON_ACTIONS, getActionConfirmation, getAvailableActions, getLockedActions } from '../../utils/adminUsers'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -18,8 +19,9 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * separadores do AdminLayout: banda escura com "Voltar aos utilizadores" e a identificação do
  * membro (nome como título), e os cartões do detalhe. Tem as mesmas ações da lista (incluindo
  * promover e despromover), o envio do email de ativação, reativação ou lembrete de pagamento e,
- * depois de uma ação, o detalhe é pedido de novo. No fim, a "Zona de risco · RGPD" permite
- * anonimizar o membro; depois do sucesso a página volta à lista com a mensagem da API (a conta
+ * depois de uma ação, o detalhe é pedido de novo. Recusar e bloquear pedem uma justificação
+ * opcional, que segue no email ao membro. No fim, a "Zona de risco · RGPD" permite anonimizar o
+ * membro; depois de anonimizar ou recusar, a página volta à lista com a mensagem da API (a conta
  * deixa de existir). A lógica vive nos hooks useAdminUser (detalhe) e useAdminUserActions (ações).
  *
  * @returns {JSX.Element}
@@ -37,6 +39,7 @@ export default function AdminUserDetailPage() {
   const confirmation = actions.confirming && !anonymizing
     ? getActionConfirmation(actions.confirming.action, actions.confirming.user, { adminsCount: user?.admins_count })
     : null
+  const withReason = REASON_ACTIONS.includes(actions.confirming?.action)
   const showUser = Boolean(user) && !notFound && !error
 
   return (
@@ -95,8 +98,15 @@ export default function AdminUserDetailPage() {
       </div>
 
       <ConfirmDialog
-        open={Boolean(confirmation)}
-        {...confirmation}
+        open={Boolean(confirmation) && !withReason}
+        {...(withReason ? null : confirmation)}
+        pending={actions.pending}
+        onConfirm={actions.confirm}
+        onCancel={actions.cancel}
+      />
+      <ReasonDialog
+        open={withReason}
+        {...(withReason ? confirmation : null)}
         pending={actions.pending}
         onConfirm={actions.confirm}
         onCancel={actions.cancel}

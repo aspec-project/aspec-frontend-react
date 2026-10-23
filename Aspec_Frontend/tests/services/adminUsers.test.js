@@ -87,6 +87,50 @@ describe('ações sobre utilizadores', () => {
   })
 })
 
+describe('recusar e bloquear com justificação', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('recusa com a justificação sem espaços nas pontas no corpo e aceita data nulo', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'Utilizador rejeitado com sucesso.', data: null } })
+
+    const result = await rejectUser('u1', '  Não cumpre os critérios.  ')
+
+    expect(patch.mock.calls).toEqual([['/admin/users/u1/reject', { reason: 'Não cumpre os critérios.' }]])
+    expect(result).toEqual({ message: 'Utilizador rejeitado com sucesso.', user: null })
+  })
+
+  it('bloqueia com a justificação no corpo mantendo as quebras de linha interiores', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'M', data: { id: 'u1' } } })
+
+    await blockUser('u1', 'Linha 1\nLinha 2')
+
+    expect(patch.mock.calls).toEqual([['/admin/users/u1/block', { reason: 'Linha 1\nLinha 2' }]])
+  })
+
+  it('sem justificação válida faz o PATCH sem corpo', async () => {
+    const patch = vi.spyOn(api, 'patch').mockResolvedValue({ data: { success: true, message: 'M', data: null } })
+    const pairs = [[rejectUser, 'reject'], [blockUser, 'block']]
+
+    for (const [action, path] of pairs) {
+      for (const reason of [undefined, '', '   ', null, { type: 'click' }]) {
+        patch.mockClear()
+
+        await action('u1', reason)
+
+        expect(patch.mock.calls).toEqual([[`/admin/users/u1/${path}`]])
+      }
+    }
+  })
+
+  it('propaga o erro do pedido com justificação', async () => {
+    const error = new Error('Falha de rede')
+    vi.spyOn(api, 'patch').mockRejectedValue(error)
+
+    await expect(rejectUser('u1', 'x')).rejects.toBe(error)
+    await expect(blockUser('u1', 'x')).rejects.toBe(error)
+  })
+})
+
 describe('promover e despromover administradores', () => {
   afterEach(() => vi.restoreAllMocks())
 

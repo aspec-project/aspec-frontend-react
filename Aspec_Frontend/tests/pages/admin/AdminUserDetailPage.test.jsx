@@ -13,6 +13,7 @@ import {
   getAdminUser,
   getAdminUsers,
   promoteUser,
+  rejectUser,
   sendPaymentLink,
 } from '../../../src/services/adminUsers'
 import { useAuthStore } from '../../../src/store/authStore'
@@ -110,6 +111,24 @@ function show() {
       </Routes>
     </MemoryRouter>
   )
+}
+
+function showWithList() {
+  return render(
+    <MemoryRouter initialEntries={['/admin/utilizadores/u3']}>
+      <Routes>
+        <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
+        <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
+      </Routes>
+    </MemoryRouter>
+  )
+}
+
+const emptyList = {
+  items: [],
+  pagination: { current_page: 1, per_page: 12, total: 0, last_page: 1 },
+  counts: { all: 0, active: 0, pending: 0, approved: 0, blocked: 0, inactive: 0 },
+  admins_count: 1,
 }
 
 function loaded(name = 'Maria Santos') {
@@ -623,29 +642,13 @@ describe('Zona de risco e envio do email de pagamento no detalhe', () => {
 
   beforeEach(() => {
     getAdminUser.mockResolvedValue(maria)
-    getAdminUsers.mockResolvedValue({
-      items: [],
-      pagination: { current_page: 1, per_page: 12, total: 0, last_page: 1 },
-      counts: { all: 0, active: 0, pending: 0, approved: 0, blocked: 0, inactive: 0 },
-      admins_count: 1,
-    })
+    getAdminUsers.mockResolvedValue(emptyList)
     useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
   })
   afterEach(() => {
     vi.clearAllMocks()
     useAuthStore.getState().clearSession()
   })
-
-  function showWithList() {
-    return render(
-      <MemoryRouter initialEntries={['/admin/utilizadores/u3']}>
-        <Routes>
-          <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
-          <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
-        </Routes>
-      </MemoryRouter>
-    )
-  }
 
   function riskButton() {
     return within(screen.getByRole('region', { name: 'Zona de risco · RGPD' })).getByRole('button', { name: 'Anonimizar membro' })
@@ -801,5 +804,75 @@ describe('Zona de risco e envio do email de pagamento no detalhe', () => {
     expect(screen.getByRole('button', { name: 'Promover a administrador Maria Santos' })).toBeDisabled()
 
     await act(async () => { pending.resolve({ message: 'Membro anonimizado com sucesso.', data: { id: 'u3' } }) })
+  })
+})
+
+describe('Recusar e bloquear com justificação no detalhe', () => {
+  const pendingMaria = { ...maria, account_status: { name: 'Pending' }, subscription_state: { value: 'pending', label: 'Pendente' } }
+
+  beforeEach(() => {
+    getAdminUser.mockResolvedValue(maria)
+    getAdminUsers.mockResolvedValue(emptyList)
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+  })
+  afterEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.getState().clearSession()
+  })
+
+  async function confirmWithReason(user, action, confirmLabel, reason) {
+    const dialog = await openAction(user, action)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Justificação (opcional)' }), reason)
+    await user.click(within(dialog).getByRole('button', { name: confirmLabel }))
+  }
+
+  it('recusa com justificação e volta à lista com a mensagem da API sem recarregar o detalhe', async () => {
+    const message = 'Utilizador rejeitado com sucesso.'
+    getAdminUser.mockResolvedValue(pendingMaria)
+    rejectUser.mockResolvedValue({ message, user: null })
+    const user = userEvent.setup()
+    showWithList()
+
+    await loaded()
+    await confirmWithReason(user, 'Recusar Maria Santos', 'Recusar', 'Documentação incompleta.')
+
+    expect(rejectUser).toHaveBeenCalledTimes(1)
+    expect(rejectUser).toHaveBeenCalledWith('u3', 'Documentação incompleta.')
+    expect(await screen.findByRole('group', { name: 'Filtrar por estado' })).toBeInTheDocument()
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Maria Santos' })).not.toBeInTheDocument()
+    expect(getAdminUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('num 409 ao recusar fica no detalhe, mostra o erro e recarrega', async () => {
+    const message = 'Apenas utilizadores pendentes podem ser rejeitados.'
+    getAdminUser.mockResolvedValue(pendingMaria)
+    rejectUser.mockRejectedValue(apiError(409, message))
+    const user = userEvent.setup()
+    showWithList()
+
+    await loaded()
+    await confirmWithReason(user, 'Recusar Maria Santos', 'Recusar', 'Documentação incompleta.')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('heading', { level: 1, name: 'Maria Santos' })).toBeInTheDocument()
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2))
+  })
+
+  it('bloqueia com justificação, mostra a mensagem no detalhe e recarrega-o', async () => {
+    const message = 'Utilizador bloqueado com sucesso.'
+    blockUser.mockResolvedValue({ message })
+    const user = userEvent.setup()
+    showWithList()
+
+    await loaded()
+    await confirmWithReason(user, 'Bloquear Maria Santos', 'Bloquear', 'Motivo.')
+
+    expect(blockUser).toHaveBeenCalledTimes(1)
+    expect(blockUser).toHaveBeenCalledWith('u3', 'Motivo.')
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'Maria Santos' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Filtrar por estado' })).not.toBeInTheDocument()
+    await waitFor(() => expect(getAdminUser).toHaveBeenCalledTimes(2))
   })
 })

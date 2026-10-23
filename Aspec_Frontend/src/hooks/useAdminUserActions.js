@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import axios from 'axios'
 import { normalizeError } from '../services/api'
+import { REASON_ACTIONS } from '../utils/adminUsers'
 import {
   anonymizeUser,
   approveUser,
@@ -23,12 +24,13 @@ const ACTION_SERVICES = {
   anonymize: anonymizeUser,
 }
 
-const REMOVING_ACTIONS = ['anonymize']
+const REMOVING_ACTIONS = ['anonymize', 'reject']
 
 /**
  * Ciclo das ações de administração sobre um utilizador: pedir confirmação, executar e mostrar o resultado.
- * Nas ações que apagam a conta (anonimizar), se houver `onRemoved`, o sucesso é entregue à página
- * (que sai do detalhe) em vez de mostrar a mensagem e recarregar.
+ * Nas ações que apagam a conta (anonimizar e recusar), se houver `onRemoved`, o sucesso é entregue à
+ * página (que sai do detalhe) em vez de mostrar a mensagem e recarregar. Recusar e bloquear recebem
+ * a justificação escrita no diálogo.
  *
  * @param {{
  *   onChanged: () => void,
@@ -42,7 +44,7 @@ const REMOVING_ACTIONS = ['anonymize']
  *   feedback: {type: 'success'|'error', message: string}|null,
  *   requestAction: (action: string, user: object) => void,
  *   cancel: () => void,
- *   confirm: () => Promise<void>,
+ *   confirm: (input?: unknown) => Promise<void>,
  *   dismissFeedback: () => void,
  * }}
  */
@@ -72,11 +74,13 @@ export default function useAdminUserActions({ onChanged, onRemoved, initialFeedb
   }
 
   /**
-   * Executa a ação confirmada e guarda a mensagem da API como resultado.
+   * Executa a ação confirmada e guarda a mensagem da API como resultado. Só recusar e bloquear
+   * enviam `input` ao serviço, e só quando é texto (o ConfirmDialog passa o evento do clique).
    *
+   * @param {unknown} [input] Justificação escrita no diálogo (recusar e bloquear).
    * @returns {Promise<void>}
    */
-  const confirm = async () => {
+  const confirm = async (input) => {
     if (!confirming || pendingRef.current) return
 
     pendingRef.current = true
@@ -84,7 +88,9 @@ export default function useAdminUserActions({ onChanged, onRemoved, initialFeedb
     setFeedback(null)
 
     try {
-      const { message } = await ACTION_SERVICES[confirming.action](confirming.user.id)
+      const service = ACTION_SERVICES[confirming.action]
+      const withReason = REASON_ACTIONS.includes(confirming.action) && typeof input === 'string'
+      const { message } = withReason ? await service(confirming.user.id, input) : await service(confirming.user.id)
 
       if (onRemoved && REMOVING_ACTIONS.includes(confirming.action)) {
         onRemoved(message)
