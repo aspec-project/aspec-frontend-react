@@ -1,17 +1,29 @@
+import { Download } from 'lucide-react'
 import EventListFilters from '../../components/admin/events/EventListFilters'
 import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
 import EventsTable from '../../components/admin/events/EventsTable'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import FeedbackBanner from '../../components/ui/FeedbackBanner'
 import Pagination from '../../components/ui/Pagination'
 import useAdminEvents from '../../hooks/useAdminEvents'
+import useAttendeesExport from '../../hooks/useAttendeesExport'
 import useEventFilterOptions from '../../hooks/useEventFilterOptions'
-import { EVENT_PERIOD_TABS, NO_RESULTS_MESSAGE, formatResultsRange } from '../../utils/adminEvents'
+import {
+  ATTENDEES_EXPORT_TEXTS,
+  EVENT_PERIOD_TABS,
+  NO_RESULTS_MESSAGE,
+  formatResultsRange,
+  getAttendeesExportDescription,
+} from '../../utils/adminEvents'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * Página Gestão de Eventos do backoffice: separadores Agendados/Passados com contagens, filtros de datas,
- * tipo e distrito, tabela com 6 eventos por página e paginação numerada.
- * A lógica vive nos hooks useAdminEvents (lista) e useEventFilterOptions (opções dos filtros).
+ * tipo e distrito, tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
+ * (diálogo com o aviso do RGPD antes de descarregar; só os erros aparecem numa mensagem).
+ * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros) e
+ * useAttendeesExport (exportação).
  *
  * @returns {JSX.Element}
  */
@@ -30,6 +42,7 @@ export default function AdminEventsPage() {
     error,
   } = useAdminEvents()
   const options = useEventFilterOptions()
+  const exporter = useAttendeesExport({ onStale: retry })
 
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === filters.period) ?? EVENT_PERIOD_TABS[0]
   const pagination = data?.pagination
@@ -37,6 +50,10 @@ export default function AdminEventsPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-[#0d1f35]">{tab.title}</h2>
+
+      {exporter.feedback && (
+        <FeedbackBanner type={exporter.feedback.type} message={exporter.feedback.message} onClose={exporter.dismissFeedback} />
+      )}
 
       <EventPeriodTabs activePeriod={filters.period} counts={data?.counts} onSelect={selectPeriod} />
 
@@ -62,7 +79,13 @@ export default function AdminEventsPage() {
         </p>
       ) : (
         <>
-          <EventsTable events={data.items} period={filters.period} busy={loading} />
+          <EventsTable
+            events={data.items}
+            period={filters.period}
+            busy={loading}
+            onExport={exporter.requestExport}
+            actionsDisabled={loading || exporter.pending}
+          />
 
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p role="status" className="text-sm text-gray-500">{formatResultsRange(pagination, data.items.length)}</p>
@@ -76,6 +99,18 @@ export default function AdminEventsPage() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={Boolean(exporter.confirming)}
+        title={ATTENDEES_EXPORT_TEXTS.title}
+        icon={Download}
+        description={exporter.confirming ? getAttendeesExportDescription(exporter.confirming) : ''}
+        note={ATTENDEES_EXPORT_TEXTS.note}
+        confirmLabel={ATTENDEES_EXPORT_TEXTS.confirmLabel}
+        pending={exporter.pending}
+        onConfirm={exporter.confirm}
+        onCancel={exporter.cancel}
+      />
     </div>
   )
 }

@@ -198,3 +198,80 @@ export function formatResultsRange(pagination, itemCount) {
 
   return `${range} de ${total} ${total === 1 ? 'evento' : 'eventos'}`
 }
+
+/** Textos do botão e do diálogo de exportação da lista de presenças (com o aviso do art. 9.º do RGPD). */
+export const ATTENDEES_EXPORT_TEXTS = {
+  buttonLabel: 'Exportar lista de presenças',
+  unavailableHint: 'Disponível depois do prazo de inscrição',
+  title: 'Exportar lista de presenças',
+  note: 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use a lista só dentro da ASPEC, não a envie a terceiros (ao local do evento indique só o número de inscritos) e apague o ficheiro depois de usado.',
+  confirmLabel: 'Descarregar CSV',
+  notFound: 'O evento já não existe. A lista foi atualizada.',
+}
+
+/**
+ * Descrição do diálogo de exportação: evento, data, colunas do ficheiro e número de inscritos.
+ *
+ * @param {{name?: string, event_date?: string, registrations_count?: unknown}} event Evento da lista.
+ * @returns {string}
+ */
+export function getAttendeesExportDescription(event) {
+  const intro = `Vai descarregar a lista de presenças de «${event.name}» (${formatEventDate(event.event_date)})`
+  const count = event.registrations_count
+  const columns = 'com o nome, a empresa e o email e telefone pessoais'
+
+  if (count === 0) return `${intro}. O evento não tem inscritos: o ficheiro terá só os cabeçalhos.`
+  if (count === 1) return `${intro} ${columns} do 1 inscrito.`
+  if (Number.isInteger(count) && count > 1) return `${intro} ${columns} dos ${count} inscritos.`
+
+  return `${intro} ${columns} dos inscritos.`
+}
+
+/**
+ * Limpa um nome de ficheiro: fica só com o nome-base, sem caracteres de controlo nem espaços nas pontas.
+ *
+ * @param {string} value Nome recebido.
+ * @returns {string|null} Nome limpo, ou null se ficar vazio ou for "." / "..".
+ */
+function cleanFilename(value) {
+  const name = value.split(/[/\\]/).pop().replace(/\p{Cc}/gu, '').trim()
+
+  return name === '' || name === '.' || name === '..' ? null : name
+}
+
+/**
+ * Lê o nome do ficheiro do cabeçalho Content-Disposition. O `filename*` (UTF-8) tem prioridade sobre o `filename`.
+ *
+ * @param {unknown} header Valor do cabeçalho.
+ * @returns {string|null} Nome-base do ficheiro, ou null se não existir ou for inválido.
+ */
+export function getFilenameFromContentDisposition(header) {
+  if (typeof header !== 'string' || header === '') return null
+
+  const extended = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header)
+
+  if (extended) {
+    try {
+      const name = cleanFilename(decodeURIComponent(extended[1].trim()))
+      if (name) return name
+    } catch {
+      // Codificação inválida: usa o filename simples, se existir.
+    }
+  }
+
+  const plain = /(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;]*))/i.exec(header)
+
+  return plain ? cleanFilename(plain[1] ?? plain[2]) : null
+}
+
+/**
+ * Nome de reserva do CSV quando a resposta não traz o Content-Disposition.
+ *
+ * @param {{event_date?: unknown}} event Evento da lista.
+ * @returns {string} "presencas_AAAA-MM-DD.csv" com uma data válida, senão "presencas.csv".
+ */
+export function getAttendeesFallbackFilename(event) {
+  const date = event?.event_date
+
+  return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `presencas_${date}.csv` : 'presencas.csv'
+}

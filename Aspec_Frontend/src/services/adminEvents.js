@@ -1,5 +1,5 @@
 import { api } from './api'
-import { EVENTS_PER_PAGE } from '../utils/adminEvents'
+import { EVENTS_PER_PAGE, getFilenameFromContentDisposition } from '../utils/adminEvents'
 
 const OPTIONAL_PARAMS = {
   dateFrom: 'date_from',
@@ -28,4 +28,45 @@ export async function getAdminEvents(filters = {}, signal) {
   const response = await api.get('/admin/events', { params, signal })
 
   return response.data.data
+}
+
+/**
+ * Com `responseType: 'blob'` o corpo JSON de um erro também chega como Blob: converte-o em objeto para o
+ * normalizeError dar a mensagem do backend. Se não for JSON, o erro fica como estava.
+ *
+ * @param {unknown} error Erro do axios.
+ * @returns {Promise<void>}
+ */
+async function parseBlobErrorBody(error) {
+  const data = error?.response?.data
+
+  if (typeof Blob === 'undefined' || !(data instanceof Blob)) return
+
+  try {
+    error.response.data = JSON.parse(await data.text())
+  } catch {
+    // Corpo não JSON (ex.: página HTML de erro): mantém-se o Blob.
+  }
+}
+
+/**
+ * Descarrega o CSV da lista de presenças de um evento (só depois do prazo de inscrição).
+ *
+ * @param {string} eventId Id do evento.
+ * @returns {Promise<{blob: Blob, filename: string|null}>} Conteúdo do ficheiro e nome enviado pelo backend
+ *   no Content-Disposition (null se não vier).
+ * @throws {import('axios').AxiosError} Erro do axios, com `response.data` já convertido em objeto quando era JSON.
+ */
+export async function exportEventAttendees(eventId) {
+  try {
+    const response = await api.get(`/admin/events/${encodeURIComponent(eventId)}/attendees.csv`, { responseType: 'blob' })
+
+    return {
+      blob: response.data,
+      filename: getFilenameFromContentDisposition(response.headers?.['content-disposition']),
+    }
+  } catch (error) {
+    await parseBlobErrorBody(error)
+    throw error
+  }
 }

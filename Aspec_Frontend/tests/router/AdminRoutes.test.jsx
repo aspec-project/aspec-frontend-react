@@ -25,6 +25,7 @@ vi.mock('../../src/services/events', () => ({
 }))
 vi.mock('../../src/services/adminEvents', () => ({
   getAdminEvents: vi.fn(),
+  exportEventAttendees: vi.fn(),
 }))
 vi.mock('../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(() => Promise.resolve([])),
