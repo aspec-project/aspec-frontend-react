@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../src/services/api'
-import { approveUser, blockUser, demoteUser, getAdminUser, getAdminUsers, promoteUser, rejectUser, unblockUser } from '../../src/services/adminUsers'
+import {
+  anonymizeUser,
+  approveUser,
+  blockUser,
+  demoteUser,
+  getAdminUser,
+  getAdminUsers,
+  promoteUser,
+  rejectUser,
+  sendPaymentLink,
+  unblockUser,
+} from '../../src/services/adminUsers'
 
 const payload = {
   items: [{ id: 'u1', email: 'ana@techbless.pt' }],
@@ -117,5 +128,45 @@ describe('getAdminUser', () => {
     get.mockRejectedValue(error)
 
     await expect(getAdminUser('u1')).rejects.toBe(error)
+  })
+})
+
+describe('anonimizar e enviar email de pagamento', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('anonimiza com um POST sem corpo e devolve a mensagem e os dados', async () => {
+    const data = { id: 'u3', anonymized_at: '2026-10-22T10:15:00+00:00' }
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { success: true, message: 'Membro anonimizado com sucesso.', data } })
+
+    const result = await anonymizeUser('u3')
+
+    expect(post.mock.calls).toEqual([['/admin/users/u3/anonymize']])
+    expect(result).toEqual({ message: 'Membro anonimizado com sucesso.', data })
+  })
+
+  it('codifica o id no caminho da anonimização', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { success: true, message: 'M', data: {} } })
+
+    await anonymizeUser('a/b')
+
+    expect(post).toHaveBeenCalledWith('/admin/users/a%2Fb/anonymize')
+  })
+
+  it('envia o email de pagamento com um POST sem corpo e devolve a mensagem e o tipo', async () => {
+    const data = { id: 'u3', type: 'reactivation' }
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { success: true, message: 'Foi enviado o email de reativação.', data } })
+
+    const result = await sendPaymentLink('u3')
+
+    expect(post.mock.calls).toEqual([['/admin/users/u3/payment-link']])
+    expect(result).toEqual({ message: 'Foi enviado o email de reativação.', data })
+  })
+
+  it('propaga o erro do pedido', async () => {
+    const error = new Error('Falha de rede')
+    vi.spyOn(api, 'post').mockRejectedValue(error)
+
+    await expect(anonymizeUser('u3')).rejects.toBe(error)
+    await expect(sendPaymentLink('u3')).rejects.toBe(error)
   })
 })

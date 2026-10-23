@@ -4,11 +4,22 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminUsersPage from '../../../src/pages/admin/AdminUsersPage'
-import { approveUser, blockUser, demoteUser, getAdminUsers, promoteUser, rejectUser, unblockUser } from '../../../src/services/adminUsers'
+import {
+  approveUser,
+  blockUser,
+  demoteUser,
+  getAdminUsers,
+  promoteUser,
+  rejectUser,
+  sendPaymentLink,
+  unblockUser,
+} from '../../../src/services/adminUsers'
 import { useAuthStore } from '../../../src/store/authStore'
 
 vi.mock('../../../src/services/adminUsers', () => ({
   getAdminUsers: vi.fn(),
+  anonymizeUser: vi.fn(),
+  sendPaymentLink: vi.fn(),
   approveUser: vi.fn(),
   rejectUser: vi.fn(),
   blockUser: vi.fn(),
@@ -749,5 +760,60 @@ describe('Gestão de Utilizadores', () => {
     const otherRow = rowOfEmail('outro@aspec.pt')
     expect(otherRow.getByRole('link', { name: 'Ver detalhe de outro@aspec.pt' })).toHaveAttribute('href', '/admin/utilizadores/admin-2')
     expect(otherRow.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Despromover outro@aspec.pt'])
+  })
+})
+
+describe('Mensagem trazida pela navegação e envio do email de pagamento na lista', () => {
+  beforeEach(() => {
+    getAdminUsers.mockResolvedValue(list())
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+  })
+  afterEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.getState().clearSession()
+  })
+
+  it('mostra a mensagem trazida da navegação e fecha-a com Fechar mensagem', async () => {
+    const message = 'Membro anonimizado com sucesso.'
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/admin/utilizadores', state: { feedback: { type: 'success', message } } }]}>
+        <AdminUsersPage />
+      </MemoryRouter>
+    )
+
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
+    await waitForTable()
+
+    await user.click(screen.getByRole('button', { name: 'Fechar mensagem' }))
+
+    expect(screen.queryByText(message)).not.toBeInTheDocument()
+  })
+
+  it('sem o estado da subscrição nos itens não mostra Enviar email', async () => {
+    show()
+    await waitForTable()
+
+    expect(rowOf('Pedro Almeida').getByRole('button', { name: 'Bloquear Pedro Almeida' })).toBeInTheDocument()
+    expect(rowOf('Tiago Sousa').getByRole('button', { name: 'Bloquear Tiago Sousa' })).toBeInTheDocument()
+    expect(within(screen.getByRole('table')).queryByRole('button', { name: /^Enviar email/ })).not.toBeInTheDocument()
+  })
+
+  it('com o estado da subscrição no item mostra Enviar email e envia o email de reativação', async () => {
+    const message = 'Foi enviado o email de reativação.'
+    const tiago = { ...items[5], subscription_state: { value: 'lapsed', label: 'Subscrição caída' } }
+    getAdminUsers.mockResolvedValue(list([items[0], tiago]))
+    sendPaymentLink.mockResolvedValue({ message, data: { id: 'u6', type: 'reactivation' } })
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    const dialog = await openAction(user, 'Enviar email Tiago Sousa')
+    expect(screen.getByRole('dialog', { name: 'Enviar email de reativação' })).toBe(dialog)
+    await confirmAction(user, 'Enviar email')
+
+    expect(sendPaymentLink).toHaveBeenCalledTimes(1)
+    expect(sendPaymentLink).toHaveBeenCalledWith('u6')
+    expect((await screen.findByText(message)).closest('[role="status"]')).not.toBeNull()
   })
 })

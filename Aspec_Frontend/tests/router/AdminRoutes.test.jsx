@@ -15,6 +15,8 @@ vi.mock('../../src/services/adminUsers', () => ({
   unblockUser: vi.fn(),
   promoteUser: vi.fn(),
   demoteUser: vi.fn(),
+  anonymizeUser: vi.fn(),
+  sendPaymentLink: vi.fn(),
 }))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),

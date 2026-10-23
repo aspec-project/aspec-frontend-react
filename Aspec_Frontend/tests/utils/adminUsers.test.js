@@ -14,6 +14,7 @@ import {
   getRoleLabel,
   getStatusBadge,
   groupBusinessHours,
+  isAnonymizationConfirmed,
 } from '../../src/utils/adminUsers'
 
 const user = (status, reason = null) => ({ account_status: { name: status }, inactive_reason: reason })
@@ -119,6 +120,8 @@ describe('ações disponíveis e textos de confirmação', () => {
       unblock: 'Desbloquear',
       promote: 'Promover a administrador',
       demote: 'Despromover',
+      paymentLink: 'Enviar email',
+      anonymize: 'Anonimizar',
     })
   })
 
@@ -188,6 +191,87 @@ describe('ações disponíveis e textos de confirmação', () => {
     for (const adminsCount of [1, '2', null, Number.NaN]) {
       expect(getActionConfirmation('demote', helena, { adminsCount }).note).toBe(fallbackNote)
     }
+  })
+})
+
+describe('envio do email de pagamento e anonimização', () => {
+  const member = (id, status, reason, state) => ({
+    id,
+    role: { name: 'Member' },
+    account_status: { name: status },
+    inactive_reason: reason,
+    ...(state ? { subscription_state: { value: state, label: 'X' } } : {}),
+  })
+  const admin = (id, state) => ({ ...member(id, 'Active', null, state), role: { name: 'Admin' } })
+  const sara = { email: 'sara@floresdovale.pt', member_profile: { name: 'Sara Antunes' } }
+  const withState = (value) => ({ ...sara, subscription_state: { value, label: 'X' } })
+
+  it('só aceita a palavra ANONIMIZAR em maiúsculas, ignorando os espaços nas pontas', () => {
+    expect(isAnonymizationConfirmed('ANONIMIZAR')).toBe(true)
+    expect(isAnonymizationConfirmed('  ANONIMIZAR ')).toBe(true)
+
+    for (const value of ['anonimizar', 'Anonimizar', 'ANONIMIZA', 'ANONIMIZAR!', '', null, undefined]) {
+      expect(isAnonymizationConfirmed(value)).toBe(false)
+    }
+  })
+
+  it('mostra Enviar email primeiro nos membros por ativar, com subscrição caída ou em carência', () => {
+    const cases = [
+      [member('m1', 'Approved', null, 'awaiting_activation'), ['paymentLink', 'block']],
+      [member('m2', 'Inactive', 'unpaid', 'lapsed'), ['paymentLink', 'block']],
+      [member('m3', 'Inactive', 'cancelled', 'lapsed'), ['paymentLink', 'block']],
+      [member('m4', 'Active', null, 'grace'), ['paymentLink', 'block', 'promote']],
+      [member('m5', 'Active', null, 'active'), ['block', 'promote']],
+      [member('m6', 'Active', null, 'trial'), ['block', 'promote']],
+      [member('m7', 'Pending', null, 'pending'), ['approve', 'reject']],
+      [member('m8', 'Inactive', 'blocked', 'blocked'), ['unblock']],
+    ]
+
+    for (const [target, expected] of cases) {
+      expect(getAvailableActions(target, 'admin-1')).toEqual(expected)
+    }
+  })
+
+  it('sem o estado da subscrição não mostra Enviar email', () => {
+    expect(getAvailableActions(member('m1', 'Approved', null), 'admin-1')).toEqual(['block'])
+    expect(getAvailableActions(member('m2', 'Inactive', 'unpaid'), 'admin-1')).toEqual(['block'])
+  })
+
+  it('mostra Enviar email antes de despromover a admins em carência, mas nunca na própria conta nem ao isento', () => {
+    expect(getAvailableActions(admin('admin-2', 'grace'), 'admin-1')).toEqual(['paymentLink', 'demote'])
+    expect(getAvailableActions(admin('admin-2', 'active'), 'admin-1')).toEqual(['demote'])
+    expect(getAvailableActions(admin('admin-tec', 'exempt'), 'admin-1')).toEqual([])
+    expect(getAvailableActions(member('admin-1', 'Active', null, 'grace'), 'admin-1')).not.toContain('paymentLink')
+    expect(getAvailableActions(admin('admin-1', 'grace'), 'admin-1')).not.toContain('paymentLink')
+  })
+
+  it('explica o email de reativação com o email pessoal e o nome do membro', () => {
+    expect(getActionConfirmation('paymentLink', withState('lapsed'))).toEqual({
+      title: 'Enviar email de reativação',
+      description: 'Será enviado para sara@floresdovale.pt um email com uma ligação para Sara Antunes atualizar o método de pagamento e reativar a subscrição.',
+      confirmLabel: 'Enviar email',
+      tone: 'primary',
+      icon: expect.anything(),
+      showClose: true,
+    })
+  })
+
+  it('explica o reenvio do email de ativação a quem está por ativar', () => {
+    const confirmation = getActionConfirmation('paymentLink', withState('awaiting_activation'))
+
+    expect(confirmation).toMatchObject({ title: 'Reenviar email de ativação', confirmLabel: 'Enviar email', tone: 'primary', showClose: true })
+    expect(confirmation.description).toBe('Será enviado para sara@floresdovale.pt um email com uma ligação para Sara Antunes concluir a ativação da conta e pagar a quota.')
+  })
+
+  it('explica o lembrete de pagamento a quem está em carência', () => {
+    const confirmation = getActionConfirmation('paymentLink', withState('grace'))
+
+    expect(confirmation).toMatchObject({ title: 'Enviar lembrete de pagamento', confirmLabel: 'Enviar email', tone: 'primary', showClose: true })
+    expect(confirmation.description).toBe('Será enviado para sara@floresdovale.pt um lembrete para Sara Antunes atualizar o cartão e pagar a quota antes do fim do período de carência.')
+  })
+
+  it('chama Enviar email à ação de pagamento', () => {
+    expect(USER_ACTION_LABELS.paymentLink).toBe('Enviar email')
   })
 })
 

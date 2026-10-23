@@ -1,7 +1,8 @@
-import { CircleCheck, CircleX, ShieldCheck, ShieldOff, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleX, Mail, ShieldCheck, ShieldOff, TriangleAlert } from 'lucide-react'
 import { USER_ACTION_LABELS, getDisplayName } from '../../../utils/adminUsers'
 
 const ACTION_STYLES = {
+  paymentLink: { Icon: Mail, className: 'bg-sky-50 text-[#0d1f35] hover:bg-sky-100' },
   approve: { Icon: CircleCheck, className: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
   reject: { Icon: CircleX, className: 'bg-red-50 text-red-600 hover:bg-red-100' },
   block: { Icon: TriangleAlert, className: 'bg-amber-50 text-[#8a7043] hover:bg-amber-100' },
@@ -19,7 +20,7 @@ const LOCKED_CLASS = 'bg-gray-50 text-gray-300'
  *
  * @param {{
  *   user: object,
- *   actions: ('approve'|'reject'|'block'|'unblock'|'promote'|'demote')[],
+ *   actions: ('paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote')[],
  *   locked?: 'demote'[],
  *   disabled?: boolean,
  *   onAction: (action: string, user: object) => void,
