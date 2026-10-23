@@ -15,7 +15,7 @@ export const USER_STATUS_TABS = [
   { key: 'inactive', label: 'Inativos', filters: { status: 'Inactive', blocked: false } },
 ]
 
-const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+export const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 const INACTIVE_CLASS = 'bg-slate-100 text-slate-700'
 

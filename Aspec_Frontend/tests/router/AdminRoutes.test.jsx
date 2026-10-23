@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
+import { getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
 import { useAuthStore } from '../../src/store/authStore'
@@ -21,6 +22,16 @@ vi.mock('../../src/services/adminUsers', () => ({
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
   getEventsErrorMessage: vi.fn(() => 'Erro'),
+}))
+vi.mock('../../src/services/adminEvents', () => ({
+  getAdminEvents: vi.fn(),
+}))
+vi.mock('../../src/services/referenceLists', () => ({
+  getSocialPlatforms: vi.fn(() => Promise.resolve([])),
+  getWeekDays: vi.fn(() => Promise.resolve([])),
+  getEventCategories: vi.fn(() => Promise.resolve([])),
+  getSectors: vi.fn(() => Promise.resolve([])),
+  getLocations: vi.fn(() => Promise.resolve([])),
 }))
 
 const memberId = '9d2f1c3a-5b7e-4a1c-9f2d-3e4b5a6c7d8e'
@@ -58,6 +69,11 @@ describe('Rotas de administração', () => {
   beforeEach(() => {
     getAdminUsers.mockResolvedValue(emptyList)
     getEvents.mockResolvedValue([])
+    getAdminEvents.mockResolvedValue({
+      items: [],
+      pagination: { current_page: 1, per_page: 6, total: 0, last_page: 1 },
+      counts: { upcoming: 0, past: 0 },
+    })
   })
   afterEach(() => {
     vi.clearAllMocks()
@@ -103,5 +119,25 @@ describe('Rotas de administração', () => {
     await waitFor(() => expect(getEvents).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Maria Santos' })).not.toBeInTheDocument()
     expect(getAdminUser).not.toHaveBeenCalled()
+  })
+
+  it('um admin vê a lista de eventos agendados dentro do layout de administração', async () => {
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Gestão de Eventos' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Eventos Agendados' })).toBeInTheDocument()
+    await waitFor(() => expect(getAdminEvents).toHaveBeenCalled())
+  })
+
+  it('um membro não chega à lista de eventos do backoffice nem dispara o pedido', async () => {
+    useAuthStore.setState({ user: { id: 'member-1', email: 'membro@aspec.pt', role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos')
+
+    await waitFor(() => expect(getEvents).toHaveBeenCalled())
+    expect(screen.queryByRole('heading', { name: 'Eventos Agendados' })).not.toBeInTheDocument()
+    expect(getAdminEvents).not.toHaveBeenCalled()
   })
 })
