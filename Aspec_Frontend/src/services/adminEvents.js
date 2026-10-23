@@ -70,3 +70,36 @@ export async function exportEventAttendees(eventId) {
     throw error
   }
 }
+
+/**
+ * Cria um evento no backoffice. Se for presencial e não levar coordenadas, o servidor localiza a morada.
+ *
+ * @param {object} payload Corpo do pedido, já em snake_case (ver buildEventPayload).
+ * @returns {Promise<{success: boolean, message: string, data: object}>} Resposta inteira da API.
+ */
+export async function createAdminEvent(payload) {
+  const response = await api.post('/admin/events', payload)
+
+  return response.data
+}
+
+/**
+ * Localiza uma morada no mapa (OpenStreetMap) para o admin confirmar o sítio antes de criar o evento.
+ * O distrito só é enviado quando foi escolhido.
+ *
+ * @param {string} address Morada a localizar.
+ * @param {string} locationId Id do distrito (pode ser vazio).
+ * @param {AbortSignal} [signal] Permite cancelar o pedido quando a morada ou o distrito mudam.
+ * @returns {Promise<{latitude: number, longitude: number, display_name: string, attribution: string}>}
+ */
+export async function geocodeAddress(address, locationId, signal) {
+  const params = { address }
+
+  if (typeof locationId === 'string' && locationId !== '') {
+    params.location_id = locationId
+  }
+
+  const response = await api.get('/admin/geocode', { params, signal })
+
+  return response.data.data
+}

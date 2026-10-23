@@ -1,4 +1,6 @@
-import { Download } from 'lucide-react'
+import { useState } from 'react'
+import { Download, Plus } from 'lucide-react'
+import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
 import EventListFilters from '../../components/admin/events/EventListFilters'
 import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
 import EventsTable from '../../components/admin/events/EventsTable'
@@ -22,7 +24,9 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * Página Gestão de Eventos do backoffice: separadores Agendados/Passados com contagens, filtros de datas,
  * tipo e distrito, tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
  * (diálogo com o aviso do RGPD antes de descarregar; só os erros aparecem numa mensagem).
- * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros) e
+ * O botão "Criar Evento" abre o modal de criação; depois de criar, a lista recarrega com os mesmos filtros
+ * e aparece a mensagem da API.
+ * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal) e
  * useAttendeesExport (exportação).
  *
  * @returns {JSX.Element}
@@ -43,13 +47,30 @@ export default function AdminEventsPage() {
   } = useAdminEvents()
   const options = useEventFilterOptions()
   const exporter = useAttendeesExport({ onStale: retry })
+  const [creating, setCreating] = useState(false)
+  const [createFeedback, setCreateFeedback] = useState('')
 
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === filters.period) ?? EVENT_PERIOD_TABS[0]
   const pagination = data?.pagination
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-[#0d1f35]">{tab.title}</h2>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-xl font-semibold text-[#0d1f35]">{tab.title}</h2>
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setCreating(true)}
+          className={`${buttonClass} flex items-center gap-2`}
+        >
+          <Plus size={16} aria-hidden="true" />
+          Criar Evento
+        </button>
+      </div>
+
+      {createFeedback && (
+        <FeedbackBanner type="success" message={createFeedback} onClose={() => setCreateFeedback('')} />
+      )}
 
       {exporter.feedback && (
         <FeedbackBanner type={exporter.feedback.type} message={exporter.feedback.message} onClose={exporter.dismissFeedback} />
@@ -111,6 +132,18 @@ export default function AdminEventsPage() {
         onConfirm={exporter.confirm}
         onCancel={exporter.cancel}
       />
+
+      {creating && (
+        <CreateEventDialog
+          options={options}
+          onClose={() => setCreating(false)}
+          onSuccess={(message) => {
+            setCreating(false)
+            setCreateFeedback(message)
+            retry()
+          }}
+        />
+      )}
     </div>
   )
 }

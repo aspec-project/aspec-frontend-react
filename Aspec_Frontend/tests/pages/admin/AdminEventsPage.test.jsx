@@ -4,12 +4,14 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminEventsPage from '../../../src/pages/admin/AdminEventsPage'
-import { exportEventAttendees, getAdminEvents } from '../../../src/services/adminEvents'
+import { createAdminEvent, exportEventAttendees, getAdminEvents } from '../../../src/services/adminEvents'
 import { getEventCategories, getLocations } from '../../../src/services/referenceLists'
 
 vi.mock('../../../src/services/adminEvents', () => ({
   getAdminEvents: vi.fn(),
   exportEventAttendees: vi.fn(),
+  createAdminEvent: vi.fn(),
+  geocodeAddress: vi.fn(),
 }))
 vi.mock('../../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(),
@@ -243,12 +245,12 @@ describe('Gestão de Eventos', () => {
     expect(screen.queryByText(/quase esgotado/)).not.toBeInTheDocument()
   })
 
-  it('mostra a coluna de ações sem botões de editar, apagar ou criar', async () => {
+  it('mostra a coluna de ações sem botões de editar ou apagar', async () => {
     show()
     await screen.findByRole('table')
 
     expect(screen.getByRole('columnheader', { name: 'Ações' })).toBeInTheDocument()
-    for (const name of [/Editar/i, /Apagar/i, /Criar Evento/i]) {
+    for (const name of [/Editar/i, /Apagar/i]) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
   })
@@ -700,6 +702,109 @@ describe('Gestão de Eventos', () => {
       await waitFor(() => expect(exportButton('Jantar — Lisboa')).toBeDisabled())
 
       await act(async () => { reload.resolve(list([closed, open, noDeadline], { current_page: 2, total: 13, last_page: 3 })) })
+    })
+  })
+
+  describe('Criar evento', () => {
+    const SUCCESS = 'Evento criado com sucesso.'
+
+    function createButton() {
+      return screen.getByRole('button', { name: /Criar Evento/ })
+    }
+
+    function createDialog() {
+      return screen.getByRole('dialog', { name: 'Criar Novo Evento' })
+    }
+
+    function dialogField(text) {
+      const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+      return within(createDialog()).getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
+    }
+
+    async function fillValidInPerson(user) {
+      await user.type(dialogField('Título do evento'), 'Jantar de Networking Lisboa')
+      await user.selectOptions(dialogField('Tipo de evento'), 'c3')
+      await user.selectOptions(dialogField('Delegação / Localidade'), 'l1')
+      fireEvent.change(dialogField('Data'), { target: { value: '2099-03-20' } })
+      fireEvent.change(dialogField('Hora de início'), { target: { value: '19:30' } })
+      fireEvent.change(dialogField('Hora de fim'), { target: { value: '21:30' } })
+      fireEvent.change(dialogField('Data limite de inscrição'), { target: { value: '2099-03-18' } })
+      await user.type(dialogField('Nome do local'), 'Restaurante Estrela do Norte')
+      await user.type(dialogField('Morada completa'), 'Rua das Flores 42')
+      fireEvent.change(dialogField('Capacidade máxima'), { target: { value: '40' } })
+      await user.type(dialogField('Sobre o evento'), 'Encontro mensal de networking entre membros.')
+    }
+
+    function successBanner() {
+      return screen.queryAllByRole('status').find((element) => element.textContent.includes(SUCCESS))
+    }
+
+    it('o botão Criar Evento existe nos dois separadores e abre o modal com as opções já carregadas', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      expect(createButton()).toBeInTheDocument()
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+      expect(createButton()).toBeInTheDocument()
+
+      await user.click(createButton())
+
+      expect(createDialog()).toBeInTheDocument()
+      expect(within(dialogField('Tipo de evento')).getAllByRole('option').map((option) => option.textContent))
+        .toEqual(['Selecione o tipo de evento', 'Workshop', 'Formação', 'Jantar'])
+      expect(within(dialogField('Delegação / Localidade')).getAllByRole('option').map((option) => option.textContent))
+        .toEqual(['Selecione a delegação', 'Lisboa', 'Porto', 'Braga'])
+      expect(getEventCategories).toHaveBeenCalledTimes(1)
+      expect(getLocations).toHaveBeenCalledTimes(1)
+    })
+
+    it('depois de criar fecha o modal, mostra a mensagem e recarrega a lista com os mesmos filtros', async () => {
+      createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'n1' } })
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await user.click(periodTab('Passados'))
+      await user.selectOptions(categorySelect(), 'c3')
+      await waitFor(() => expect(lastCall()).toEqual([{ ...BASE_FILTERS, period: 'past', categoryId: 'c3' }, expect.any(AbortSignal)]))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(createButton())
+      await fillValidInPerson(user)
+      await user.click(within(createDialog()).getByRole('button', { name: 'Criar evento' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(createAdminEvent).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(successBanner()).toBeDefined())
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([{ ...BASE_FILTERS, period: 'past', categoryId: 'c3' }, expect.any(AbortSignal)])
+      await waitFor(() => expect(createButton()).toHaveFocus())
+
+      await user.click(within(successBanner()).getByRole('button', { name: 'Fechar mensagem' }))
+
+      expect(successBanner()).toBeUndefined()
+    })
+
+    it('Cancelar fecha o modal sem mensagem nem novo pedido e devolve o foco ao botão', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(createButton())
+      await user.click(within(createDialog()).getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(createButton()).toHaveFocus()
+      expect(screen.queryByText(SUCCESS)).not.toBeInTheDocument()
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+      expect(createAdminEvent).not.toHaveBeenCalled()
     })
   })
 })
