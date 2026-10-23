@@ -1,21 +1,17 @@
 import { api } from './api'
 
 /**
- * Obtém uma página da lista de utilizadores do backoffice, com as contagens por separador.
+ * Obtém uma página da lista de utilizadores do backoffice, com as contagens por estado da subscrição.
  *
- * @param {{status?: string, blocked?: boolean, search?: string, includeAdmins?: boolean, page?: number}} filters
+ * @param {{subscriptionState?: string, search?: string, includeAdmins?: boolean, page?: number}} filters
  * @param {AbortSignal} [signal] Permite cancelar o pedido quando os filtros mudam.
- * @returns {Promise<{items: object[], pagination: object, counts: object}>}
+ * @returns {Promise<{items: object[], pagination: object, counts: object, subscription_state_counts: object, admins_count: number}>}
  */
 export async function getAdminUsers(filters = {}, signal) {
   const params = { page: filters.page ?? 1 }
 
-  if (filters.status) {
-    params.status = filters.status
-  }
-
-  if (typeof filters.blocked === 'boolean') {
-    params.blocked = filters.blocked ? 1 : 0
+  if (filters.subscriptionState) {
+    params.subscription_state = filters.subscriptionState
   }
 
   const search = (filters.search ?? '').trim()

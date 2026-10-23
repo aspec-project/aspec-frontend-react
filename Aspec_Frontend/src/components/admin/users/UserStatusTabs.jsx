@@ -1,7 +1,7 @@
 import { USER_STATUS_TABS } from '../../../utils/adminUsers'
 
 /**
- * Separadores de estado da lista de utilizadores, com a contagem de cada um.
+ * Chips de estado da subscrição da lista de utilizadores, com a contagem de cada um.
  *
  * @param {{activeTab: string, counts?: Record<string, number>|null, onSelect: (key: string) => void}} props
  * @returns {JSX.Element}

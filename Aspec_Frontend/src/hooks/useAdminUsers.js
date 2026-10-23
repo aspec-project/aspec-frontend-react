@@ -8,8 +8,8 @@ const SEARCH_DEBOUNCE_MS = 300
 const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
 
 /**
- * Estado e pedidos da lista de utilizadores do backoffice: separador, pesquisa com debounce,
- * "Mostrar admins" e paginação. Cancela o pedido anterior sempre que os filtros mudam e, se a
+ * Estado e pedidos da lista de utilizadores do backoffice: chip de estado da subscrição, pesquisa
+ * com debounce, "Ver admins" e paginação. Cancela o pedido anterior sempre que os filtros mudam e, se a
  * página atual ficar vazia (ex.: depois de uma ação), passa para a última página.
  *
  * @returns {{
@@ -21,7 +21,7 @@ const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
  *   goToPage: (page: number) => void,
  *   retry: () => void,
  *   refresh: () => void,
- *   data: {items: object[], pagination: object, counts: object}|null,
+ *   data: {items: object[], pagination: object, counts: object, subscription_state_counts: object, admins_count: number}|null,
  *   loading: boolean,
  *   error: string,
  * }}
@@ -61,10 +61,15 @@ export default function useAdminUsers() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const tab = USER_STATUS_TABS.find((item) => item.key === filters.tab) ?? USER_STATUS_TABS[0]
+    const isStateTab = filters.tab !== 'all' && USER_STATUS_TABS.some((item) => item.key === filters.tab)
 
     getAdminUsers(
-      { ...tab.filters, search: filters.search, includeAdmins: filters.includeAdmins, page: filters.page },
+      {
+        ...(isStateTab ? { subscriptionState: filters.tab } : {}),
+        search: filters.search,
+        includeAdmins: filters.includeAdmins,
+        page: filters.page,
+      },
       controller.signal
     )
       .then((result) => {

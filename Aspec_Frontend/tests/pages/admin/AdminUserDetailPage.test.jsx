@@ -451,6 +451,23 @@ describe('Detalhe do membro', () => {
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0)
   })
 
+  it.each(['trial', 'grace'])('um membro com a subscrição %s não tem Promover a administrador', async (value) => {
+    getAdminUser.mockResolvedValue({ ...maria, subscription_state: { value, label: 'X' } })
+    show()
+
+    await loaded()
+    expect(screen.getByRole('button', { name: 'Bloquear Maria Santos' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Promover a administrador Maria Santos' })).not.toBeInTheDocument()
+  })
+
+  it('um membro com a subscrição ativa tem Promover a administrador', async () => {
+    getAdminUser.mockResolvedValue({ ...maria, subscription_state: { value: 'active', label: 'X' } })
+    show()
+
+    await loaded()
+    expect(screen.getByRole('button', { name: 'Promover a administrador Maria Santos' })).toBeInTheDocument()
+  })
+
   it('na própria conta não há ações de membro e o despromover aparece desativado', async () => {
     const user = userEvent.setup()
     getAdminUser.mockResolvedValue({ ...maria, id: 'admin-1' })

@@ -1,19 +1,46 @@
 import { Mail, ShieldCheck, ShieldOff } from 'lucide-react'
 
 /**
- * Separadores de estado da Gestão de Utilizadores, por ordem. A `key` é a chave em `counts`
- * e `filters` são os filtros enviados à API.
+ * Chips de estado da subscrição da Gestão de Utilizadores, por ordem. A `key` é o valor de
+ * `subscription_state` da API, ou `all`; é também a chave das contagens.
  *
- * @type {{key: string, label: string, filters: {status?: string, blocked?: boolean}}[]}
+ * @type {{key: string, label: string}[]}
  */
 export const USER_STATUS_TABS = [
-  { key: 'all', label: 'Todos', filters: {} },
-  { key: 'active', label: 'Ativos', filters: { status: 'Active' } },
-  { key: 'pending', label: 'Pendentes', filters: { status: 'Pending' } },
-  { key: 'approved', label: 'Aprovados', filters: { status: 'Approved' } },
-  { key: 'blocked', label: 'Bloqueados', filters: { status: 'Inactive', blocked: true } },
-  { key: 'inactive', label: 'Inativos', filters: { status: 'Inactive', blocked: false } },
+  { key: 'all', label: 'Todos' },
+  { key: 'pending', label: 'Pendentes' },
+  { key: 'awaiting_activation', label: 'Por ativar' },
+  { key: 'trial', label: 'Em trial' },
+  { key: 'active', label: 'Ativos' },
+  { key: 'grace', label: 'Em carência' },
+  { key: 'lapsed', label: 'Subscrição caída' },
+  { key: 'blocked', label: 'Bloqueados' },
 ]
+
+/**
+ * Contagens dos chips a partir de `subscription_state_counts` da API: só os valores inteiros
+ * não negativos, mais `all` com a soma de todos os estados (cada utilizador está num só estado).
+ *
+ * @param {unknown} subscriptionStateCounts Contagens por estado da subscrição devolvidas pela API.
+ * @returns {Record<string, number>|null} Contagens por chave, ou null se o argumento não for um objeto.
+ */
+export function getStatusTabCounts(subscriptionStateCounts) {
+  if (Object.prototype.toString.call(subscriptionStateCounts) !== '[object Object]') {
+    return null
+  }
+
+  const counts = {}
+  let all = 0
+
+  for (const [state, count] of Object.entries(subscriptionStateCounts)) {
+    if (Number.isSafeInteger(count) && count >= 0) {
+      counts[state] = count
+      all += count
+    }
+  }
+
+  return { ...counts, all }
+}
 
 export const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
@@ -290,6 +317,26 @@ export const PAYMENT_LINK_STATES = ['awaiting_activation', 'lapsed', 'grace']
 const BLOCKABLE_INACTIVE_REASONS = ['unpaid', 'cancelled']
 
 /**
+ * Estados da subscrição em que um membro ativo não pode ser promovido a administrador.
+ *
+ * @type {string[]}
+ */
+export const NON_PROMOTABLE_STATES = ['trial', 'grace']
+
+/**
+ * Indica se o utilizador pode ser promovido a administrador: membro com a conta ativa e fora
+ * do trial e da carência. Sem estado da subscrição, decide o backend.
+ *
+ * @param {{role?: {name?: string}, account_status?: {name?: string}, subscription_state?: {value?: string}|null}|null|undefined} user
+ * @returns {boolean}
+ */
+export function canPromote(user) {
+  return user?.role?.name === 'Member'
+    && user?.account_status?.name === 'Active'
+    && !NON_PROMOTABLE_STATES.includes(user?.subscription_state?.value)
+}
+
+/**
  * Indica se o utilizador é o administrador técnico (isento de subscrição, nunca despromovível).
  *
  * @param {{subscription_state?: {value?: string}|null}} user
@@ -303,7 +350,8 @@ function isExemptAdmin(user) {
  * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins só podem ser
  * despromovidos (exceto o administrador técnico); na própria conta de membro não há ações.
  * "Enviar email" aparece primeiro quando o estado da subscrição pede um email de pagamento,
- * nunca na própria conta. Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
+ * nunca na própria conta. Promover só em membros ativos fora do trial e da carência.
+ * Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
  *
  * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string}|null}} user
  * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
@@ -330,7 +378,7 @@ export function getAvailableActions(user, currentUserId) {
     case 'Approved':
       return [...paymentLink, 'block']
     case 'Active':
-      return [...paymentLink, 'block', 'promote']
+      return [...paymentLink, 'block', ...(canPromote(user) ? ['promote'] : [])]
     case 'Inactive':
       if (user.inactive_reason === 'blocked') {
         return ['unblock']
