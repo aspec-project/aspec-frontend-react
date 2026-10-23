@@ -4,7 +4,7 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminEventsPage from '../../../src/pages/admin/AdminEventsPage'
-import { createAdminEvent, exportEventAttendees, getAdminEvents } from '../../../src/services/adminEvents'
+import { createAdminEvent, exportEventAttendees, getAdminEvents, updateAdminEvent } from '../../../src/services/adminEvents'
 import { getEventCategories, getLocations } from '../../../src/services/referenceLists'
 
 vi.mock('../../../src/services/adminEvents', () => ({
@@ -12,6 +12,7 @@ vi.mock('../../../src/services/adminEvents', () => ({
   exportEventAttendees: vi.fn(),
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
+  updateAdminEvent: vi.fn(),
 }))
 vi.mock('../../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(),
@@ -245,14 +246,12 @@ describe('Gestão de Eventos', () => {
     expect(screen.queryByText(/quase esgotado/)).not.toBeInTheDocument()
   })
 
-  it('mostra a coluna de ações sem botões de editar ou apagar', async () => {
+  it('mostra a coluna de ações sem botão de apagar', async () => {
     show()
     await screen.findByRole('table')
 
     expect(screen.getByRole('columnheader', { name: 'Ações' })).toBeInTheDocument()
-    for (const name of [/Editar/i, /Apagar/i]) {
-      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
-    }
+    expect(screen.queryByRole('button', { name: /Apagar/i })).not.toBeInTheDocument()
   })
 
   it('os filtros de tipo e distrito têm as opções da API e pedem a primeira página filtrada', async () => {
@@ -805,6 +804,142 @@ describe('Gestão de Eventos', () => {
       expect(screen.queryByText(SUCCESS)).not.toBeInTheDocument()
       expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
       expect(createAdminEvent).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Editar evento', () => {
+    const SUCCESS = 'Evento atualizado com sucesso.'
+    const PASSED = 'Não é possível alterar um evento que já decorreu.'
+
+    function editButton(name = 'Workshop de Liderança') {
+      return screen.getByRole('button', { name: `Editar ${name}` })
+    }
+
+    function editDialog() {
+      return screen.getByRole('dialog', { name: 'Editar Evento' })
+    }
+
+    function dialogField(text) {
+      const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+      return within(editDialog()).getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
+    }
+
+    function successBanner() {
+      return screen.queryAllByRole('status').find((element) => element.textContent.includes(SUCCESS))
+    }
+
+    async function editTitleAndSave(user) {
+      await user.click(editButton())
+      await user.type(dialogField('Título do evento'), ' — nova data')
+      await user.click(within(editDialog()).getByRole('button', { name: 'Guardar alterações' }))
+    }
+
+    it('nos agendados cada linha tem o botão de editar depois do de exportar, desativado enquanto a lista recarrega', async () => {
+      threePages()
+      const user = userEvent.setup()
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      for (let index = 1; index <= 6; index += 1) {
+        const name = `Página evento ${index}`
+        const cell = cellOf(name, 'Ações')
+        const edit = editButton(name)
+        const exportButton = within(cell).getByRole('button', { name: /^Exportar/ })
+
+        expect(cell).toContainElement(edit)
+        expect(edit).toHaveAttribute('title', 'Editar evento')
+        expect(exportButton.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        expect(edit).toBeEnabled()
+      }
+
+      const pending = deferred()
+      getAdminEvents.mockImplementationOnce(() => pending.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+
+      await waitFor(() => expect(editButton('Página evento 1')).toBeDisabled())
+      for (const button of screen.getAllByRole('button', { name: /^Editar / })) {
+        expect(button).toBeDisabled()
+      }
+
+      await act(async () => { pending.resolve(list(sixEvents('Página'), { current_page: 2, total: 13, last_page: 3 })) })
+    })
+
+    it('o botão de editar abre o modal com os dados do evento e as opções já carregadas', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await user.click(editButton())
+
+      expect(editDialog()).toBeInTheDocument()
+      expect(dialogField('Título do evento')).toHaveValue('Workshop de Liderança')
+      expect(within(dialogField('Tipo de evento')).getAllByRole('option').map((option) => option.textContent))
+        .toEqual(['Selecione o tipo de evento', 'Workshop', 'Formação', 'Jantar'])
+      expect(within(dialogField('Delegação / Localidade')).getAllByRole('option').map((option) => option.textContent))
+        .toEqual(['Selecione a delegação', 'Lisboa', 'Porto', 'Braga'])
+      expect(getEventCategories).toHaveBeenCalledTimes(1)
+      expect(getLocations).toHaveBeenCalledTimes(1)
+    })
+
+    it('depois de guardar fecha o modal, mostra a mensagem, recarrega com os mesmos filtros e devolve o foco', async () => {
+      updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'e1' } })
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await user.selectOptions(categorySelect(), 'c1')
+      await waitFor(() => expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c1' }, expect.any(AbortSignal)]))
+      await screen.findByRole('table')
+      await waitFor(() => expect(editButton()).toBeEnabled())
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await editTitleAndSave(user)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(editButton()).toHaveFocus())
+      expect(updateAdminEvent).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(successBanner()).toBeDefined())
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c1' }, expect.any(AbortSignal)])
+
+      await user.click(within(successBanner()).getByRole('button', { name: 'Fechar mensagem' }))
+
+      expect(successBanner()).toBeUndefined()
+    })
+
+    it('se o evento já decorreu fecha o modal, mostra o erro e recarrega com os mesmos filtros', async () => {
+      updateAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await editTitleAndSave(user)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('alert')).toHaveTextContent(PASSED)
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('Cancelar fecha o modal sem mensagem nem novo pedido e devolve o foco ao botão', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(editButton())
+      await user.click(within(editDialog()).getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(editButton()).toHaveFocus()
+      expect(screen.queryByText(SUCCESS)).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+      expect(updateAdminEvent).not.toHaveBeenCalled()
     })
   })
 })

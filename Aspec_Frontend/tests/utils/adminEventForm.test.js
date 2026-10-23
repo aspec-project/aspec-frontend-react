@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_EVENT_FORM,
   buildEventPayload,
+  buildEventUpdatePayload,
+  eventToFormValues,
   formatMissingFields,
+  getCapacityHint,
+  getChangedEventFields,
+  getEditNotice,
   getEventFormErrors,
   getLisbonNow,
   getMissingEventFields,
+  getSavedGeocode,
   isSafeMeetingUrl,
   mapEventServerErrors,
 } from '../../src/utils/adminEventForm'
@@ -208,5 +214,248 @@ describe('mapEventServerErrors', () => {
   it('aceita o formato já normalizado e a ausência de erros', () => {
     expect(mapEventServerErrors({ name: 'X' })).toEqual({ fieldErrors: { name: 'X' }, unmatched: [] })
     expect(mapEventServerErrors(undefined)).toEqual({ fieldErrors: {}, unmatched: [] })
+  })
+})
+
+function event(overrides = {}) {
+  return {
+    id: 'e1',
+    name: 'Workshop de Liderança',
+    category: { id: 'c1', name: 'Workshop', color: '#6A1B9A' },
+    location: { id: 'l1', name: 'Lisboa' },
+    event_date: '2099-01-21',
+    event_start_time: '08:00',
+    event_end_time: '10:00',
+    description: 'Descrição pública.',
+    address: 'Rua Castilho 39, 1250-068 Lisboa',
+    venue_name: 'Centro de Congressos',
+    latitude: 38.7223,
+    longitude: -9.1533,
+    max_attendees: 30,
+    registration_deadline: '2099-01-19T23:59:00+00:00',
+    organizer_notes: 'Notas do organizador.',
+    registrations_count: 22,
+    is_online: false,
+    ...overrides,
+  }
+}
+
+const onlineEvent = event({
+  is_online: true,
+  online_url: 'https://meet.example.pt/sala',
+  address: null,
+  latitude: null,
+  longitude: null,
+})
+
+const EDIT_VALUES = {
+  isOnline: false,
+  name: 'Workshop de Liderança',
+  categoryId: 'c1',
+  locationId: 'l1',
+  eventDate: '2099-01-21',
+  startTime: '08:00',
+  endTime: '10:00',
+  registrationDeadline: '2099-01-19',
+  venueName: 'Centro de Congressos',
+  address: 'Rua Castilho 39, 1250-068 Lisboa',
+  onlineUrl: '',
+  maxAttendees: '30',
+  description: 'Descrição pública.',
+  organizerNotes: 'Notas do organizador.',
+}
+
+const SAVED_GEOCODE = {
+  status: 'saved',
+  result: { latitude: 38.7223, longitude: -9.1533 },
+  message: '',
+  query: { address: 'Rua Castilho 39, 1250-068 Lisboa', locationId: 'l1' },
+}
+
+const IDLE = { status: 'idle', result: null, message: '', query: null }
+
+describe('eventToFormValues', () => {
+  it('converte o evento da lista nos valores do formulário', () => {
+    expect(eventToFormValues(event())).toEqual(EDIT_VALUES)
+  })
+
+  it('converte o prazo para a data de Lisboa e devolve vazio quando é inválido', () => {
+    expect(eventToFormValues(event({ registration_deadline: '2026-10-14T23:59:00+01:00' })).registrationDeadline).toBe('2026-10-14')
+
+    for (const registration_deadline of [null, 'abc']) {
+      expect(eventToFormValues(event({ registration_deadline })).registrationDeadline).toBe('')
+    }
+  })
+
+  it('num online preenche o link e deixa a morada vazia; nulos passam a texto vazio e as horas a HH:MM', () => {
+    expect(eventToFormValues(onlineEvent)).toMatchObject({
+      isOnline: true,
+      onlineUrl: 'https://meet.example.pt/sala',
+      address: '',
+    })
+
+    expect(eventToFormValues(event({ venue_name: null, organizer_notes: null, event_start_time: '19:30:00', max_attendees: null })))
+      .toMatchObject({ venueName: '', organizerNotes: '', startTime: '19:30', maxAttendees: '' })
+  })
+})
+
+describe('getSavedGeocode', () => {
+  it('num presencial com coordenadas devolve a localização guardada com a morada sem espaços', () => {
+    expect(getSavedGeocode(event({ address: '  Rua Castilho 39  ' }))).toEqual({
+      status: 'saved',
+      result: { latitude: 38.7223, longitude: -9.1533 },
+      message: '',
+      query: { address: 'Rua Castilho 39', locationId: 'l1' },
+    })
+  })
+
+  it('sem coordenadas ou num online fica por verificar', () => {
+    expect(getSavedGeocode(event({ latitude: null }))).toEqual(IDLE)
+    expect(getSavedGeocode(onlineEvent)).toEqual(IDLE)
+  })
+
+  it('as coordenadas guardadas seguem no payload enquanto a morada não muda', () => {
+    const saved = event()
+
+    expect(buildEventPayload(eventToFormValues(saved), getSavedGeocode(saved)))
+      .toMatchObject({ latitude: 38.7223, longitude: -9.1533 })
+  })
+})
+
+describe('getChangedEventFields', () => {
+  it('ignora espaços nas pontas, quebras de linha e zeros à esquerda', () => {
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES })).toEqual([])
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES, name: '  Workshop de Liderança  ' })).toEqual([])
+    expect(getChangedEventFields({ ...EDIT_VALUES, description: 'a\r\nb' }, { ...EDIT_VALUES, description: 'a\nb' })).toEqual([])
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES, maxAttendees: '030' })).toEqual([])
+  })
+
+  it('devolve os campos mudados pela ordem do formulário, só os do formato atual', () => {
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES, maxAttendees: '40', name: 'Outro' })).toEqual(['name', 'maxAttendees'])
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES, onlineUrl: 'https://meet.example.pt/x' })).toEqual([])
+
+    const online = { ...EDIT_VALUES, isOnline: true, onlineUrl: 'https://meet.example.pt/sala' }
+    expect(getChangedEventFields(online, { ...online, address: 'Rua Nova', venueName: 'Outro local' })).toEqual([])
+
+    expect(getChangedEventFields({ ...EDIT_VALUES, organizerNotes: 'x' }, { ...EDIT_VALUES, organizerNotes: '' })).toEqual(['organizerNotes'])
+  })
+
+  it('mudar o formato conta como alteração e repô-lo desfaz a alteração', () => {
+    const toOnline = { ...EDIT_VALUES, isOnline: true, onlineUrl: 'https://meet.example.pt/x' }
+
+    expect(getChangedEventFields(EDIT_VALUES, toOnline)).toEqual(['isOnline', 'onlineUrl'])
+    expect(getChangedEventFields(EDIT_VALUES, { ...toOnline, name: 'Outro' })).toEqual(['isOnline', 'name', 'onlineUrl'])
+    expect(getChangedEventFields(EDIT_VALUES, { ...toOnline, isOnline: false })).toEqual([])
+  })
+})
+
+describe('getEventFormErrors na edição', () => {
+  const PAST = 'O prazo de inscrição tem de ser posterior à data e hora atuais.'
+  const AFTER_START = 'O prazo de inscrição tem de ser anterior ou igual ao início do evento.'
+  const initial = { ...EDIT_VALUES, eventDate: '2030-06-15', startTime: '19:30', endTime: '21:30', registrationDeadline: '2030-06-09' }
+
+  it('as regras de datas no passado só se aplicam aos campos alterados', () => {
+    expect(getEventFormErrors(initial, NOW, { initialValues: initial })).toEqual({})
+    expect(getEventFormErrors({ ...initial, registrationDeadline: '2030-06-08' }, NOW, { initialValues: initial }))
+      .toEqual({ registrationDeadline: PAST })
+
+    const pastDate = { ...initial, eventDate: '2030-06-01', registrationDeadline: '2030-05-30' }
+    expect(getEventFormErrors(pastDate, NOW, { initialValues: pastDate })).toEqual({})
+    expect(getEventFormErrors({ ...pastDate, eventDate: '2030-06-02' }, NOW, { initialValues: pastDate }))
+      .toEqual({ eventDate: 'A data do evento não pode ser anterior a hoje.' })
+  })
+
+  it('o prazo depois do início dá sempre erro e sem o 3.º parâmetro mantém-se a regra da criação', () => {
+    const late = { ...initial, registrationDeadline: '2030-06-15' }
+
+    expect(getEventFormErrors(late, NOW, { initialValues: late })).toEqual({ registrationDeadline: AFTER_START })
+    expect(getEventFormErrors(initial, NOW)).toEqual({ registrationDeadline: PAST })
+  })
+
+  it('a capacidade não pode ser inferior aos inscritos, depois da regra do intervalo', () => {
+    const options = { initialValues: EDIT_VALUES, registrationsCount: 22 }
+
+    expect(getEventFormErrors({ ...EDIT_VALUES, maxAttendees: '21' }, NOW, options))
+      .toEqual({ maxAttendees: 'A lotação máxima não pode ser inferior ao número de inscrições existentes.' })
+    expect(getEventFormErrors({ ...EDIT_VALUES, maxAttendees: '22' }, NOW, options)).toEqual({})
+    expect(getEventFormErrors({ ...EDIT_VALUES, maxAttendees: '0' }, NOW, options))
+      .toEqual({ maxAttendees: 'A capacidade máxima tem de ser um número inteiro entre 1 e 100000.' })
+    expect(getEventFormErrors({ ...EDIT_VALUES, maxAttendees: '5' }, NOW, { initialValues: EDIT_VALUES, registrationsCount: null })).toEqual({})
+  })
+})
+
+describe('buildEventUpdatePayload', () => {
+  const FULL_IN_PERSON = {
+    category_id: 'c1',
+    location_id: 'l1',
+    name: 'Workshop de Liderança',
+    event_date: '2099-01-21',
+    event_start_time: '08:00',
+    event_end_time: '10:00',
+    registration_deadline: '2099-01-19',
+    is_online: false,
+    venue_name: 'Centro de Congressos',
+    address: 'Rua Castilho 39, 1250-068 Lisboa',
+    latitude: 38.7223,
+    longitude: -9.1533,
+    max_attendees: 30,
+    description: 'Descrição pública.',
+    organizer_notes: null,
+  }
+
+  it('envia o corpo completo com as coordenadas guardadas, notas a null e sem justificação vazia', () => {
+    expect(buildEventUpdatePayload({ ...EDIT_VALUES, organizerNotes: '' }, SAVED_GEOCODE, '   ')).toEqual(FULL_IN_PERSON)
+  })
+
+  it('envia a justificação sem espaços e larga as coordenadas quando a morada mudou', () => {
+    expect(buildEventUpdatePayload(EDIT_VALUES, SAVED_GEOCODE, '  A sessão passou para a sala 2.  '))
+      .toMatchObject({ justification: 'A sessão passou para a sala 2.' })
+
+    const moved = buildEventUpdatePayload({ ...EDIT_VALUES, address: 'Rua Nova 1' }, SAVED_GEOCODE, '')
+    expect(moved).not.toHaveProperty('latitude')
+    expect(moved).not.toHaveProperty('longitude')
+  })
+
+  it('num online envia o link, venue_name a null e nunca a morada nem as coordenadas', () => {
+    const payload = buildEventUpdatePayload(
+      { ...EDIT_VALUES, isOnline: true, onlineUrl: 'https://meet.example.pt/sala', organizerNotes: ' Levar portátil ' },
+      SAVED_GEOCODE,
+      '',
+    )
+
+    expect(payload).toMatchObject({
+      is_online: true,
+      online_url: 'https://meet.example.pt/sala',
+      venue_name: null,
+      organizer_notes: 'Levar portátil',
+    })
+    for (const key of ['address', 'latitude', 'longitude', 'justification']) {
+      expect(payload).not.toHaveProperty(key)
+    }
+  })
+
+  it('num presencial vindo de online nunca envia o link', () => {
+    const payload = buildEventUpdatePayload({ ...EDIT_VALUES, onlineUrl: 'https://meet.example.pt/sala' }, IDLE, '')
+
+    expect(payload).not.toHaveProperty('online_url')
+    expect(payload).toMatchObject({ is_online: false, venue_name: 'Centro de Congressos' })
+  })
+})
+
+describe('textos da edição', () => {
+  it('o aviso do email e o hint da capacidade dependem do número de inscritos', () => {
+    expect(getEditNotice(22)).toBe('Os 22 inscritos vão receber um email a avisar que o evento foi alterado.')
+    expect(getEditNotice(1)).toBe('O inscrito vai receber um email a avisar que o evento foi alterado.')
+    for (const count of [0, null, -1, 2.5]) {
+      expect(getEditNotice(count)).toBe('')
+    }
+
+    expect(getCapacityHint(22)).toBe('Já há 22 inscritos: a capacidade não pode ser inferior.')
+    expect(getCapacityHint(1)).toBe('Já há 1 inscrito: a capacidade não pode ser inferior.')
+    expect(getCapacityHint(0)).toBe('')
+  })
+
+  it('o erro da justificação vai para o campo da justificação', () => {
+    expect(mapEventServerErrors({ justification: ['J'] })).toEqual({ fieldErrors: { justification: 'J' }, unmatched: [] })
   })
 })

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
 import { api, normalizeError } from '../../src/services/api'
-import { createAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents } from '../../src/services/adminEvents'
+import { createAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, updateAdminEvent } from '../../src/services/adminEvents'
 
 const payload = {
   items: [{ id: 'e1', name: 'Jantar — Lisboa' }],
@@ -151,5 +151,31 @@ describe('geocodeAddress', () => {
     await geocodeAddress('Rua Augusta 1', '', signal)
 
     expect(get).toHaveBeenCalledWith('/admin/geocode', { params: { address: 'Rua Augusta 1' }, signal })
+  })
+})
+
+describe('updateAdminEvent', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('envia o corpo completo por PUT para /admin/events/{id} e devolve a resposta inteira da API', async () => {
+    const body = { name: 'Workshop de Liderança — nova data', is_online: false, max_attendees: 30, organizer_notes: null }
+    const response = { success: true, message: 'Evento atualizado com sucesso.', data: { id: 'e1', name: 'Workshop de Liderança — nova data' } }
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: response })
+
+    const result = await updateAdminEvent('e1', body)
+
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledWith('/admin/events/e1', body)
+    expect(result).toEqual(response)
+
+    await updateAdminEvent('a/b', body)
+    expect(put).toHaveBeenLastCalledWith('/admin/events/a%2Fb', body)
+  })
+
+  it('relança o erro do pedido tal como está', async () => {
+    const error = blobError(409, { success: false, message: 'Não é possível alterar um evento que já decorreu.', data: null })
+    vi.spyOn(api, 'put').mockRejectedValue(error)
+
+    await expect(updateAdminEvent('e1', {})).rejects.toBe(error)
   })
 })
