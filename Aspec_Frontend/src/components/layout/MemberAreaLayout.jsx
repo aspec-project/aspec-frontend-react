@@ -122,7 +122,6 @@ export default function MemberAreaLayout() {
     'O meu perfil'
 
   const sectorName = profile?.sector?.name
-  const locationName = profile?.location?.name
   const accountStatus = formatAccountStatus(user?.account_status?.name)
   /* A rota pública recebe o identificador do perfil de membro, não o da conta. */
   const publicProfilePath = profile?.id
@@ -149,7 +148,6 @@ export default function MemberAreaLayout() {
                 <p className="mt-1 text-sm text-slate-600">
                   {accountStatus}
                   {sectorName && ` · ${sectorName}`}
-                  {locationName && ` · ${locationName}`}
                 </p>
               </div>
             </div>
