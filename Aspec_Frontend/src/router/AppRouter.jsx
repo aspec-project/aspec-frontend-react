@@ -10,6 +10,7 @@ import MemberProfilePage from '../pages/MemberProfilePage'
 import MemberRegistrationsPage from '../pages/MemberRegistrationsPage'
 import MemberReviewsPage from '../pages/MemberReviewsPage'
 import AccountInformationPage from '../pages/AccountInformationPage'
+import ChangePasswordPage from '../pages/ChangePasswordPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
@@ -98,6 +99,10 @@ function AppRouter() {
             <Route
               path="/perfil/conta"
               element={<AccountInformationPage />}
+            />
+            <Route
+              path="/perfil/conta/password"
+              element={<ChangePasswordPage />}
             />
             <Route
               path="/perfil/subscricao"
