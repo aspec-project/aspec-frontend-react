@@ -1,12 +1,13 @@
-import { Download, Pencil } from 'lucide-react'
-import { ATTENDEES_EXPORT_TEXTS, getRegistrationState } from '../../../utils/adminEvents'
+import { Download, Pencil, Trash2 } from 'lucide-react'
+import { ATTENDEES_EXPORT_TEXTS, DELETE_EVENT_TEXTS, getRegistrationState } from '../../../utils/adminEvents'
 
 const buttonBase = 'flex h-8 w-8 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]'
 
 /**
  * Botões de ícone da coluna "Ações" de um evento. O de exportar a lista de presenças fica ativo apenas
  * depois do prazo de inscrição (a mesma regra do badge "Encerradas" e do backend); antes disso aparece
- * desativado com a explicação. O de editar só aparece nos agendados (um evento passado não se edita).
+ * desativado com a explicação. O de editar e o de apagar só aparecem nos agendados (um evento passado não se
+ * edita nem se apaga).
  *
  * @param {{
  *   event: object,
@@ -14,10 +15,11 @@ const buttonBase = 'flex h-8 w-8 items-center justify-center rounded-md focus-vi
  *   disabled?: boolean,
  *   onExport: (event: object) => void,
  *   onEdit?: (event: object) => void,
+ *   onDelete?: (event: object) => void,
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventActions({ event, period, disabled = false, onExport, onEdit }) {
+export default function EventActions({ event, period, disabled = false, onExport, onEdit, onDelete }) {
   const available = getRegistrationState(event.registration_deadline) === 'closed'
 
   return (
@@ -55,6 +57,19 @@ export default function EventActions({ event, period, disabled = false, onExport
           className={`${buttonBase} bg-slate-100 text-[#0d1f35] hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50`}
         >
           <Pencil size={16} aria-hidden="true" />
+        </button>
+      )}
+      {period === 'upcoming' && onDelete && (
+        <button
+          type="button"
+          aria-label={`Apagar ${event.name}`}
+          title={DELETE_EVENT_TEXTS.buttonTitle}
+          aria-haspopup="dialog"
+          disabled={disabled}
+          onClick={() => onDelete(event)}
+          className={`${buttonBase} bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50`}
+        >
+          <Trash2 size={16} aria-hidden="true" />
         </button>
       )}
     </div>

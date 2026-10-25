@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
 import { api, normalizeError } from '../../src/services/api'
-import { createAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, updateAdminEvent } from '../../src/services/adminEvents'
+import { createAdminEvent, deleteAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, updateAdminEvent } from '../../src/services/adminEvents'
 
 const payload = {
   items: [{ id: 'e1', name: 'Jantar — Lisboa' }],
@@ -177,5 +177,47 @@ describe('updateAdminEvent', () => {
     vi.spyOn(api, 'put').mockRejectedValue(error)
 
     await expect(updateAdminEvent('e1', {})).rejects.toBe(error)
+  })
+})
+
+describe('deleteAdminEvent', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const response = { success: true, message: 'Evento eliminado com sucesso.', data: null }
+
+  it('envia a justificação limpa no corpo do DELETE e devolve a resposta inteira da API', async () => {
+    const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: response })
+
+    const result = await deleteAdminEvent('e1', '  O orador adoeceu.\nPedimos desculpa.  ')
+
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(remove).toHaveBeenCalledWith('/admin/events/e1', { data: { justification: 'O orador adoeceu.\nPedimos desculpa.' } })
+    expect(result).toEqual(response)
+  })
+
+  it('sem justificação válida faz o DELETE sem corpo', async () => {
+    for (const justification of [undefined, '', '   ', null, { type: 'click' }]) {
+      const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: response })
+
+      await deleteAdminEvent('e1', justification)
+
+      expect(remove.mock.calls).toEqual([['/admin/events/e1']])
+      remove.mockRestore()
+    }
+  })
+
+  it('codifica o id no URL', async () => {
+    const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: response })
+
+    await deleteAdminEvent('a/b')
+
+    expect(remove).toHaveBeenCalledWith('/admin/events/a%2Fb')
+  })
+
+  it('relança o erro do pedido tal como está', async () => {
+    const error = blobError(409, { success: false, message: 'Não é possível alterar um evento que já decorreu.', data: null })
+    vi.spyOn(api, 'delete').mockRejectedValue(error)
+
+    await expect(deleteAdminEvent('e1', 'Motivo')).rejects.toBe(error)
   })
 })

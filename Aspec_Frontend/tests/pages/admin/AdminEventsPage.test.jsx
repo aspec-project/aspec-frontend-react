@@ -4,7 +4,7 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminEventsPage from '../../../src/pages/admin/AdminEventsPage'
-import { createAdminEvent, exportEventAttendees, getAdminEvents, updateAdminEvent } from '../../../src/services/adminEvents'
+import { createAdminEvent, deleteAdminEvent, exportEventAttendees, getAdminEvents, updateAdminEvent } from '../../../src/services/adminEvents'
 import { getEventCategories, getLocations } from '../../../src/services/referenceLists'
 
 vi.mock('../../../src/services/adminEvents', () => ({
@@ -13,6 +13,7 @@ vi.mock('../../../src/services/adminEvents', () => ({
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
   updateAdminEvent: vi.fn(),
+  deleteAdminEvent: vi.fn(),
 }))
 vi.mock('../../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(),
@@ -246,12 +247,11 @@ describe('Gestão de Eventos', () => {
     expect(screen.queryByText(/quase esgotado/)).not.toBeInTheDocument()
   })
 
-  it('mostra a coluna de ações sem botão de apagar', async () => {
+  it('mostra a coluna de ações', async () => {
     show()
     await screen.findByRole('table')
 
     expect(screen.getByRole('columnheader', { name: 'Ações' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Apagar/i })).not.toBeInTheDocument()
   })
 
   it('os filtros de tipo e distrito têm as opções da API e pedem a primeira página filtrada', async () => {
@@ -940,6 +940,378 @@ describe('Gestão de Eventos', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
       expect(updateAdminEvent).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Apagar evento', () => {
+    const DELETED = 'Evento eliminado com sucesso.'
+    const PASSED = 'Não é possível alterar um evento que já decorreu.'
+    const HINT = 'A justificação é obrigatória para apagar o evento.'
+    const REGISTRANTS_CHANGED = 'Entretanto houve inscrições neste evento e a justificação passou a ser obrigatória. A lista foi atualizada: carregue de novo em Apagar para a escrever.'
+    const empty = event('e4', 'Almoço Sem Inscritos', { registrations_count: 0 })
+
+    function deleteButton(name = 'Workshop de Liderança') {
+      return screen.getByRole('button', { name: `Apagar ${name}` })
+    }
+
+    function deleteDialog() {
+      return screen.getByRole('dialog', { name: 'Apagar evento?' })
+    }
+
+    function justificationField() {
+      return within(deleteDialog()).getByRole('textbox', { name: 'Justificação' })
+    }
+
+    function dialogButton(name) {
+      return within(deleteDialog()).getByRole('button', { name })
+    }
+
+    function successBanner() {
+      return screen.queryAllByRole('status').find((element) => element.textContent.includes(DELETED))
+    }
+
+    function validationError() {
+      return new AxiosError('Request failed with status code 422', AxiosError.ERR_BAD_REQUEST, undefined, undefined, {
+        status: 422,
+        statusText: 'Error',
+        headers: {},
+        config: {},
+        data: {
+          success: false,
+          message: 'Os dados enviados são inválidos.',
+          errors: { justification: ['O campo justification é obrigatório.'] },
+        },
+      })
+    }
+
+    async function openWithJustification(user, text = 'O orador adoeceu.') {
+      await screen.findByRole('table')
+      await user.click(deleteButton())
+      await user.type(justificationField(), text)
+    }
+
+    beforeEach(() => {
+      getAdminEvents.mockResolvedValue(list([workshop, online, dinner, empty]))
+    })
+
+    it('nos agendados cada linha tem o botão de apagar depois do de editar, desativado enquanto a lista recarrega', async () => {
+      threePages()
+      const user = userEvent.setup()
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      for (let index = 1; index <= 6; index += 1) {
+        const name = `Página evento ${index}`
+        const cell = cellOf(name, 'Ações')
+        const remove = deleteButton(name)
+        const exportButton = within(cell).getByRole('button', { name: /^Exportar/ })
+        const edit = within(cell).getByRole('button', { name: `Editar ${name}` })
+
+        expect(cell).toContainElement(remove)
+        expect(remove).toHaveAttribute('title', 'Apagar evento')
+        expect(remove).toHaveAttribute('aria-haspopup', 'dialog')
+        expect(exportButton.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        expect(edit.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        expect(remove).toBeEnabled()
+      }
+
+      const pending = deferred()
+      getAdminEvents.mockImplementationOnce(() => pending.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+
+      await waitFor(() => expect(deleteButton('Página evento 1')).toBeDisabled())
+      for (const button of screen.getAllByRole('button', { name: /^Apagar / })) {
+        expect(button).toBeDisabled()
+      }
+
+      await act(async () => { pending.resolve(list(sixEvents('Página'), { current_page: 2, total: 13, last_page: 3 })) })
+    })
+
+    it('com inscritos abre o diálogo com a justificação obrigatória e o botão de apagar desativado', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(deleteButton())
+
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+      const dialog = deleteDialog()
+      expect(dialog).toHaveAccessibleDescription(expect.stringContaining('«Workshop de Liderança» (21 Jan 2099)'))
+      expect(dialog).toHaveAccessibleDescription(expect.stringContaining('22 inscritos'))
+      expect(dialog).toHaveAccessibleDescription(expect.stringContaining('apagados definitivamente'))
+      expect(justificationField()).toBeRequired()
+      expect(justificationField()).toHaveFocus()
+      expect(justificationField()).toHaveAttribute('placeholder', 'Explique aos inscritos o motivo do cancelamento.')
+      expect(justificationField()).toHaveAccessibleDescription(expect.stringContaining(HINT))
+      expect(dialogButton('Voltar')).toBeEnabled()
+      expect(dialogButton('Apagar e notificar')).toBeDisabled()
+      expect(deleteAdminEvent).not.toHaveBeenCalled()
+    })
+
+    it('apaga com a justificação, bloqueia tudo durante o pedido e recarrega com os mesmos filtros', async () => {
+      const pending = deferred()
+      deleteAdminEvent.mockImplementationOnce(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await user.selectOptions(categorySelect(), 'c1')
+      await waitFor(() => expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c1' }, expect.any(AbortSignal)]))
+      await screen.findByRole('table')
+      await waitFor(() => expect(deleteButton()).toBeEnabled())
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(deleteButton())
+      await user.type(justificationField(), 'O orador adoeceu.')
+      await user.click(dialogButton('Apagar e notificar'))
+
+      expect(deleteAdminEvent).toHaveBeenCalledTimes(1)
+      expect(deleteAdminEvent).toHaveBeenCalledWith('e1', 'O orador adoeceu.')
+      expect(dialogButton('A processar...')).toBeDisabled()
+      expect(justificationField()).toBeDisabled()
+      expect(dialogButton('Voltar')).toBeDisabled()
+      expect(dialogButton('Fechar')).toBeDisabled()
+      fireEvent.keyDown(deleteDialog(), { key: 'Escape' })
+      expect(deleteDialog()).toBeInTheDocument()
+      for (const button of screen.getAllByRole('button', { name: /^(Apagar|Editar) / })) {
+        expect(button).toBeDisabled()
+      }
+
+      await act(async () => { pending.resolve({ success: true, message: DELETED, data: null }) })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(successBanner()).toBeDefined())
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c1' }, expect.any(AbortSignal)])
+    })
+
+    it('sem inscritos abre uma confirmação sem campo e apaga sem justificação', async () => {
+      deleteAdminEvent.mockResolvedValueOnce({ success: true, message: DELETED, data: null })
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(deleteButton('Almoço Sem Inscritos'))
+
+      const dialog = deleteDialog()
+      expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+      expect(dialog).toHaveAccessibleDescription(expect.stringContaining('não tem inscritos, por isso ninguém é notificado'))
+      expect(dialogButton('Voltar')).toHaveFocus()
+
+      await user.click(dialogButton('Apagar evento'))
+
+      expect(deleteAdminEvent).toHaveBeenCalledWith('e4')
+      expect(deleteAdminEvent.mock.calls).toEqual([['e4']])
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(successBanner()).toBeDefined())
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('se o evento já decorreu fecha o diálogo, mostra o erro e recarrega com os mesmos filtros', async () => {
+      deleteAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await openWithJustification(user)
+      await user.click(dialogButton('Apagar e notificar'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('alert')).toHaveTextContent(PASSED)
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('se o evento já não existir fecha o diálogo, avisa e recarrega', async () => {
+      deleteAdminEvent.mockRejectedValueOnce(apiError(404, 'Recurso não encontrado.'))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await openWithJustification(user)
+      await user.click(dialogButton('Apagar e notificar'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('alert')).toHaveTextContent('O evento já não existe. A lista foi atualizada.')
+      expect(screen.queryByText('Recurso não encontrado.')).not.toBeInTheDocument()
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('sem inscritos, se entretanto houver inscrições, explica que a justificação passou a ser obrigatória e recarrega', async () => {
+      deleteAdminEvent.mockRejectedValueOnce(validationError())
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(deleteButton('Almoço Sem Inscritos'))
+      await user.click(dialogButton('Apagar evento'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('alert')).toHaveTextContent(REGISTRANTS_CHANGED)
+      expect(screen.queryByText(/O campo justification/)).not.toBeInTheDocument()
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('com inscritos, num erro do servidor o diálogo fica aberto com o erro e o texto e pode tentar de novo', async () => {
+      const retry = deferred()
+      deleteAdminEvent
+        .mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
+        .mockImplementationOnce(() => retry.promise)
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await openWithJustification(user)
+      await user.click(dialogButton('Apagar e notificar'))
+
+      const alert = await within(deleteDialog()).findByRole('alert')
+      expect(alert).toHaveTextContent('Erro interno do servidor.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect(justificationField()).toHaveValue('O orador adoeceu.')
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+
+      await user.click(dialogButton('Apagar e notificar'))
+
+      expect(deleteAdminEvent).toHaveBeenCalledTimes(2)
+      expect(deleteAdminEvent).toHaveBeenLastCalledWith('e1', 'O orador adoeceu.')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      await act(async () => { retry.resolve({ success: true, message: DELETED, data: null }) })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(successBanner()).toBeDefined())
+    })
+
+    it('sem inscritos, com demasiados pedidos fecha o diálogo e mostra o erro sem recarregar', async () => {
+      deleteAdminEvent.mockRejectedValueOnce(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.'))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(deleteButton('Almoço Sem Inscritos'))
+      await user.click(dialogButton('Apagar evento'))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(await screen.findByRole('alert')).toHaveTextContent('Demasiados pedidos. Tente novamente mais tarde.')
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+    })
+
+    it('Voltar, Fechar e Escape fecham sem pedido nem mensagem, devolvem o foco e o campo recomeça vazio', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await openWithJustification(user, 'Texto a perder')
+      await user.click(dialogButton('Voltar'))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(deleteButton()).toHaveFocus()
+
+      await user.click(deleteButton())
+      expect(justificationField()).toHaveValue('')
+      await user.click(dialogButton('Fechar'))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(deleteButton()).toHaveFocus()
+
+      await user.click(deleteButton())
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(deleteButton()).toHaveFocus()
+
+      expect(deleteAdminEvent).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(successBanner()).toBeUndefined()
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+    })
+
+    it('dois cliques rápidos em Apagar e notificar fazem um só pedido', async () => {
+      const pending = deferred()
+      deleteAdminEvent.mockImplementation(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+
+      await openWithJustification(user)
+      const confirm = dialogButton('Apagar e notificar')
+      fireEvent.click(confirm)
+      fireEvent.click(confirm)
+
+      expect(deleteAdminEvent).toHaveBeenCalledTimes(1)
+
+      await act(async () => { pending.resolve({ success: true, message: DELETED, data: null }) })
+    })
+
+    it('um pedido cancelado não mostra erro nem mensagem', async () => {
+      deleteAdminEvent.mockRejectedValueOnce(new CanceledError())
+      const user = userEvent.setup()
+      show()
+
+      await openWithJustification(user)
+      await user.click(dialogButton('Apagar e notificar'))
+
+      await waitFor(() => expect(deleteAdminEvent).toHaveBeenCalledTimes(1))
+      await act(async () => {})
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(successBanner()).toBeUndefined()
+    })
+
+    it('se a página ficar vazia depois de apagar passa para a última página que existe', async () => {
+      let deleted = false
+      getAdminEvents.mockImplementation((filters) => {
+        if (filters.page === 3) {
+          return Promise.resolve(deleted
+            ? list([], { current_page: 3, total: 12, last_page: 2 })
+            : list([event('z1', 'Último evento')], { current_page: 3, total: 13, last_page: 3 }))
+        }
+
+        return Promise.resolve(list(sixEvents(`P${filters.page}`), { current_page: filters.page, total: deleted ? 12 : 13, last_page: deleted ? 2 : 3 }))
+      })
+      deleteAdminEvent.mockImplementationOnce(() => {
+        deleted = true
+        return Promise.resolve({ success: true, message: DELETED, data: null })
+      })
+      const emptySeen = []
+      const observer = new MutationObserver(() => {
+        if (document.body.textContent.includes('Não há eventos agendados.')) emptySeen.push(true)
+      })
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      const user = userEvent.setup()
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      await user.click(within(screen.getByRole('navigation', { name: 'Paginação de eventos' })).getByRole('button', { name: 'Página 3' }))
+      await screen.findByText('Último evento')
+      await waitFor(() => expect(deleteButton('Último evento')).toBeEnabled())
+
+      await user.click(deleteButton('Último evento'))
+      await user.type(justificationField(), 'O orador adoeceu.')
+      await user.click(dialogButton('Apagar e notificar'))
+
+      await waitFor(() => expect(lastCall()).toEqual([{ ...BASE_FILTERS, page: 2 }, expect.any(AbortSignal)]))
+      expect(await screen.findByText('P2 evento 1')).toBeInTheDocument()
+      const pagination = screen.getByRole('navigation', { name: 'Paginação de eventos' })
+      expect(within(pagination).getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
+      observer.disconnect()
+      expect(emptySeen).toEqual([])
+      expect(screen.queryByText('Não há eventos agendados.')).not.toBeInTheDocument()
+    })
+
+    it('na página 1 uma lista vazia mostra a mensagem de vazio sem pedido extra', async () => {
+      getAdminEvents.mockResolvedValue(list([], { current_page: 1, total: 0, last_page: 1 }, { upcoming: 0, past: 0 }))
+      show()
+
+      expect(await screen.findByText('Não há eventos agendados.')).toBeInTheDocument()
+      await act(async () => {})
+      expect(getAdminEvents).toHaveBeenCalledTimes(1)
     })
   })
 })

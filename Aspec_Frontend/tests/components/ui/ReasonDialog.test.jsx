@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { TriangleAlert } from 'lucide-react'
 import { describe, expect, it, vi } from 'vitest'
 import ReasonDialog from '../../../src/components/ui/ReasonDialog'
 
@@ -196,5 +197,97 @@ describe('ReasonDialog', () => {
 
     expect(field()).toHaveValue('a'.repeat(10))
     expect(screen.getByText('10/10 caracteres')).toBeInTheDocument()
+  })
+
+  describe('justificação obrigatória', () => {
+    const HINT = 'A justificação é obrigatória para apagar o evento.'
+
+    function requiredDialog(props = {}) {
+      return dialog({
+        title: 'Apagar evento?',
+        note: undefined,
+        required: true,
+        label: 'Justificação',
+        hint: HINT,
+        confirmLabel: 'Apagar e notificar',
+        cancelLabel: 'Voltar',
+        ...props,
+      })
+    }
+
+    function requiredField() {
+      return screen.getByRole('textbox', { name: 'Justificação' })
+    }
+
+    it('marca o campo como obrigatório, mostra a ajuda e só ativa o botão com texto', async () => {
+      const user = userEvent.setup()
+      const onConfirm = vi.fn()
+      render(requiredDialog({ onConfirm }))
+
+      expect(requiredField()).toBeRequired()
+      expect(requiredField()).toHaveAccessibleDescription(expect.stringContaining(HINT))
+      expect(requiredField()).toHaveAccessibleDescription(expect.stringContaining('0/2000 caracteres'))
+      expect(screen.getByText('*').closest('label')).not.toBeNull()
+      expect(button('Apagar e notificar')).toBeDisabled()
+
+      await user.type(requiredField(), '   ')
+      expect(button('Apagar e notificar')).toBeDisabled()
+
+      await user.clear(requiredField())
+      await user.type(requiredField(), '  Motivo  ')
+      expect(button('Apagar e notificar')).toBeEnabled()
+
+      await user.click(button('Apagar e notificar'))
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(onConfirm).toHaveBeenCalledWith('  Motivo  ')
+    })
+
+    it('com o campo só com espaços o submit do formulário não confirma', () => {
+      const onConfirm = vi.fn()
+      render(requiredDialog({ onConfirm }))
+
+      fireEvent.change(requiredField(), { target: { value: '   ' } })
+      fireEvent.submit(requiredField().closest('form'))
+
+      expect(onConfirm).not.toHaveBeenCalled()
+    })
+
+    it('sem required o submit do formulário com o campo vazio confirma com texto vazio', () => {
+      const onConfirm = vi.fn()
+      render(dialog({ onConfirm }))
+
+      fireEvent.submit(field().closest('form'))
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(onConfirm).toHaveBeenCalledWith('')
+    })
+
+    it('mostra o ícone no título e o erro dentro do diálogo sem apagar o texto escrito', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(requiredDialog({ icon: TriangleAlert, tone: 'danger', error: 'Demasiados pedidos.' }))
+
+      const heading = screen.getByRole('heading', { name: 'Apagar evento?' })
+      expect(heading.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+
+      const alert = screen.getByRole('alert')
+      expect(screen.getByRole('dialog')).toContainElement(alert)
+      expect(alert).toHaveTextContent('Demasiados pedidos.')
+      expect(requiredField()).not.toHaveAccessibleDescription(expect.stringContaining('Demasiados pedidos.'))
+
+      await user.type(requiredField(), 'abc')
+      rerender(requiredDialog({ icon: TriangleAlert, tone: 'danger', error: 'Erro interno do servidor.' }))
+
+      expect(requiredField()).toHaveValue('abc')
+      expect(screen.getByRole('alert')).toHaveTextContent('Erro interno do servidor.')
+    })
+
+    it('sem as props novas o campo não é obrigatório e não há alerta nem ícone no título', () => {
+      render(dialog())
+
+      expect(field()).not.toBeRequired()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Recusar candidatura' }).querySelector('svg')).toBeNull()
+    })
   })
 })

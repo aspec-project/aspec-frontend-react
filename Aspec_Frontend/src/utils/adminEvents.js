@@ -275,3 +275,48 @@ export function getAttendeesFallbackFilename(event) {
 
   return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `presencas_${date}.csv` : 'presencas.csv'
 }
+
+/** Textos do botão e dos diálogos de apagar um evento. */
+export const DELETE_EVENT_TEXTS = {
+  buttonTitle: 'Apagar evento',
+  title: 'Apagar evento?',
+  label: 'Justificação',
+  placeholder: 'Explique aos inscritos o motivo do cancelamento.',
+  hint: 'A justificação é obrigatória para apagar o evento.',
+  confirmLabel: 'Apagar e notificar',
+  confirmLabelNoRegistrants: 'Apagar evento',
+  cancelLabel: 'Voltar',
+  notFound: 'O evento já não existe. A lista foi atualizada.',
+  registrantsChanged: 'Entretanto houve inscrições neste evento e a justificação passou a ser obrigatória. A lista foi atualizada: carregue de novo em Apagar para a escrever.',
+}
+
+/** Máximo de caracteres da justificação (igual ao max:2000 do backend). */
+export const DELETE_JUSTIFICATION_MAX_LENGTH = 2000
+
+/**
+ * Indica se apagar o evento exige justificação. Só não exige quando a lista diz que não há inscritos;
+ * com a contagem inválida ou em falta pede-a, porque o backend pode exigi-la.
+ *
+ * @param {{registrations_count?: unknown}} event Evento da lista.
+ * @returns {boolean}
+ */
+export function needsDeleteJustification(event) {
+  return event?.registrations_count !== 0
+}
+
+/**
+ * Descrição do diálogo de apagar: evento, data e o que acontece aos inscritos.
+ *
+ * @param {{name?: string, event_date?: string, registrations_count?: unknown}} event Evento da lista.
+ * @returns {string}
+ */
+export function getDeleteEventDescription(event) {
+  const intro = `Vai apagar «${event.name}» (${formatEventDate(event.event_date)}).`
+  const count = event.registrations_count
+
+  if (count === 0) return `${intro} O evento não tem inscritos, por isso ninguém é notificado. O evento é apagado definitivamente.`
+  if (count === 1) return `${intro} Será enviado um email ao inscrito a informar que o evento foi cancelado, com a justificação abaixo. O evento e a inscrição são apagados definitivamente.`
+  if (Number.isInteger(count) && count > 1) return `${intro} Será enviado um email aos ${count} inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`
+
+  return `${intro} Será enviado um email aos inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`
+}

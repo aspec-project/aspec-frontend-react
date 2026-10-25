@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, Plus } from 'lucide-react'
+import { Download, Plus, TriangleAlert } from 'lucide-react'
 import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
 import EditEventDialog from '../../components/admin/events/EditEventDialog'
 import EventListFilters from '../../components/admin/events/EventListFilters'
@@ -8,15 +8,20 @@ import EventsTable from '../../components/admin/events/EventsTable'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import FeedbackBanner from '../../components/ui/FeedbackBanner'
 import Pagination from '../../components/ui/Pagination'
+import ReasonDialog from '../../components/ui/ReasonDialog'
 import useAdminEvents from '../../hooks/useAdminEvents'
 import useAttendeesExport from '../../hooks/useAttendeesExport'
+import useEventDeletion from '../../hooks/useEventDeletion'
 import useEventFilterOptions from '../../hooks/useEventFilterOptions'
 import {
   ATTENDEES_EXPORT_TEXTS,
+  DELETE_EVENT_TEXTS,
+  DELETE_JUSTIFICATION_MAX_LENGTH,
   EVENT_PERIOD_TABS,
   NO_RESULTS_MESSAGE,
   formatResultsRange,
   getAttendeesExportDescription,
+  getDeleteEventDescription,
 } from '../../utils/adminEvents'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
@@ -28,8 +33,11 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * O botão "Criar Evento" abre o modal de criação e o ✎ de cada evento agendado abre o modal de edição;
  * depois de guardar, a lista recarrega com os mesmos filtros e aparece a mensagem da API. Se o evento já
  * decorreu ou já não existe, o modal de edição fecha, aparece o erro e a lista recarrega.
- * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal) e
- * useAttendeesExport (exportação).
+ * O 🗑 de cada evento agendado abre o diálogo de apagar: com inscritos a justificação é obrigatória (segue no
+ * email de cancelamento); sem inscritos é uma confirmação simples. Depois de apagar aparece a mensagem da API
+ * e a lista recarrega com os mesmos filtros.
+ * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal),
+ * useAttendeesExport (exportação) e useEventDeletion (apagar).
  *
  * @returns {JSX.Element}
  */
@@ -52,6 +60,17 @@ export default function AdminEventsPage() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
   const [formFeedback, setFormFeedback] = useState(null)
+  const deletion = useEventDeletion({
+    onSuccess: (message) => {
+      setFormFeedback({ type: 'success', message })
+      retry()
+    },
+    onStale: (message) => {
+      setFormFeedback({ type: 'error', message })
+      retry()
+    },
+    onError: (message) => setFormFeedback({ type: 'error', message }),
+  })
 
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === filters.period) ?? EVENT_PERIOD_TABS[0]
   const pagination = data?.pagination
@@ -109,7 +128,8 @@ export default function AdminEventsPage() {
             busy={loading}
             onExport={exporter.requestExport}
             onEdit={setEditing}
-            actionsDisabled={loading || exporter.pending}
+            onDelete={deletion.requestDelete}
+            actionsDisabled={loading || exporter.pending || deletion.pending}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -135,6 +155,38 @@ export default function AdminEventsPage() {
         pending={exporter.pending}
         onConfirm={exporter.confirm}
         onCancel={exporter.cancel}
+      />
+
+      <ReasonDialog
+        open={Boolean(deletion.deleting) && deletion.needsJustification}
+        title={DELETE_EVENT_TEXTS.title}
+        icon={TriangleAlert}
+        description={deletion.deleting ? getDeleteEventDescription(deletion.deleting) : ''}
+        label={DELETE_EVENT_TEXTS.label}
+        placeholder={DELETE_EVENT_TEXTS.placeholder}
+        hint={DELETE_EVENT_TEXTS.hint}
+        required
+        maxLength={DELETE_JUSTIFICATION_MAX_LENGTH}
+        confirmLabel={DELETE_EVENT_TEXTS.confirmLabel}
+        cancelLabel={DELETE_EVENT_TEXTS.cancelLabel}
+        tone="danger"
+        pending={deletion.pending}
+        error={deletion.error}
+        onConfirm={deletion.confirm}
+        onCancel={deletion.cancel}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletion.deleting) && !deletion.needsJustification}
+        title={DELETE_EVENT_TEXTS.title}
+        icon={TriangleAlert}
+        description={deletion.deleting ? getDeleteEventDescription(deletion.deleting) : ''}
+        confirmLabel={DELETE_EVENT_TEXTS.confirmLabelNoRegistrants}
+        cancelLabel={DELETE_EVENT_TEXTS.cancelLabel}
+        tone="danger"
+        pending={deletion.pending}
+        onConfirm={deletion.confirm}
+        onCancel={deletion.cancel}
       />
 
       {creating && (
