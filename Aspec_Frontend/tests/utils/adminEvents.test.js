@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import * as adminEventsUtils from '../../src/utils/adminEvents'
 import {
   ATTENDEES_EXPORT_TEXTS,
+  DELETE_EVENT_TEXTS,
+  DELETE_JUSTIFICATION_MAX_LENGTH,
   countActiveFilters,
   formatDeadline,
   formatEventDate,
@@ -11,10 +13,12 @@ import {
   getAttendeesExportDescription,
   getAttendeesFallbackFilename,
   getDateRangeError,
+  getDeleteEventDescription,
   getEventSeries,
   getFilenameFromContentDisposition,
   getOccupancy,
   getRegistrationState,
+  needsDeleteJustification,
 } from '../../src/utils/adminEvents'
 
 describe('formatEventDate', () => {
@@ -215,5 +219,66 @@ describe('ATTENDEES_EXPORT_TEXTS', () => {
 
   it('não há mensagem de sucesso da exportação', () => {
     expect(adminEventsUtils).not.toHaveProperty('getExportSuccessMessage')
+  })
+})
+
+describe('DELETE_EVENT_TEXTS', () => {
+  it('tem os textos do botão e dos diálogos de apagar e o limite da justificação', () => {
+    expect(DELETE_EVENT_TEXTS).toEqual({
+      buttonTitle: 'Apagar evento',
+      title: 'Apagar evento?',
+      label: 'Justificação',
+      placeholder: 'Explique aos inscritos o motivo do cancelamento.',
+      hint: 'A justificação é obrigatória para apagar o evento.',
+      confirmLabel: 'Apagar e notificar',
+      confirmLabelNoRegistrants: 'Apagar evento',
+      cancelLabel: 'Voltar',
+      notFound: 'O evento já não existe. A lista foi atualizada.',
+      registrantsChanged: 'Entretanto houve inscrições neste evento e a justificação passou a ser obrigatória. A lista foi atualizada: carregue de novo em Apagar para a escrever.',
+    })
+    expect(DELETE_JUSTIFICATION_MAX_LENGTH).toBe(2000)
+  })
+})
+
+describe('needsDeleteJustification', () => {
+  it('pede a justificação quando há inscritos', () => {
+    expect(needsDeleteJustification({ registrations_count: 22 })).toBe(true)
+    expect(needsDeleteJustification({ registrations_count: 1 })).toBe(true)
+  })
+
+  it('não pede a justificação só quando não há inscritos', () => {
+    expect(needsDeleteJustification({ registrations_count: 0 })).toBe(false)
+  })
+
+  it('com uma contagem inválida ou em falta pede a justificação', () => {
+    for (const registrations of [null, undefined, '0', -1, 2.5]) {
+      expect(needsDeleteJustification({ registrations_count: registrations })).toBe(true)
+    }
+    expect(needsDeleteJustification({})).toBe(true)
+  })
+})
+
+describe('getDeleteEventDescription', () => {
+  const workshop = (overrides = {}) => ({ name: 'Workshop de Liderança', event_date: '2099-01-21', registrations_count: 22, ...overrides })
+  const INTRO = 'Vai apagar «Workshop de Liderança» (21 Jan 2099).'
+
+  it('diz o evento, a data e o número de inscritos que recebem o email', () => {
+    expect(getDeleteEventDescription(workshop())).toBe(`${INTRO} Será enviado um email aos 22 inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`)
+  })
+
+  it('com um só inscrito fala no inscrito e na inscrição', () => {
+    expect(getDeleteEventDescription(workshop({ registrations_count: 1 }))).toBe(`${INTRO} Será enviado um email ao inscrito a informar que o evento foi cancelado, com a justificação abaixo. O evento e a inscrição são apagados definitivamente.`)
+  })
+
+  it('sem inscritos avisa que ninguém é notificado', () => {
+    expect(getDeleteEventDescription(workshop({ registrations_count: 0 }))).toBe(`${INTRO} O evento não tem inscritos, por isso ninguém é notificado. O evento é apagado definitivamente.`)
+  })
+
+  it('sem um número de inscritos válido não mostra o número', () => {
+    expect(getDeleteEventDescription(workshop({ registrations_count: null }))).toBe(`${INTRO} Será enviado um email aos inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`)
+  })
+
+  it('com uma data inválida mostra um travessão', () => {
+    expect(getDeleteEventDescription(workshop({ event_date: 'x' }))).toMatch(/^Vai apagar «Workshop de Liderança» \(—\)\./)
   })
 })

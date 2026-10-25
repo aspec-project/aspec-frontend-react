@@ -12,6 +12,7 @@ vi.mock('../../../../src/services/adminEvents', () => ({
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
   updateAdminEvent: vi.fn(),
+  deleteAdminEvent: vi.fn(),
 }))
 
 const categories = [

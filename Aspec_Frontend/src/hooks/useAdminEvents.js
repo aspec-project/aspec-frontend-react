@@ -10,7 +10,8 @@ const initialFilters = { period: 'upcoming', ...EMPTY_FILTERS, page: 1 }
 /**
  * Estado e pedidos da lista de eventos do backoffice: separador (agendados/passados), filtros de datas,
  * tipo e distrito, e paginação. Cada mudança faz um pedido novo e cancela o anterior; com um intervalo
- * de datas invertido não faz o pedido.
+ * de datas invertido não faz o pedido. Se a página pedida já não existir (ficou vazia, ex.: depois de apagar
+ * o único evento da última página), passa para a última.
  *
  * @returns {{
  *   filters: {period: 'upcoming'|'past', dateFrom: string, dateTo: string, categoryId: string, locationId: string, page: number},
@@ -54,6 +55,11 @@ export default function useAdminEvents() {
     getAdminEvents(filters, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return
+        const lastPage = result?.pagination?.last_page
+        if (result?.items?.length === 0 && filters.page > 1 && Number.isInteger(lastPage) && lastPage < filters.page) {
+          setFilters((current) => ({ ...current, page: Math.max(1, lastPage) }))
+          return
+        }
         setData(result)
         setLoading(false)
       })

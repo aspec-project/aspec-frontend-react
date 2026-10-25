@@ -117,3 +117,22 @@ export async function geocodeAddress(address, locationId, signal) {
 
   return response.data.data
 }
+
+/**
+ * Apaga um evento no backoffice, com as respetivas inscrições. Se houver inscritos, o backend exige a
+ * justificação e envia-a no email de cancelamento; sem texto (ou só com espaços) o pedido vai sem corpo.
+ *
+ * @param {string} eventId Id do evento.
+ * @param {string} [justification] Justificação escrita pelo admin (é limpa antes de ser enviada).
+ * @returns {Promise<{success: boolean, message: string, data: null}>} Resposta inteira da API.
+ */
+export async function deleteAdminEvent(eventId, justification) {
+  const url = `/admin/events/${encodeURIComponent(eventId)}`
+  const text = typeof justification === 'string' ? justification.trim() : ''
+
+  const response = text === ''
+    ? await api.delete(url)
+    : await api.delete(url, { data: { justification: text } })
+
+  return response.data
+}

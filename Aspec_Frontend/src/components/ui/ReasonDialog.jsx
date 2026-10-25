@@ -9,9 +9,11 @@ const TONE_CLASSES = {
 const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
- * Diálogo de confirmação com um campo de texto opcional (ex.: justificação ao recusar ou bloquear).
- * O botão de confirmar nunca fica desativado por o campo estar vazio e entrega o texto tal como foi
- * escrito. Foco inicial no campo, Enter no campo faz nova linha, Escape e "Fechar" cancelam (exceto
+ * Diálogo de confirmação com um campo de texto opcional ou obrigatório (ex.: justificação ao recusar,
+ * bloquear ou apagar um evento). Por omissão o botão de confirmar nunca fica desativado por o campo estar
+ * vazio; com `required` só confirma com texto que não seja só espaços. Entrega sempre o texto tal como foi
+ * escrito. Opcionalmente mostra um ícone antes do título, uma ajuda por baixo do campo e um erro por cima
+ * dos botões (o erro não apaga o texto escrito). Foco inicial no campo, Enter no campo faz nova linha, Escape e "Fechar" cancelam (exceto
  * durante o pedido), Tab preso entre o campo e os botões ativos e foco devolvido ao elemento que o
  * tinha antes de abrir. O texto recomeça vazio sempre que o diálogo abre.
  *
@@ -27,6 +29,10 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  *   placeholder?: string,
  *   maxLength?: number,
  *   pending?: boolean,
+ *   required?: boolean,
+ *   hint?: string,
+ *   icon?: import('react').ComponentType,
+ *   error?: string,
  *   onConfirm: (reason: string) => void,
  *   onCancel: () => void,
  * }} props
@@ -44,6 +50,10 @@ export default function ReasonDialog({
   placeholder = 'Explique o motivo da decisão...',
   maxLength = 2000,
   pending = false,
+  required = false,
+  hint,
+  icon: Icon,
+  error,
   onConfirm,
   onCancel,
 }) {
@@ -52,6 +62,7 @@ export default function ReasonDialog({
   const noteId = useId()
   const fieldId = useId()
   const counterId = useId()
+  const hintId = useId()
   const dialogRef = useRef(null)
   const fieldRef = useRef(null)
   const [value, setValue] = useState('')
@@ -77,6 +88,8 @@ export default function ReasonDialog({
     return null
   }
 
+  const blocked = required && value.trim() === ''
+
   /**
    * Confirma com o texto escrito, sem pedido em curso.
    *
@@ -84,7 +97,7 @@ export default function ReasonDialog({
    */
   const handleSubmit = (event) => {
     event.preventDefault()
-    if (!pending) onConfirm(value)
+    if (!pending && !blocked) onConfirm(value)
   }
 
   /**
@@ -140,25 +153,37 @@ export default function ReasonDialog({
         >
           <X size={18} aria-hidden="true" />
         </button>
-        <h2 id={titleId} className="pr-7 text-lg font-semibold text-[#0d1f35]">{title}</h2>
+        <h2 id={titleId} className={`pr-7 text-lg font-semibold ${Icon && tone === 'danger' ? 'text-red-600' : 'text-[#0d1f35]'} ${Icon ? 'flex items-center gap-2' : ''}`}>
+          {Icon && <Icon size={20} aria-hidden="true" className="shrink-0" />}
+          {title}
+        </h2>
         <p id={descriptionId} className="mt-3 text-sm text-gray-600">{description}</p>
         {note && <p id={noteId} role="note" className="mt-4 rounded-lg bg-[#f5f1e8] px-4 py-3 text-sm text-[#6b5631]">{note}</p>}
 
         <form onSubmit={handleSubmit} className="mt-4">
-          <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700">{label}</label>
+          <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700">
+            {label}
+            {required && <span aria-hidden="true" className="text-red-600"> *</span>}
+          </label>
           <textarea
             ref={fieldRef}
             id={fieldId}
             rows={4}
             maxLength={maxLength}
             placeholder={placeholder}
-            aria-describedby={counterId}
+            aria-describedby={hint ? `${hintId} ${counterId}` : counterId}
+            required={required}
             value={value}
             disabled={pending}
             onChange={(event) => setValue(event.target.value)}
             className="mt-2 w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <p id={counterId} className="mt-1 text-right text-xs text-gray-500">{value.length}/{maxLength} caracteres</p>
+          <div className="mt-1 flex justify-between gap-3">
+            {hint && <p id={hintId} className="text-xs text-gray-500">{hint}</p>}
+            <p id={counterId} className="ml-auto text-right text-xs text-gray-500">{value.length}/{maxLength} caracteres</p>
+          </div>
+
+          {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
 
           <div className="mt-6 flex justify-end gap-3">
             <button
@@ -171,7 +196,7 @@ export default function ReasonDialog({
             </button>
             <button
               type="submit"
-              disabled={pending}
+              disabled={pending || blocked}
               className={`${buttonBase} text-white ${TONE_CLASSES[tone] ?? TONE_CLASSES.danger}`}
             >
               {pending ? 'A processar...' : confirmLabel}
