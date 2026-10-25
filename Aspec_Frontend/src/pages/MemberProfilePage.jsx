@@ -19,7 +19,6 @@ import useSessionRequest from '../hooks/useSessionRequest'
 import { normalizeError } from '../services/api'
 import { updateMemberProfile } from '../services/memberProfile'
 import {
-  getLocations,
   getSectors,
   getSocialPlatforms,
   getWeekDays,
@@ -44,7 +43,6 @@ function createInitialDraft(profile) {
   return {
     businessName: profile.business_name ?? '',
     sectorId: profile.sector?.id ?? '',
-    locationId: profile.location?.id ?? '',
     address: profile.address ?? '',
     description: profile.description ?? '',
     website: profile.website_url ?? '',
@@ -188,7 +186,6 @@ export default function MemberProfilePage() {
   const [editingSection, setEditingSection] = useState(null)
   const [draft, setDraft] = useState(null)
   const [sectors, setSectors] = useState([])
-  const [locations, setLocations] = useState([])
   const [businessHours, setBusinessHours] = useState([])
   const [socialLinks, setSocialLinks] = useState([])
   const [isPreparing, setIsPreparing] = useState(false)
@@ -240,14 +237,10 @@ export default function MemberProfilePage() {
       const config = { sessionGeneration: context.generation, signal: context.signal }
 
       if (section === 'dados-perfil') {
-        const [sectorList, locationList] = await Promise.all([
-          getSectors(context.signal),
-          getLocations(context.signal),
-        ])
+        const sectorList = await getSectors(context.signal)
 
         if (prepareRequestRef.current !== requestId || !isSessionCurrent(context)) return
         setSectors(sectorList)
-        setLocations(locationList)
       }
 
       if (section === 'horario') {
@@ -290,7 +283,6 @@ export default function MemberProfilePage() {
     if (section === 'dados-perfil') {
       if (!activeDraft.businessName.trim()) errors.business_name = 'O nome do negócio é obrigatório.'
       if (!activeDraft.sectorId) errors.sector_id = 'Selecione o setor de atividade.'
-      if (!activeDraft.locationId) errors.location_id = 'Selecione o distrito.'
       if (!activeDraft.address.trim()) errors.address = 'O campo morada é obrigatório.'
     }
 
@@ -325,7 +317,6 @@ export default function MemberProfilePage() {
       return {
         business_name: activeDraft.businessName.trim(),
         sector_id: activeDraft.sectorId,
-        location_id: activeDraft.locationId,
         address: activeDraft.address.trim(),
       }
     }
@@ -437,7 +428,6 @@ export default function MemberProfilePage() {
                 <div className="mt-6 grid gap-6 md:grid-cols-2">
                   <div><label htmlFor="businessName" className="text-sm font-semibold text-[#0d1f35]">Nome do Negócio</label><input id="businessName" name="businessName" type="text" value={activeDraft.businessName} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.business_name} /></div>
                   <div><label htmlFor="sectorId" className="text-sm font-semibold text-[#0d1f35]">Setor de Atividade</label><select id="sectorId" name="sectorId" value={activeDraft.sectorId} onChange={updateDraft} className={inputClassName}><option value="">Selecionar setor...</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</select><FieldError message={fieldErrors.sector_id} /></div>
-                  <div><label htmlFor="locationId" className="text-sm font-semibold text-[#0d1f35]">Distrito</label><select id="locationId" name="locationId" value={activeDraft.locationId} onChange={updateDraft} className={inputClassName}><option value="">Selecionar distrito...</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select><FieldError message={fieldErrors.location_id} /></div>
                   <div><label htmlFor="address" className="text-sm font-semibold text-[#0d1f35]">Morada</label><input id="address" name="address" type="text" value={activeDraft.address} onChange={updateDraft} autoComplete="street-address" className={inputClassName} /><FieldError message={fieldErrors.address} /></div>
                 </div>
               )}
@@ -447,7 +437,7 @@ export default function MemberProfilePage() {
           ) : (
             <>
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><h2 className="text-2xl font-bold text-[#0d1f35]">Dados do Perfil</h2><EditProfileCardButton label="os dados do perfil" onClick={() => void startEditing('dados-perfil')} disabled={editingAnotherCard} /></div>
-              <dl className="mt-5"><ProfileDataRow label="Nome do Negócio" value={profile.business_name} /><ProfileDataRow label="Setor de Atividade" value={profile.sector?.name} /><ProfileDataRow label="Distrito" value={profile.location?.name} /><ProfileDataRow label="Morada" value={profile.address} /></dl>
+              <dl className="mt-5"><ProfileDataRow label="Nome do Negócio" value={profile.business_name} /><ProfileDataRow label="Setor de Atividade" value={profile.sector?.name} /><ProfileDataRow label="Morada" value={profile.address} /></dl>
               {renderSavedNotice('dados-perfil')}
             </>
           )}
