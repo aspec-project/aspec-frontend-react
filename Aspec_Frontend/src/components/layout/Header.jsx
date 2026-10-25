@@ -5,6 +5,7 @@ import {
   X,
   ChevronDown,
   User,
+  Pencil,
   LogOut,
   Settings,
 } from "lucide-react";
@@ -47,6 +48,11 @@ export default function Header() {
   const roleName = user?.role?.name?.toLowerCase() ?? ''
   const isMember = roleName === 'member'
   const isAdmin = roleName === 'admin'
+  /* O diretório identifica cada empresa pelo ID do perfil, não pelo da conta. */
+  const memberProfileId = user?.member_profile?.id ?? user?.memberProfile?.id ?? ''
+  const publicProfilePath = memberProfileId
+    ? `/membros/${encodeURIComponent(memberProfileId)}`
+    : '/membros'
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -180,7 +186,16 @@ export default function Header() {
                   <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
                   {isMember && (
                     <>
-                      {/* A área do membro reúne Perfil, Portefólio e Subscrição nas suas abas. */}
+                      {/* A vista pública é separada da área privada de edição. */}
+                      <button
+                        onClick={() => {
+                          navigate(publicProfilePath)
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                      >
+                        <User size={14} /> O meu perfil
+                      </button>
                       <button
                         onClick={() => {
                           navigate('/perfil')
@@ -188,7 +203,7 @@ export default function Header() {
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
                       >
-                        <User size={14} /> O meu perfil
+                        <Pencil size={14} /> Editar perfil
                       </button>
                     </>
                   )}
@@ -293,13 +308,20 @@ export default function Header() {
               <>
                 {isMember && (
                   <>
-                    {/* A navegação detalhada fica disponível nas abas da área de perfil. */}
+                    {/* O perfil público e a área privada têm destinos distintos. */}
+                    <Link
+                      to={publicProfilePath}
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      O meu perfil
+                    </Link>
                     <Link
                       to="/perfil"
                       onClick={() => setMobileOpen(false)}
                       className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                     >
-                      O meu perfil
+                      Editar perfil
                     </Link>
                   </>
                 )}
