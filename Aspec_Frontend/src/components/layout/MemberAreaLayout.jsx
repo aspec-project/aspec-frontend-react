@@ -124,6 +124,10 @@ export default function MemberAreaLayout() {
   const sectorName = profile?.sector?.name
   const locationName = profile?.location?.name
   const accountStatus = formatAccountStatus(user?.account_status?.name)
+  /* A rota pública recebe o identificador do perfil de membro, não o da conta. */
+  const publicProfilePath = profile?.id
+    ? `/membros/${encodeURIComponent(profile.id)}`
+    : '/membros'
 
   return (
     <div className="min-h-full bg-[#f7f8fa]">
@@ -151,7 +155,7 @@ export default function MemberAreaLayout() {
             </div>
 
             <Link
-              to={`/membros/${user?.id}`}
+              to={publicProfilePath}
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:border-[#0d1f35] hover:bg-slate-50"
             >
               <ExternalLink size={16} aria-hidden="true" />
