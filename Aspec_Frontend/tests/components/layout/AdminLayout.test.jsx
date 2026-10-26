@@ -15,6 +15,7 @@ function show(path) {
           <Route path="/admin/utilizadores" element={<p>Conteúdo dos utilizadores</p>} />
           <Route path="/admin/utilizadores/:id" element={<p>Conteúdo do detalhe</p>} />
           <Route path="/admin/eventos" element={<p>Conteúdo dos eventos</p>} />
+          <Route path="/admin/tipos-evento" element={<p>Conteúdo dos tipos de evento</p>} />
           <Route path="/admin/moderacao" element={<p>Conteúdo da moderação</p>} />
         </Route>
       </Routes>
@@ -38,7 +39,7 @@ describe('AdminLayout', () => {
 
     expect(screen.getByText('Área de Administração')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Utilizadores' })).toBeInTheDocument()
-    expect(sectionTabs().getAllByRole('link').map((link) => link.textContent.trim())).toEqual(['Dashboard', 'Utilizadores', 'Eventos', 'Moderação'])
+    expect(sectionTabs().getAllByRole('link').map((link) => link.textContent.trim())).toEqual(['Dashboard', 'Utilizadores', 'Eventos', 'Tipos de evento', 'Moderação'])
     expect(sectionTabs().getByRole('link', { name: 'Utilizadores' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByText('Conteúdo dos utilizadores')).toBeInTheDocument()
     expect(screen.getByRole('contentinfo')).toBeInTheDocument()
@@ -62,6 +63,16 @@ describe('AdminLayout', () => {
     expect(sectionTabs().getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
     expect(sectionTabs().getByRole('link', { name: 'Eventos' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Eventos' })).toBeInTheDocument()
+  })
+
+  it('em /admin/tipos-evento marca o separador Tipos de evento e mostra o título e o conteúdo da página', () => {
+    show('/admin/tipos-evento')
+
+    expect(sectionTabs().getAllByRole('link').map((link) => link.textContent.trim())).toEqual(['Dashboard', 'Utilizadores', 'Eventos', 'Tipos de evento', 'Moderação'])
+    expect(sectionTabs().getByRole('link', { name: 'Tipos de evento' })).toHaveAttribute('aria-current', 'page')
+    expect(sectionTabs().getByRole('link', { name: 'Eventos' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('heading', { level: 1, name: 'Tipos de Evento' })).toBeInTheDocument()
+    expect(screen.getByText('Conteúdo dos tipos de evento')).toBeInTheDocument()
   })
 
   it('no detalhe de um membro mostra só o Header, o conteúdo da página e o Footer', () => {
