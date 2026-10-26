@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Clock,
   MapPin,
+  Video,
   Users,
   ChevronRight,
 } from "lucide-react";
@@ -201,6 +202,8 @@ export default function UpcomingEvents() {
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {proximosEventos.map((evento) => {
+              const isOnline = evento.is_online === true;
+              const LocationIcon = isOnline ? Video : MapPin;
               const cor = obterCor(evento.category);
               const vagas = evento.available_spots;
 
@@ -266,14 +269,16 @@ export default function UpcomingEvents() {
                       </div>
 
                       <div className="flex items-start gap-3">
-                        <MapPin
+                        <LocationIcon
                           size={18}
                           aria-hidden="true"
                           className="mt-0.5 shrink-0 text-[#9A742F]"
                         />
                         <span>
-                          {evento.location?.name ||
-                            "Local por confirmar"}
+                          {isOnline
+                            ? "Evento online"
+                            : evento.location?.name ||
+                              "Local por confirmar"}
                         </span>
                       </div>
 
