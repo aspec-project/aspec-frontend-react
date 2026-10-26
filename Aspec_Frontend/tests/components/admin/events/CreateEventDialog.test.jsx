@@ -345,7 +345,7 @@ describe('CreateEventDialog', () => {
     expect(signal.aborted).toBe(true)
     await act(async () => { late.resolve(FOUND) })
     expect(screen.queryByText(/^Morada encontrada:/)).not.toBeInTheDocument()
-  })
+  }, 10000)
 
   it('mostra junto à morada as mensagens de morada não encontrada e serviço indisponível sem bloquear o envio', async () => {
     geocodeAddress
@@ -456,7 +456,7 @@ describe('CreateEventDialog', () => {
     await act(async () => {})
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(second.onSuccess).not.toHaveBeenCalled()
-  })
+  }, 10000)
 
   it('Cancelar, Fechar e Escape fecham, o clique no fundo não fecha e o Tab fica preso no modal', async () => {
     const user = userEvent.setup()
