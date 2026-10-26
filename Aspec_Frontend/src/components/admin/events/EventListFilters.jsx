@@ -1,12 +1,13 @@
 import { useRef } from 'react'
 import { X } from 'lucide-react'
-
-const fieldClass = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:bg-gray-100'
-const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500'
+import DatePicker from '../../ui/DatePicker'
+import SelectMenu from '../../ui/SelectMenu'
 
 /**
- * Filtros da lista de eventos: datas De/Até, tipo de evento e distrito, e "Limpar (n)".
- * O erro de intervalo aparece junto ao "Até"; ao limpar, o foco passa para o "De".
+ * Filtros da lista de eventos no design v3: "Data de" e "Data até" (calendário DatePicker, "Qualquer data"
+ * sem valor; cada uma limita os dias da outra), "Tipo de evento" e "Local" (listas SelectMenu) e o botão
+ * "Limpar", sempre visível: desativado sem filtros e "Limpar (n)" com filtros. Ao limpar, o foco passa para a
+ * "Data de", porque o botão fica desativado. O erro de intervalo continua a aparecer junto à "Data até".
  *
  * @param {{
  *   filters: {dateFrom: string, dateTo: string, categoryId: string, locationId: string},
@@ -23,7 +24,7 @@ export default function EventListFilters({ filters, onChange, onClear, activeCou
   const selectsDisabled = options.loading || Boolean(options.error)
 
   /**
-   * Limpa os filtros e põe o foco no "De", porque o botão desaparece.
+   * Limpa os filtros e põe o foco na "Data de", porque o botão fica desativado.
    */
   const handleClear = () => {
     onClear()
@@ -32,76 +33,61 @@ export default function EventListFilters({ filters, onChange, onClear, activeCou
 
   return (
     <div role="group" aria-label="Filtros de eventos" className="rounded-xl bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="w-40">
-          <label htmlFor="event-filter-date-from" className={labelClass}>De</label>
-          <input
-            id="event-filter-date-from"
-            ref={dateFromRef}
-            type="date"
-            value={filters.dateFrom}
-            max={filters.dateTo || undefined}
-            onChange={(event) => onChange('dateFrom', event.target.value)}
-            className={fieldClass}
-          />
-        </div>
+      <div className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+        <DatePicker
+          ref={dateFromRef}
+          id="event-filter-date-from"
+          label="Data de"
+          value={filters.dateFrom}
+          max={filters.dateTo || undefined}
+          placeholder="Qualquer data"
+          onChange={(value) => onChange('dateFrom', value)}
+        />
 
-        <div className="w-40">
-          <label htmlFor="event-filter-date-to" className={labelClass}>Até</label>
-          <input
-            id="event-filter-date-to"
-            type="date"
-            value={filters.dateTo}
-            min={filters.dateFrom || undefined}
-            aria-invalid={dateRangeError ? 'true' : undefined}
-            aria-describedby={dateRangeError ? 'event-date-range-error' : undefined}
-            onChange={(event) => onChange('dateTo', event.target.value)}
-            className={`${fieldClass} ${dateRangeError ? 'border-red-400' : ''}`}
-          />
-        </div>
+        <DatePicker
+          id="event-filter-date-to"
+          label="Data até"
+          value={filters.dateTo}
+          min={filters.dateFrom || undefined}
+          placeholder="Qualquer data"
+          invalid={Boolean(dateRangeError)}
+          describedBy={dateRangeError ? 'event-date-range-error' : undefined}
+          onChange={(value) => onChange('dateTo', value)}
+        />
 
-        <div className="min-w-[180px] flex-1">
-          <label htmlFor="event-filter-category" className={labelClass}>Tipo de evento</label>
-          <select
-            id="event-filter-category"
-            value={filters.categoryId}
-            disabled={selectsDisabled}
-            onChange={(event) => onChange('categoryId', event.target.value)}
-            className={fieldClass}
-          >
-            <option value="">Todos os tipos</option>
-            {options.categories.map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
-            ))}
-          </select>
-        </div>
+        <SelectMenu
+          id="event-filter-category"
+          label="Tipo de evento"
+          value={filters.categoryId}
+          disabled={selectsDisabled}
+          options={[
+            { value: '', label: 'Todos os tipos' },
+            ...options.categories.map((category) => ({ value: category.id, label: category.name })),
+          ]}
+          onChange={(value) => onChange('categoryId', value)}
+        />
 
-        <div className="min-w-[180px] flex-1">
-          <label htmlFor="event-filter-location" className={labelClass}>Distrito</label>
-          <select
-            id="event-filter-location"
-            value={filters.locationId}
-            disabled={selectsDisabled}
-            onChange={(event) => onChange('locationId', event.target.value)}
-            className={fieldClass}
-          >
-            <option value="">Todos os distritos</option>
-            {options.locations.map((location) => (
-              <option key={location.id} value={location.id}>{location.name}</option>
-            ))}
-          </select>
-        </div>
+        <SelectMenu
+          id="event-filter-location"
+          label="Local"
+          value={filters.locationId}
+          disabled={selectsDisabled}
+          options={[
+            { value: '', label: 'Todos os locais' },
+            ...options.locations.map((location) => ({ value: location.id, label: location.name })),
+          ]}
+          onChange={(value) => onChange('locationId', value)}
+        />
 
-        {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="mt-5 flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-[#0d1f35] hover:border-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]"
-          >
-            <X size={16} aria-hidden="true" />
-            {`Limpar (${activeCount})`}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={activeCount === 0}
+          className="flex h-11 items-center justify-center gap-1 rounded-lg border border-gray-200 px-3 text-sm font-semibold text-[#0d1f35] hover:border-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-300 disabled:hover:border-gray-100"
+        >
+          <X size={16} aria-hidden="true" />
+          {activeCount > 0 ? `Limpar (${activeCount})` : 'Limpar'}
+        </button>
       </div>
 
       {dateRangeError && (
