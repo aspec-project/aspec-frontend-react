@@ -81,6 +81,46 @@ describe("UpcomingEvents", () => {
     vi.unstubAllEnvs();
   });
 
+  it.each([null, { name: "Lisboa" }])("mostra a modalidade online independentemente da localização %j", async (location) => {
+    const evento = {
+      ...criarEvento("online", "Webinar ASPEC", "2030-10-08", "11:00:00"),
+      is_online: true,
+      location,
+    };
+    simularResposta(respostaEventos([evento]));
+
+    mostrarAgenda();
+
+    const modalidade = await screen.findByText("Evento online");
+    expect(modalidade.parentElement.querySelector("svg.lucide-video"))
+      .toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("Local por confirmar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lisboa")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [false, { name: "Lisboa" }, "Lisboa"],
+    [false, null, "Local por confirmar"],
+    [false, { name: "" }, "Local por confirmar"],
+    [undefined, { name: "Lisboa" }, "Lisboa"],
+    [undefined, null, "Local por confirmar"],
+    ["true", null, "Local por confirmar"],
+  ])("preserva a localização e o fallback para is_online=%j e localização=%j", async (is_online, location, texto) => {
+    const evento = {
+      ...criarEvento("local", "Encontro ASPEC", "2030-10-08", "11:00:00"),
+      is_online,
+      location,
+    };
+    simularResposta(respostaEventos([evento]));
+
+    mostrarAgenda();
+
+    const local = await screen.findByText(texto);
+    expect(local.parentElement.querySelector("svg.lucide-map-pin"))
+      .toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("Evento online")).not.toBeInTheDocument();
+  });
+
   it("mostra os três eventos futuros mais próximos, sem duplicar eventos entre páginas", async () => {
     const primeiro = criarEvento("primeiro", "Encontro de manhã", "2030-10-07", "11:00:00");
     const segundo = criarEvento("segundo", "Encontro ao almoço", "2030-10-07", "12:00:00", "#abcdef");
