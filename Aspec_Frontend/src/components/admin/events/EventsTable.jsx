@@ -1,8 +1,8 @@
 import { CalendarClock, CalendarDays, Clock, MapPin, Video } from 'lucide-react'
+import CategoryBadge from '../eventCategories/CategoryBadge'
 import EventActions from './EventActions'
 import EventOccupancy from './EventOccupancy'
 import { EVENT_PERIOD_TABS, formatDeadline, formatEventDate, formatSession, formatTimeRange, getRegistrationState } from '../../../utils/adminEvents'
-import { badgeTextColor, categoryColor } from '../../../utils/eventFormatting'
 
 const REGISTRATION_BADGES = {
   open: { label: 'Abertas', className: 'bg-emerald-50 text-emerald-700' },
@@ -12,13 +12,13 @@ const REGISTRATION_BADGES = {
 /**
  * Tabela da lista de eventos do backoffice: evento (nome, categoria e "Sessão X/Y" quando existe), data e hora,
  * local, prazo de inscrição com o estado (Abertas/Encerradas), lotação ("Participação" nos passados) e ações
- * (ver inscritos, exportar a lista de presenças e, nos agendados, editar e apagar). O link dos eventos online não é mostrado.
+ * (exportar a lista de presenças e, nos agendados, editar e apagar). A categoria usa o badge tingido na cor do
+ * tipo. O link dos eventos online não é mostrado.
  *
  * @param {{
  *   events: object[],
  *   period: 'upcoming'|'past',
  *   busy?: boolean,
- *   onViewAttendees?: (event: object) => void,
  *   onExport: (event: object) => void,
  *   onEdit?: (event: object) => void,
  *   onDelete?: (event: object) => void,
@@ -26,7 +26,7 @@ const REGISTRATION_BADGES = {
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventsTable({ events, period, busy = false, onViewAttendees, onExport, onEdit, onDelete, actionsDisabled = false }) {
+export default function EventsTable({ events, period, busy = false, onExport, onEdit, onDelete, actionsDisabled = false }) {
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === period) ?? EVENT_PERIOD_TABS[0]
   const headers = ['Evento', 'Data e hora', 'Local', 'Inscrições até', tab.capacityLabel, 'Ações']
 
@@ -45,7 +45,6 @@ export default function EventsTable({ events, period, busy = false, onViewAttend
         </thead>
         <tbody className="divide-y divide-gray-100">
           {events.map((event) => {
-            const color = categoryColor(event.category)
             const session = formatSession(event)
             const timeRange = formatTimeRange(event.event_start_time, event.event_end_time)
             const registrationBadge = REGISTRATION_BADGES[getRegistrationState(event.registration_deadline)]
@@ -56,9 +55,7 @@ export default function EventsTable({ events, period, busy = false, onViewAttend
                   <p className="font-semibold text-[#0d1f35]">{event.name}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {event.category?.name && (
-                      <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: color, color: badgeTextColor(color) }}>
-                        {event.category.name}
-                      </span>
+                      <CategoryBadge name={event.category.name} color={event.category.color} />
                     )}
                     {session && <span className="text-xs text-gray-500">{session}</span>}
                   </div>
@@ -106,7 +103,7 @@ export default function EventsTable({ events, period, busy = false, onViewAttend
                   <EventOccupancy registrations={event.registrations_count} max={event.max_attendees} period={period} />
                 </td>
                 <td className="px-5 py-4">
-                  <EventActions event={event} period={period} disabled={actionsDisabled} onViewAttendees={onViewAttendees} onExport={onExport} onEdit={onEdit} onDelete={onDelete} />
+                  <EventActions event={event} period={period} disabled={actionsDisabled} onExport={onExport} onEdit={onEdit} onDelete={onDelete} />
                 </td>
               </tr>
             )

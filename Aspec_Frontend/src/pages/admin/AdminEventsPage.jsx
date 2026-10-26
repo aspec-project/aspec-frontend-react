@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Download, Plus, TriangleAlert } from 'lucide-react'
 import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
 import EditEventDialog from '../../components/admin/events/EditEventDialog'
-import EventAttendeesDialog from '../../components/admin/events/EventAttendeesDialog'
 import EventListFilters from '../../components/admin/events/EventListFilters'
 import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
 import EventsTable from '../../components/admin/events/EventsTable'
@@ -28,8 +27,9 @@ import {
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
- * Página Gestão de Eventos do backoffice: separadores Agendados/Passados com contagens, filtros de datas,
- * tipo e distrito, tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
+ * Página Gestão de Eventos do backoffice (design v3): separadores Agendados/Passados com contagens na mesma linha
+ * do botão "Criar Evento" (o título h2 fica só para leitores de ecrã), filtros de datas (calendário), tipo e
+ * local (listas próprias), tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
  * (diálogo com o aviso do RGPD antes de descarregar; só os erros aparecem numa mensagem).
  * O botão "Criar Evento" abre o modal de criação e o ✎ de cada evento agendado abre o modal de edição;
  * depois de guardar, a lista recarrega com os mesmos filtros e aparece a mensagem da API. Se o evento já
@@ -37,7 +37,6 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * O 🗑 de cada evento agendado abre o diálogo de apagar: com inscritos a justificação é obrigatória (segue no
  * email de cancelamento); sem inscritos é uma confirmação simples. Depois de apagar aparece a mensagem da API
  * e a lista recarrega com os mesmos filtros.
- * O 👥 de cada evento abre a lista de inscritos (nome, empresa e data de inscrição, com o aviso do RGPD).
  * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal),
  * useAttendeesExport (exportação) e useEventDeletion (apagar).
  *
@@ -61,7 +60,6 @@ export default function AdminEventsPage() {
   const exporter = useAttendeesExport({ onStale: retry })
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [viewing, setViewing] = useState(null)
   const [formFeedback, setFormFeedback] = useState(null)
   const deletion = useEventDeletion({
     onSuccess: (message) => {
@@ -80,8 +78,10 @@ export default function AdminEventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-semibold text-[#0d1f35]">{tab.title}</h2>
+      <h2 className="sr-only">{tab.title}</h2>
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <EventPeriodTabs activePeriod={filters.period} counts={data?.counts} onSelect={selectPeriod} />
         <button
           type="button"
           aria-haspopup="dialog"
@@ -100,8 +100,6 @@ export default function AdminEventsPage() {
       {exporter.feedback && (
         <FeedbackBanner type={exporter.feedback.type} message={exporter.feedback.message} onClose={exporter.dismissFeedback} />
       )}
-
-      <EventPeriodTabs activePeriod={filters.period} counts={data?.counts} onSelect={selectPeriod} />
 
       <EventListFilters
         filters={filters}
@@ -129,7 +127,6 @@ export default function AdminEventsPage() {
             events={data.items}
             period={filters.period}
             busy={loading}
-            onViewAttendees={setViewing}
             onExport={exporter.requestExport}
             onEdit={setEditing}
             onDelete={deletion.requestDelete}
@@ -222,10 +219,6 @@ export default function AdminEventsPage() {
             retry()
           }}
         />
-      )}
-
-      {viewing && (
-        <EventAttendeesDialog key={viewing.id} event={viewing} onClose={() => setViewing(null)} onStale={retry} />
       )}
     </div>
   )

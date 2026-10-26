@@ -136,30 +136,3 @@ export async function deleteAdminEvent(eventId, justification) {
 
   return response.data
 }
-
-/**
- * Lista os inscritos de um evento para o backoffice, pela ordem do backend. Só devolve o nome, a empresa e a
- * data de inscrição: os contactos pessoais e o id da conta que vêm na resposta são descartados (minimização).
- *
- * @param {string} eventId Id do evento.
- * @param {AbortSignal} [signal] Permite cancelar o pedido quando o diálogo fecha.
- * @returns {Promise<{id: string, name: string|null, business_name: string|null, registered_at: string|null}[]>}
- * @throws {Error} Se a resposta tiver um formato inesperado; os erros do axios são relançados tal como estão.
- */
-export async function getEventAttendees(eventId, signal) {
-  const response = await api.get(`/admin/events/${encodeURIComponent(eventId)}/attendees`, { signal })
-  const items = response.data?.data
-
-  if (response.data?.success !== true || !Array.isArray(items) || items.some((item) => typeof item !== 'object' || item === null)) {
-    throw new Error('A resposta dos inscritos tem um formato inesperado.')
-  }
-
-  const text = (value) => (typeof value === 'string' ? value : null)
-
-  return items.map((item) => ({
-    id: item.id,
-    name: text(item.name),
-    business_name: text(item.business_name),
-    registered_at: text(item.registered_at),
-  }))
-}
