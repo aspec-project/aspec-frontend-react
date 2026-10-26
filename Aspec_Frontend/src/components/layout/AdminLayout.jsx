@@ -10,6 +10,7 @@ const ADMIN_TABS = [
   { to: '/admin', label: 'Dashboard', title: 'Área de Administração', end: true },
   { to: '/admin/utilizadores', label: 'Utilizadores', title: 'Gestão de Utilizadores' },
   { to: '/admin/eventos', label: 'Eventos', title: 'Gestão de Eventos' },
+  { to: '/admin/tipos-evento', label: 'Tipos de evento', title: 'Tipos de Evento' },
   { to: '/admin/moderacao', label: 'Moderação', title: 'Moderação de Conteúdos' },
 ]
 
@@ -22,7 +23,7 @@ const todayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 
 
 /**
  * Layout de todas as páginas /admin: Header, herói escuro com o título da secção, separadores
- * Dashboard · Utilizadores · Eventos · Moderação, conteúdo em fundo cinzento e Footer.
+ * Dashboard · Utilizadores · Eventos · Tipos de evento · Moderação, conteúdo em fundo cinzento e Footer.
  * Nas rotas "página inteira" (ex.: detalhe de um membro) desenha só Header, conteúdo e Footer.
  *
  * @returns {JSX.Element}

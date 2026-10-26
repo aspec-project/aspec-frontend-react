@@ -21,6 +21,7 @@ import AdminLayout from '../components/layout/AdminLayout'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminEventsPage from '../pages/admin/AdminEventsPage'
+import AdminEventCategoriesPage from '../pages/admin/AdminEventCategoriesPage'
 import HomePage from '../pages/HomePage'
 import EventsPage from '../pages/EventsPage'
 import EventDetailPage from '../pages/EventDetailPage'
@@ -145,6 +146,7 @@ function AppRouter() {
           <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
           <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
           <Route path="/admin/eventos" element={<AdminEventsPage />} />
+          <Route path="/admin/tipos-evento" element={<AdminEventCategoriesPage />} />
           <Route
             path="/admin/moderacao"
             element={<PlaceholderPage title="Moderação" />}
