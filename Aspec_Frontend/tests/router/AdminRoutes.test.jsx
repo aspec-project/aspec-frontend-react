@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
+import { getAdminEventCategories } from '../../src/services/adminEventCategories'
 import { getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
@@ -30,7 +31,12 @@ vi.mock('../../src/services/adminEvents', () => ({
   geocodeAddress: vi.fn(),
   updateAdminEvent: vi.fn(),
   deleteAdminEvent: vi.fn(),
-  getEventAttendees: vi.fn(),
+}))
+vi.mock('../../src/services/adminEventCategories', () => ({
+  getAdminEventCategories: vi.fn(),
+  createEventCategory: vi.fn(),
+  updateEventCategory: vi.fn(),
+  deleteEventCategory: vi.fn(),
 }))
 vi.mock('../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(() => Promise.resolve([])),
@@ -80,6 +86,7 @@ describe('Rotas de administração', () => {
       pagination: { current_page: 1, per_page: 6, total: 0, last_page: 1 },
       counts: { upcoming: 0, past: 0 },
     })
+    getAdminEventCategories.mockResolvedValue([])
   })
   afterEach(() => {
     vi.clearAllMocks()
@@ -145,5 +152,25 @@ describe('Rotas de administração', () => {
     await waitFor(() => expect(getEvents).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Eventos Agendados' })).not.toBeInTheDocument()
     expect(getAdminEvents).not.toHaveBeenCalled()
+  })
+
+  it('um admin vê os tipos de evento dentro do layout de administração e um membro não chega lá', async () => {
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    const { unmount } = show('/admin/tipos-evento')
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tipos de Evento' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Secções da administração' })).toBeInTheDocument()
+    await waitFor(() => expect(getAdminEventCategories).toHaveBeenCalled())
+    unmount()
+
+    vi.clearAllMocks()
+    useAuthStore.setState({ user: { id: 'member-1', email: 'membro@aspec.pt', role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/tipos-evento')
+
+    await waitFor(() => expect(getEvents).toHaveBeenCalled())
+    expect(screen.queryByRole('heading', { name: 'Tipos de Evento' })).not.toBeInTheDocument()
+    expect(getAdminEventCategories).not.toHaveBeenCalled()
   })
 })
