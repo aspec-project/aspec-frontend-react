@@ -39,6 +39,8 @@ export const EVENT_FORM_MESSAGES = {
   fixErrors: 'Corrija os campos assinalados.',
   optionsError: 'Não foi possível carregar os tipos de evento e as delegações.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao criar o evento.',
+  geocodeApproximatePrefix: 'Local aproximado:',
+  geocodeApproximateHint: 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.',
 }
 
 /** Textos próprios do modal de edição de evento. */

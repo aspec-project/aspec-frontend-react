@@ -4,10 +4,11 @@ import { EVENT_EDIT_TEXTS, EVENT_FORM_MESSAGES, GEOCODE_ATTRIBUTION } from '../.
 /**
  * Botão opcional "Verificar no mapa" e o resultado da verificação da morada. A morada encontrada vem do
  * OpenStreetMap (editável por qualquer pessoa) e por isso só é mostrada como texto. Na edição, o estado
- * `saved` indica que se mantém a localização guardada do evento.
+ * `saved` indica que se mantém a localização guardada do evento. Quando o local é aproximado
+ * (`approximate === true`), mostra um aviso para o admin confirmar ou corrigir a morada.
  *
  * @param {{
- *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: {display_name?: string, attribution?: string}|null, message: string},
+ *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: {display_name?: string, attribution?: string, approximate?: boolean}|null, message: string},
  *   canVerify: boolean,
  *   onVerify: () => void,
  *   disabled?: boolean,
@@ -32,7 +33,14 @@ export default function AddressGeocodeCheck({ geocode, canVerify, onVerify, disa
         {geocode.status === 'loading' && <p className="text-gray-600">A verificar a morada...</p>}
         {geocode.status === 'found' && (
           <>
-            <p className="text-emerald-800">{`Morada encontrada: ${geocode.result?.display_name ?? ''}`}</p>
+            {geocode.result?.approximate === true ? (
+              <>
+                <p className="text-amber-800">{`${EVENT_FORM_MESSAGES.geocodeApproximatePrefix} ${geocode.result.display_name ?? ''}`}</p>
+                <p className="text-amber-800">{EVENT_FORM_MESSAGES.geocodeApproximateHint}</p>
+              </>
+            ) : (
+              <p className="text-emerald-800">{`Morada encontrada: ${geocode.result?.display_name ?? ''}`}</p>
+            )}
             <p className="mt-0.5 text-gray-500">{geocode.result?.attribution || GEOCODE_ATTRIBUTION}</p>
           </>
         )}
