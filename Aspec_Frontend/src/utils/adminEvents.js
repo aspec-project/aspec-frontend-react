@@ -80,12 +80,12 @@ export function formatTimeRange(start, end) {
 }
 
 /**
- * Formata o prazo de inscrição na hora de Lisboa como "14 Nov 2030, 23:59", seja qual for o fuso do computador.
+ * Formata uma data e hora ISO 8601 na hora de Lisboa como "14 Nov 2030, 23:59", seja qual for o fuso do computador.
  *
- * @param {unknown} value Prazo ISO 8601 com desvio.
- * @returns {string} Prazo formatado ou "—" se for inválido.
+ * @param {unknown} value Data e hora ISO 8601 com desvio.
+ * @returns {string} Data formatada ou "—" se for inválida.
  */
-export function formatDeadline(value) {
+function formatLisbonDateTime(value) {
   const time = parseDeadline(value)
 
   if (time === null) return '—'
@@ -95,6 +95,16 @@ export function formatDeadline(value) {
   )
 
   return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]} ${parts.year}, ${parts.hour}:${parts.minute}`
+}
+
+/**
+ * Formata o prazo de inscrição na hora de Lisboa como "14 Nov 2030, 23:59", seja qual for o fuso do computador.
+ *
+ * @param {unknown} value Prazo ISO 8601 com desvio.
+ * @returns {string} Prazo formatado ou "—" se for inválido.
+ */
+export function formatDeadline(value) {
+  return formatLisbonDateTime(value)
 }
 
 /**
@@ -319,4 +329,56 @@ export function getDeleteEventDescription(event) {
   if (Number.isInteger(count) && count > 1) return `${intro} Será enviado um email aos ${count} inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`
 
   return `${intro} Será enviado um email aos inscritos a informar que o evento foi cancelado, com a justificação abaixo. O evento e as inscrições são apagados definitivamente.`
+}
+
+/** Textos do botão e do diálogo da lista de inscritos de um evento (com o aviso do art. 9.º do RGPD). */
+export const ATTENDEES_LIST_TEXTS = {
+  buttonLabel: 'Ver inscritos',
+  title: 'Inscritos',
+  tableCaption: 'Inscritos do evento',
+  regionLabel: 'Lista de inscritos',
+  note: 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use esta lista só dentro da ASPEC e não a partilhe com terceiros (ao local do evento indique só o número de inscritos).',
+  loading: 'A carregar inscritos...',
+  empty: 'Este evento não tem inscritos.',
+  noProfile: 'Conta sem perfil',
+  loadError: 'Não foi possível carregar os inscritos. Tente novamente.',
+  notFound: 'O evento já não existe. A lista foi atualizada.',
+  retryLabel: 'Tentar novamente',
+  closeLabel: 'Fechar',
+}
+
+/**
+ * Formata a data de inscrição na hora de Lisboa como "15 Jul 2026, 14:05".
+ *
+ * @param {unknown} value Data de inscrição ISO 8601 (UTC).
+ * @returns {string} Data formatada ou "—" se for inválida.
+ */
+export function formatRegisteredAt(value) {
+  return formatLisbonDateTime(value)
+}
+
+/**
+ * Contagem de inscritos como "22 inscritos de 30 lugares" (sem lotação válida, só "22 inscritos").
+ *
+ * @param {number} count Número de inscritos.
+ * @param {unknown} max Lotação máxima do evento.
+ * @returns {string}
+ */
+export function formatAttendeesCount(count, max) {
+  const label = count === 1 ? '1 inscrito' : `${count} inscritos`
+
+  return Number.isInteger(max) && max > 0 ? `${label} de ${max} lugares` : label
+}
+
+/**
+ * Descrição do diálogo de inscritos: evento, data e, depois de carregar, a contagem.
+ *
+ * @param {{name?: string, event_date?: string, max_attendees?: unknown}} event Evento da lista.
+ * @param {number|null} count Número de inscritos carregados, ou null enquanto carrega/com erro.
+ * @returns {string}
+ */
+export function getAttendeesDialogDescription(event, count) {
+  const intro = `«${event.name}» (${formatEventDate(event.event_date)})`
+
+  return Number.isInteger(count) && count >= 0 ? `${intro} · ${formatAttendeesCount(count, event.max_attendees)}` : intro
 }
