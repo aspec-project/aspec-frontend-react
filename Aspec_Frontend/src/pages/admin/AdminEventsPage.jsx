@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Download, Plus, TriangleAlert } from 'lucide-react'
 import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
 import EditEventDialog from '../../components/admin/events/EditEventDialog'
+import EventAttendeesDialog from '../../components/admin/events/EventAttendeesDialog'
 import EventListFilters from '../../components/admin/events/EventListFilters'
 import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
 import EventsTable from '../../components/admin/events/EventsTable'
@@ -36,6 +37,7 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * O 🗑 de cada evento agendado abre o diálogo de apagar: com inscritos a justificação é obrigatória (segue no
  * email de cancelamento); sem inscritos é uma confirmação simples. Depois de apagar aparece a mensagem da API
  * e a lista recarrega com os mesmos filtros.
+ * O 👥 de cada evento abre a lista de inscritos (nome, empresa e data de inscrição, com o aviso do RGPD).
  * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal),
  * useAttendeesExport (exportação) e useEventDeletion (apagar).
  *
@@ -59,6 +61,7 @@ export default function AdminEventsPage() {
   const exporter = useAttendeesExport({ onStale: retry })
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [viewing, setViewing] = useState(null)
   const [formFeedback, setFormFeedback] = useState(null)
   const deletion = useEventDeletion({
     onSuccess: (message) => {
@@ -126,6 +129,7 @@ export default function AdminEventsPage() {
             events={data.items}
             period={filters.period}
             busy={loading}
+            onViewAttendees={setViewing}
             onExport={exporter.requestExport}
             onEdit={setEditing}
             onDelete={deletion.requestDelete}
@@ -218,6 +222,10 @@ export default function AdminEventsPage() {
             retry()
           }}
         />
+      )}
+
+      {viewing && (
+        <EventAttendeesDialog key={viewing.id} event={viewing} onClose={() => setViewing(null)} onStale={retry} />
       )}
     </div>
   )

@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest'
 import * as adminEventsUtils from '../../src/utils/adminEvents'
 import {
   ATTENDEES_EXPORT_TEXTS,
+  ATTENDEES_LIST_TEXTS,
   DELETE_EVENT_TEXTS,
   DELETE_JUSTIFICATION_MAX_LENGTH,
   countActiveFilters,
+  formatAttendeesCount,
   formatDeadline,
   formatEventDate,
+  formatRegisteredAt,
   formatResultsRange,
   formatSession,
   formatTimeRange,
+  getAttendeesDialogDescription,
   getAttendeesExportDescription,
   getAttendeesFallbackFilename,
   getDateRangeError,
@@ -280,5 +284,67 @@ describe('getDeleteEventDescription', () => {
 
   it('com uma data inválida mostra um travessão', () => {
     expect(getDeleteEventDescription(workshop({ event_date: 'x' }))).toMatch(/^Vai apagar «Workshop de Liderança» \(—\)\./)
+  })
+})
+
+describe('ATTENDEES_LIST_TEXTS', () => {
+  it('tem os textos do botão e do diálogo da lista de inscritos com o aviso do art. 9.º do RGPD', () => {
+    expect(ATTENDEES_LIST_TEXTS).toEqual({
+      buttonLabel: 'Ver inscritos',
+      title: 'Inscritos',
+      tableCaption: 'Inscritos do evento',
+      regionLabel: 'Lista de inscritos',
+      note: 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use esta lista só dentro da ASPEC e não a partilhe com terceiros (ao local do evento indique só o número de inscritos).',
+      loading: 'A carregar inscritos...',
+      empty: 'Este evento não tem inscritos.',
+      noProfile: 'Conta sem perfil',
+      loadError: 'Não foi possível carregar os inscritos. Tente novamente.',
+      notFound: 'O evento já não existe. A lista foi atualizada.',
+      retryLabel: 'Tentar novamente',
+      closeLabel: 'Fechar',
+    })
+  })
+})
+
+describe('formatRegisteredAt', () => {
+  it('mostra a data de inscrição na hora de Lisboa, no verão e no inverno', () => {
+    expect(formatRegisteredAt('2026-07-15T13:05:00+00:00')).toBe('15 Jul 2026, 14:05')
+    expect(formatRegisteredAt('2026-12-01T09:30:00+00:00')).toBe('1 Dez 2026, 09:30')
+  })
+
+  it('devolve um travessão para datas vazias, inválidas ou que não são texto', () => {
+    for (const value of [null, '', 'x', 42]) {
+      expect(formatRegisteredAt(value)).toBe('—')
+    }
+  })
+})
+
+describe('formatAttendeesCount', () => {
+  it('diz o número de inscritos e de lugares, no singular e no plural', () => {
+    expect(formatAttendeesCount(22, 30)).toBe('22 inscritos de 30 lugares')
+    expect(formatAttendeesCount(1, 30)).toBe('1 inscrito de 30 lugares')
+    expect(formatAttendeesCount(0, 30)).toBe('0 inscritos de 30 lugares')
+  })
+
+  it('sem uma lotação válida mostra só o número de inscritos', () => {
+    for (const max of [null, 0, '30']) {
+      expect(formatAttendeesCount(5, max)).toBe('5 inscritos')
+    }
+  })
+})
+
+describe('getAttendeesDialogDescription', () => {
+  const workshop = { name: 'Workshop de Liderança', event_date: '2099-01-21', max_attendees: 30 }
+
+  it('enquanto não há lista mostra só o evento e a data', () => {
+    expect(getAttendeesDialogDescription(workshop, null)).toBe('«Workshop de Liderança» (21 Jan 2099)')
+  })
+
+  it('com a lista carregada acrescenta a contagem de inscritos e lugares', () => {
+    expect(getAttendeesDialogDescription(workshop, 4)).toBe('«Workshop de Liderança» (21 Jan 2099) · 4 inscritos de 30 lugares')
+  })
+
+  it('com uma data inválida mostra um travessão', () => {
+    expect(getAttendeesDialogDescription({ ...workshop, event_date: 'x' }, null)).toBe('«Workshop de Liderança» (—)')
   })
 })

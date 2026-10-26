@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
 import { api, normalizeError } from '../../src/services/api'
-import { createAdminEvent, deleteAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, updateAdminEvent } from '../../src/services/adminEvents'
+import { createAdminEvent, deleteAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, getEventAttendees, updateAdminEvent } from '../../src/services/adminEvents'
 
 const payload = {
   items: [{ id: 'e1', name: 'Jantar — Lisboa' }],
@@ -219,5 +219,80 @@ describe('deleteAdminEvent', () => {
     vi.spyOn(api, 'delete').mockRejectedValue(error)
 
     await expect(deleteAdminEvent('e1', 'Motivo')).rejects.toBe(error)
+  })
+})
+
+describe('getEventAttendees', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const contractAttendees = [
+    { id: 'c1a2b3c4-1111-4a11-8111-111111111111', user_id: '3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f', name: 'Álvaro Dias', business_name: 'Dias & Filhos, Lda.', email: 'alvaro.dias@example.pt', phone: '+351910000001', registered_at: '2026-07-15T13:05:00+00:00' },
+    { id: 'c1a2b3c4-2222-4a22-8222-222222222222', user_id: null, name: 'Utilizador Anónimo', business_name: 'Empresa Removida', email: null, phone: null, registered_at: '2026-07-16T09:00:00+00:00' },
+    { id: 'c1a2b3c4-3333-4a33-8333-333333333333', user_id: '9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', name: null, business_name: null, email: 'admin@example.pt', phone: '+351210000003', registered_at: '2026-07-17T18:30:00+00:00' },
+  ]
+
+  function attendeesResponse(data, success = true) {
+    return { data: { success, message: 'Inscritos do evento obtidos com sucesso.', data } }
+  }
+
+  it('pede os inscritos com o signal e devolve só o nome, a empresa e a data de inscrição', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(attendeesResponse(contractAttendees))
+    const signal = new AbortController().signal
+
+    const result = await getEventAttendees('e1', signal)
+
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledWith('/admin/events/e1/attendees', { signal })
+    expect(result).toEqual([
+      { id: 'c1a2b3c4-1111-4a11-8111-111111111111', name: 'Álvaro Dias', business_name: 'Dias & Filhos, Lda.', registered_at: '2026-07-15T13:05:00+00:00' },
+      { id: 'c1a2b3c4-2222-4a22-8222-222222222222', name: 'Utilizador Anónimo', business_name: 'Empresa Removida', registered_at: '2026-07-16T09:00:00+00:00' },
+      { id: 'c1a2b3c4-3333-4a33-8333-333333333333', name: null, business_name: null, registered_at: '2026-07-17T18:30:00+00:00' },
+    ])
+    for (const attendee of result) {
+      expect(Object.keys(attendee)).toEqual(['id', 'name', 'business_name', 'registered_at'])
+    }
+  })
+
+  it('valores que não são texto passam a null', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(attendeesResponse([{ ...contractAttendees[0], name: 42 }]))
+
+    const [attendee] = await getEventAttendees('e1')
+
+    expect(attendee.name).toBeNull()
+    expect(attendee.business_name).toBe('Dias & Filhos, Lda.')
+  })
+
+  it('codifica o id no URL e devolve uma lista vazia quando não há inscritos', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(attendeesResponse([]))
+
+    const result = await getEventAttendees('a/b')
+
+    expect(get.mock.calls[0][0]).toBe('/admin/events/a%2Fb/attendees')
+    expect(result).toEqual([])
+  })
+
+  it('rejeita respostas com um formato inesperado com um erro que não é do axios', async () => {
+    const responses = [
+      attendeesResponse([], false),
+      attendeesResponse({}),
+      attendeesResponse([null]),
+    ]
+
+    for (const response of responses) {
+      vi.spyOn(api, 'get').mockResolvedValueOnce(response)
+
+      const caught = await getEventAttendees('e1').catch((err) => err)
+
+      expect(caught).toBeInstanceOf(Error)
+      expect(caught).not.toBeInstanceOf(AxiosError)
+      expect(caught.message).toBe('A resposta dos inscritos tem um formato inesperado.')
+    }
+  })
+
+  it('relança o erro do pedido tal como está', async () => {
+    const error = blobError(500, { success: false, message: 'Erro interno do servidor.', data: null })
+    vi.spyOn(api, 'get').mockRejectedValue(error)
+
+    await expect(getEventAttendees('e1')).rejects.toBe(error)
   })
 })

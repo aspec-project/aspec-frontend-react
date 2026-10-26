@@ -4,7 +4,7 @@ import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminEventsPage from '../../../src/pages/admin/AdminEventsPage'
-import { createAdminEvent, deleteAdminEvent, exportEventAttendees, getAdminEvents, updateAdminEvent } from '../../../src/services/adminEvents'
+import { createAdminEvent, deleteAdminEvent, exportEventAttendees, getAdminEvents, getEventAttendees, updateAdminEvent } from '../../../src/services/adminEvents'
 import { getEventCategories, getLocations } from '../../../src/services/referenceLists'
 
 vi.mock('../../../src/services/adminEvents', () => ({
@@ -14,6 +14,7 @@ vi.mock('../../../src/services/adminEvents', () => ({
   geocodeAddress: vi.fn(),
   updateAdminEvent: vi.fn(),
   deleteAdminEvent: vi.fn(),
+  getEventAttendees: vi.fn(),
 }))
 vi.mock('../../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(),
@@ -1312,6 +1313,373 @@ describe('Gestão de Eventos', () => {
       expect(await screen.findByText('Não há eventos agendados.')).toBeInTheDocument()
       await act(async () => {})
       expect(getAdminEvents).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Inscritos do evento', () => {
+    const NOTE = 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use esta lista só dentro da ASPEC e não a partilhe com terceiros (ao local do evento indique só o número de inscritos).'
+    const WORKSHOP_DESCRIPTION = '«Workshop de Liderança» (21 Jan 2099)'
+    const empty = event('e4', 'Almoço Sem Inscritos', { registrations_count: 0 })
+    const attendees = [
+      { id: 'r1', name: 'Álvaro Dias', business_name: 'Dias & Filhos, Lda.', registered_at: '2026-07-15T13:05:00+00:00', email: 'alvaro.dias@example.pt', phone: '+351910000001' },
+      { id: 'r2', name: 'andré Costa', business_name: 'Costa Lda.', registered_at: '2026-12-01T09:30:00+00:00', email: 'andre@example.pt', phone: '+351910000002' },
+      { id: 'r3', name: 'Utilizador Anónimo', business_name: 'Empresa Removida', registered_at: '2026-07-16T09:00:00+00:00' },
+      { id: 'r4', name: null, business_name: null, registered_at: '2026-07-17T18:30:00+00:00', email: 'admin@example.pt', phone: '+351210000003' },
+    ]
+
+    function attendeesButton(name) {
+      return screen.getByRole('button', { name: `Ver inscritos de ${name}` })
+    }
+
+    function attendeesDialog() {
+      return screen.getByRole('dialog', { name: 'Inscritos' })
+    }
+
+    function dialogButton(name) {
+      return within(attendeesDialog()).getByRole('button', { name })
+    }
+
+    function attendeesTable() {
+      return within(attendeesDialog()).getByRole('table', { name: 'Inscritos do evento' })
+    }
+
+    function attendeeRows() {
+      return within(attendeesTable()).getAllByRole('row').slice(1)
+    }
+
+    async function openAttendees(user, name = 'Workshop de Liderança') {
+      await screen.findByRole('table')
+      await user.click(attendeesButton(name))
+
+      return screen.findByRole('dialog', { name: 'Inscritos' })
+    }
+
+    beforeEach(() => {
+      getAdminEvents.mockResolvedValue(list([workshop, online, empty]))
+    })
+
+    it('cada linha tem o botão de ver inscritos antes do de exportar, ativo mesmo sem inscritos ou com o prazo encerrado', async () => {
+      show()
+      await screen.findByRole('table')
+
+      for (const name of ['Workshop de Liderança', 'Formação Online', 'Almoço Sem Inscritos']) {
+        const cell = cellOf(name, 'Ações')
+        const view = attendeesButton(name)
+        const exportButton = within(cell).getByRole('button', { name: /^Exportar/ })
+
+        expect(cell).toContainElement(view)
+        expect(view).toBeEnabled()
+        expect(view).toHaveAttribute('title', 'Ver inscritos')
+        expect(view).toHaveAttribute('aria-haspopup', 'dialog')
+        expect(view.compareDocumentPosition(exportButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      }
+    })
+
+    it('nos passados o botão de ver inscritos também existe e está ativo, sem editar nem apagar', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+
+      for (const name of ['Workshop de Liderança', 'Formação Online', 'Almoço Sem Inscritos']) {
+        expect(cellOf(name, 'Ações')).toContainElement(attendeesButton(name))
+        expect(attendeesButton(name)).toBeEnabled()
+      }
+      expect(screen.queryByRole('button', { name: /Editar/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Apagar/i })).not.toBeInTheDocument()
+    })
+
+    it('os botões de ver inscritos ficam desativados enquanto a lista recarrega', async () => {
+      threePages()
+      const user = userEvent.setup()
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      const pending = deferred()
+      getAdminEvents.mockImplementationOnce(() => pending.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+
+      await waitFor(() => expect(attendeesButton('Página evento 1')).toBeDisabled())
+      for (const button of screen.getAllByRole('button', { name: /^Ver inscritos de / })) {
+        expect(button).toBeDisabled()
+      }
+
+      await act(async () => { pending.resolve(list(sixEvents('Página'), { current_page: 2, total: 13, last_page: 3 })) })
+    })
+
+    it('abre um só diálogo com o evento e o carregamento, foca Fechar e pede os inscritos desse evento', async () => {
+      const pending = deferred()
+      getEventAttendees.mockImplementation(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
+      expect(dialog).toHaveAccessibleDescription(WORKSHOP_DESCRIPTION)
+      expect(within(dialog).getByRole('status')).toHaveTextContent('A carregar inscritos...')
+      expect(within(dialog).getByRole('button', { name: 'Fechar' })).toHaveFocus()
+      expect(getEventAttendees).toHaveBeenCalledTimes(1)
+      expect(getEventAttendees).toHaveBeenCalledWith('e1', expect.any(AbortSignal))
+      expect(exportEventAttendees).not.toHaveBeenCalled()
+      expect(deleteAdminEvent).not.toHaveBeenCalled()
+      expect(updateAdminEvent).not.toHaveBeenCalled()
+
+      await act(async () => { pending.resolve(attendees) })
+    })
+
+    it('mostra o nome, a empresa e a data de inscrição pela ordem recebida, sem contactos pessoais', async () => {
+      getEventAttendees.mockResolvedValue(attendees)
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+      const table = await within(dialog).findByRole('table', { name: 'Inscritos do evento' })
+
+      expect(within(table).getAllByRole('columnheader').map((header) => header.textContent.trim()))
+        .toEqual(['Nome', 'Empresa', 'Data de inscrição'])
+      expect(attendeeRows().map((row) => row.children[0].textContent.trim()))
+        .toEqual(['Álvaro Dias', 'andré Costa', 'Utilizador Anónimo', 'Conta sem perfil'])
+      expect(attendeeRows()[0]).toHaveTextContent('15 Jul 2026, 14:05')
+      expect(attendeeRows()[1]).toHaveTextContent('1 Dez 2026, 09:30')
+      expect(attendeeRows()[2].children[1]).toHaveTextContent('Empresa Removida')
+      expect(attendeeRows()[3].children[1].textContent.trim()).toBe('—')
+      expect(dialog).toHaveAccessibleDescription(`${WORKSHOP_DESCRIPTION} · 4 inscritos de 30 lugares`)
+      expect(within(dialog).getByRole('note')).toHaveTextContent(NOTE)
+      expect(screen.queryByText('alvaro.dias@example.pt')).not.toBeInTheDocument()
+      expect(screen.queryByText('+351910000001')).not.toBeInTheDocument()
+      expect(screen.queryByText('admin@example.pt')).not.toBeInTheDocument()
+      expect(within(dialog).getByRole('region', { name: 'Lista de inscritos' })).toHaveAttribute('tabindex', '0')
+    })
+
+    it('sem inscritos diz que a lista está vazia e mantém o aviso do RGPD', async () => {
+      getEventAttendees.mockResolvedValue([])
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user, 'Almoço Sem Inscritos')
+
+      expect(await within(dialog).findByRole('status')).toHaveTextContent('Este evento não tem inscritos.')
+      expect(within(dialog).queryByRole('table')).not.toBeInTheDocument()
+      expect(dialog).toHaveAccessibleDescription('«Almoço Sem Inscritos» (21 Jan 2099) · 0 inscritos de 30 lugares')
+      expect(within(dialog).getByRole('note')).toHaveTextContent(NOTE)
+    })
+
+    it('um erro do servidor aparece dentro do diálogo e Tentar novamente volta a pedir', async () => {
+      getEventAttendees.mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      const dialog = await openAttendees(user)
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Erro interno do servidor.')
+      expect(dialog).toHaveAccessibleDescription(WORKSHOP_DESCRIPTION)
+      for (const alert of screen.getAllByRole('alert')) {
+        expect(dialog).toContainElement(alert)
+      }
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+
+      const pending = deferred()
+      getEventAttendees.mockImplementationOnce(() => pending.promise)
+      await user.click(dialogButton('Tentar novamente'))
+
+      expect(within(attendeesDialog()).getByRole('status')).toHaveTextContent('A carregar inscritos...')
+      await act(async () => { pending.resolve(attendees) })
+      expect(attendeesTable()).toBeInTheDocument()
+      expect(getEventAttendees.mock.calls.map((call) => call[0])).toEqual(['e1', 'e1'])
+    })
+
+    it('com demasiados pedidos mostra a mensagem do backend e permite tentar de novo', async () => {
+      getEventAttendees.mockRejectedValueOnce(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.'))
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Demasiados pedidos. Tente novamente mais tarde.')
+      expect(within(dialog).getByRole('button', { name: 'Tentar novamente' })).toBeEnabled()
+    })
+
+    it('uma resposta com formato inesperado mostra a frase própria e não fala em contactar o servidor', async () => {
+      getEventAttendees.mockRejectedValueOnce(new Error('A resposta dos inscritos tem um formato inesperado.'))
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Não foi possível carregar os inscritos. Tente novamente.')
+      expect(screen.queryByText(/Não foi possível contactar o servidor/)).not.toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument()
+    })
+
+    it('se o evento já não existe avisa, não deixa tentar de novo e recarrega a lista com os mesmos filtros', async () => {
+      getEventAttendees.mockRejectedValueOnce(apiError(404, 'Recurso não encontrado.'))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+      const filtersBefore = lastCall()[0]
+
+      const dialog = await openAttendees(user)
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('O evento já não existe. A lista foi atualizada.')
+      expect(within(dialog).queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument()
+      await waitFor(() => expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore + 1))
+      expect(lastCall()[0]).toEqual(filtersBefore)
+      expect(attendeesDialog()).toBeInTheDocument()
+
+      await user.click(dialogButton('Fechar'))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('Escape e Fechar fecham o diálogo e devolvem o foco ao botão, e o Tab fica preso no diálogo', async () => {
+      getEventAttendees.mockResolvedValue(attendees)
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await openAttendees(user)
+      await screen.findByRole('table', { name: 'Inscritos do evento' })
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(attendeesButton('Workshop de Liderança')).toHaveFocus()
+
+      await openAttendees(user)
+      await screen.findByRole('table', { name: 'Inscritos do evento' })
+      const close = dialogButton('Fechar')
+      const region = within(attendeesDialog()).getByRole('region', { name: 'Lista de inscritos' })
+      expect(close).toHaveFocus()
+      await user.tab()
+      expect(region).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(close).toHaveFocus()
+
+      await user.click(close)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(attendeesButton('Workshop de Liderança')).toHaveFocus()
+      expect(getAdminEvents).toHaveBeenCalledTimes(callsBefore)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('fechar durante o pedido cancela-o e uma resposta tardia não mostra nada', async () => {
+      const pending = deferred()
+      getEventAttendees.mockImplementationOnce(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+
+      await openAttendees(user)
+      const signal = getEventAttendees.mock.calls[0][1]
+      await user.click(dialogButton('Fechar'))
+
+      expect(signal.aborted).toBe(true)
+      await act(async () => { pending.resolve(attendees) })
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('table', { name: 'Inscritos do evento' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('um pedido cancelado não mostra erro e reabrir pede a lista outra vez', async () => {
+      getEventAttendees.mockRejectedValueOnce(new CanceledError())
+      const user = userEvent.setup()
+      show()
+
+      await openAttendees(user)
+      await waitFor(() => expect(getEventAttendees).toHaveBeenCalledTimes(1))
+      await act(async () => {})
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      await user.click(dialogButton('Fechar'))
+      getEventAttendees.mockResolvedValueOnce(attendees)
+      await openAttendees(user)
+
+      expect(getEventAttendees).toHaveBeenCalledTimes(2)
+      expect(await screen.findByRole('table', { name: 'Inscritos do evento' })).toBeInTheDocument()
+    })
+
+    it('nos passados mostra os inscritos do evento escolhido com a lotação dele', async () => {
+      getAdminEvents.mockResolvedValue(list([online]))
+      const pending = deferred()
+      getEventAttendees.mockImplementationOnce(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+      await user.click(attendeesButton('Formação Online'))
+      const dialog = await screen.findByRole('dialog', { name: 'Inscritos' })
+
+      expect(dialog).toHaveAccessibleDescription('«Formação Online» (10 Fev 2099)')
+      expect(getEventAttendees).toHaveBeenCalledWith('e2', expect.any(AbortSignal))
+
+      await act(async () => { pending.resolve(attendees) })
+      expect(dialog).toHaveAccessibleDescription('«Formação Online» (10 Fev 2099) · 4 inscritos de 40 lugares')
+    })
+
+    it('Tentar novamente com o teclado passa o foco para Fechar e o foco não sai do diálogo', async () => {
+      const pending = deferred()
+      getEventAttendees
+        .mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
+        .mockImplementationOnce(() => pending.promise)
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+      await within(dialog).findByRole('alert')
+      act(() => { dialogButton('Tentar novamente').focus() })
+      await user.keyboard('{Enter}')
+
+      expect(within(attendeesDialog()).getByRole('status')).toHaveTextContent('A carregar inscritos...')
+      const close = dialogButton('Fechar')
+      expect(close).toHaveFocus()
+      expect(attendeesDialog()).toContainElement(document.activeElement)
+      await user.tab()
+      expect(close).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(close).toHaveFocus()
+
+      await act(async () => { pending.resolve(attendees) })
+      expect(attendeesTable()).toBeInTheDocument()
+      expect(close).toHaveFocus()
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(attendeesButton('Workshop de Liderança')).toHaveFocus()
+    })
+
+    it('se o novo pedido voltar a falhar o foco fica em Fechar e o Tab alterna com o novo Tentar novamente', async () => {
+      getEventAttendees
+        .mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
+        .mockRejectedValueOnce(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.'))
+      const user = userEvent.setup()
+      show()
+
+      const dialog = await openAttendees(user)
+      await within(dialog).findByRole('alert')
+      await user.click(dialogButton('Tentar novamente'))
+
+      expect(dialogButton('Fechar')).toHaveFocus()
+      await waitFor(() => expect(within(attendeesDialog()).getByRole('alert')).toHaveTextContent('Demasiados pedidos. Tente novamente mais tarde.'))
+      expect(within(attendeesDialog()).getAllByRole('alert')).toHaveLength(1)
+      const close = dialogButton('Fechar')
+      const retry = dialogButton('Tentar novamente')
+      expect(retry).toBeVisible()
+      expect(retry).not.toHaveFocus()
+      expect(close).toHaveFocus()
+
+      await user.tab({ shift: true })
+      expect(retry).toHaveFocus()
+      await user.tab()
+      expect(close).toHaveFocus()
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(getEventAttendees.mock.calls.map((call) => call[0])).toEqual(['e1', 'e1'])
     })
   })
 })

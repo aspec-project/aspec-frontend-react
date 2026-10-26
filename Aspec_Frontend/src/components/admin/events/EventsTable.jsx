@@ -12,12 +12,13 @@ const REGISTRATION_BADGES = {
 /**
  * Tabela da lista de eventos do backoffice: evento (nome, categoria e "Sessão X/Y" quando existe), data e hora,
  * local, prazo de inscrição com o estado (Abertas/Encerradas), lotação ("Participação" nos passados) e ações
- * (exportar a lista de presenças e, nos agendados, editar e apagar). O link dos eventos online não é mostrado.
+ * (ver inscritos, exportar a lista de presenças e, nos agendados, editar e apagar). O link dos eventos online não é mostrado.
  *
  * @param {{
  *   events: object[],
  *   period: 'upcoming'|'past',
  *   busy?: boolean,
+ *   onViewAttendees?: (event: object) => void,
  *   onExport: (event: object) => void,
  *   onEdit?: (event: object) => void,
  *   onDelete?: (event: object) => void,
@@ -25,7 +26,7 @@ const REGISTRATION_BADGES = {
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventsTable({ events, period, busy = false, onExport, onEdit, onDelete, actionsDisabled = false }) {
+export default function EventsTable({ events, period, busy = false, onViewAttendees, onExport, onEdit, onDelete, actionsDisabled = false }) {
   const tab = EVENT_PERIOD_TABS.find((item) => item.key === period) ?? EVENT_PERIOD_TABS[0]
   const headers = ['Evento', 'Data e hora', 'Local', 'Inscrições até', tab.capacityLabel, 'Ações']
 
@@ -105,7 +106,7 @@ export default function EventsTable({ events, period, busy = false, onExport, on
                   <EventOccupancy registrations={event.registrations_count} max={event.max_attendees} period={period} />
                 </td>
                 <td className="px-5 py-4">
-                  <EventActions event={event} period={period} disabled={actionsDisabled} onExport={onExport} onEdit={onEdit} onDelete={onDelete} />
+                  <EventActions event={event} period={period} disabled={actionsDisabled} onViewAttendees={onViewAttendees} onExport={onExport} onEdit={onEdit} onDelete={onDelete} />
                 </td>
               </tr>
             )
