@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Search } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import ShowAdminsToggle from '../../components/admin/users/ShowAdminsToggle'
 import UserStatusTabs from '../../components/admin/users/UserStatusTabs'
 import UsersTable from '../../components/admin/users/UsersTable'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -15,9 +16,9 @@ import { REASON_ACTIONS, getActionConfirmation, getStatusTabCounts } from '../..
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
- * Página Gestão de Utilizadores do backoffice: chips de estado da subscrição com contagens, "Ver admins",
- * pesquisa, tabela com ações (enviar email de pagamento, aprovar, recusar, bloquear, desbloquear, promover
- * e despromover) e paginação numerada.
+ * Página Gestão de Utilizadores do backoffice: botão de olho para ver os admins, chips de estado da
+ * subscrição com contagens, pesquisa, tabela com ações (enviar email de pagamento, aprovar, recusar,
+ * bloquear, desbloquear, promover e despromover) e paginação numerada.
  * Cada ação pede confirmação num diálogo (recusar e bloquear com uma justificação opcional, que segue
  * no email ao membro) e o resultado aparece numa mensagem com o texto da API.
  * Também mostra a mensagem trazida pela navegação (ex.: depois de anonimizar no detalhe) e limpa-a
@@ -64,17 +65,9 @@ export default function AdminUsersPage() {
         <FeedbackBanner type={actions.feedback.type} message={actions.feedback.message} onClose={actions.dismissFeedback} />
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <ShowAdminsToggle pressed={filters.includeAdmins} onToggle={toggleIncludeAdmins} />
         <UserStatusTabs activeTab={filters.tab} counts={getStatusTabCounts(data?.subscription_state_counts)} onSelect={selectTab} />
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-          <input
-            type="checkbox"
-            checked={filters.includeAdmins}
-            onChange={toggleIncludeAdmins}
-            className="h-4 w-4 accent-[#0d1f35]"
-          />
-          Ver admins
-        </label>
       </div>
 
       <div className="relative">
