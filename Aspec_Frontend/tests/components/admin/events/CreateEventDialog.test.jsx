@@ -35,6 +35,7 @@ const END_TIME_ERROR = 'A hora de fim deve ser posterior à hora de início.'
 const NOT_FOUND = 'Não foi possível encontrar esta morada no mapa. Verifique a morada e tente novamente.'
 const UNAVAILABLE = 'O serviço de localização não está disponível de momento. Tente novamente dentro de instantes.'
 const SUCCESS = 'Evento criado com sucesso.'
+const APPROXIMATE_HINT = 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.'
 
 const IN_PERSON_PAYLOAD = {
   category_id: 'c3',
@@ -345,6 +346,42 @@ describe('CreateEventDialog', () => {
     expect(signal.aborted).toBe(true)
     await act(async () => { late.resolve(FOUND) })
     expect(screen.queryByText(/^Morada encontrada:/)).not.toBeInTheDocument()
+  }, 10000)
+
+  it('avisa quando o local é aproximado, envia as coordenadas e o aviso desaparece ao mudar a morada', async () => {
+    geocodeAddress.mockResolvedValue({
+      latitude: 37.74,
+      longitude: -25.67,
+      display_name: 'Rua da Guiné, Ponta Delgada',
+      attribution: '© OpenStreetMap contributors',
+      approximate: true,
+    })
+    createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup()
+    show()
+    await fillValidInPerson(user)
+
+    await user.click(verifyButton())
+
+    expect(await screen.findByText('Local aproximado: Rua da Guiné, Ponta Delgada')).toBeInTheDocument()
+    expect(screen.getByText(APPROXIMATE_HINT)).toBeInTheDocument()
+    expect(screen.queryByText(/^Morada encontrada:/)).not.toBeInTheDocument()
+
+    await user.click(submitButton())
+
+    expect(createAdminEvent).toHaveBeenLastCalledWith({ ...IN_PERSON_PAYLOAD, latitude: 37.74, longitude: -25.67 })
+
+    await user.type(field.address(), ' A')
+
+    expect(screen.queryByText(/^Local aproximado:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(APPROXIMATE_HINT)).not.toBeInTheDocument()
+
+    await user.click(submitButton())
+
+    const payload = createAdminEvent.mock.calls.at(-1)[0]
+    expect(payload).toMatchObject({ address: 'Rua das Flores 42 A' })
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
   }, 10000)
 
   it('mostra junto à morada as mensagens de morada não encontrada e serviço indisponível sem bloquear o envio', async () => {

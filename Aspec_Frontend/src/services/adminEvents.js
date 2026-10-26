@@ -99,12 +99,13 @@ export async function updateAdminEvent(eventId, payload) {
 
 /**
  * Localiza uma morada no mapa (OpenStreetMap) para o admin confirmar o sítio antes de criar o evento.
- * O distrito só é enviado quando foi escolhido.
+ * O distrito só é enviado quando foi escolhido. `approximate` é true quando o local encontrado pode não
+ * corresponder à morada (rua ou distrito diferentes).
  *
  * @param {string} address Morada a localizar.
  * @param {string} locationId Id do distrito (pode ser vazio).
  * @param {AbortSignal} [signal] Permite cancelar o pedido quando a morada ou o distrito mudam.
- * @returns {Promise<{latitude: number, longitude: number, display_name: string, attribution: string}>}
+ * @returns {Promise<{latitude: number, longitude: number, display_name: string, attribution: string, approximate: boolean}>}
  */
 export async function geocodeAddress(address, locationId, signal) {
   const params = { address }
