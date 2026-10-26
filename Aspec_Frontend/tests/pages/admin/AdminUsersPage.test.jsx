@@ -233,17 +233,36 @@ describe('Gestão de Utilizadores', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('a checkbox Ver admins pede os admins e não há Mostrar admins nem Exportar', async () => {
+  it('o botão de olho Ver admins vem antes dos chips, pede os admins e não há checkbox nem Exportar', async () => {
     const user = userEvent.setup()
     show()
     await waitForTable()
 
-    expect(screen.queryByRole('checkbox', { name: 'Mostrar admins' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Exportar/ })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('checkbox', { name: 'Ver admins' }))
+    const eye = screen.getByRole('button', { name: 'Ver admins' })
+    const group = screen.getByRole('group', { name: 'Filtrar por estado' })
+    expect(eye).toHaveAttribute('aria-pressed', 'false')
+    expect(group).not.toContainElement(eye)
+    expect(eye.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    document.activeElement.blur()
+    await user.tab()
+    expect(eye).toHaveFocus()
+    await user.tab()
+    expect(tab('Todos')).toHaveFocus()
+
+    await user.click(eye)
 
     await waitFor(() => expect(lastCall()).toEqual([{ search: '', includeAdmins: true, page: 1 }, expect.any(AbortSignal)]))
+    expect(eye).toHaveAttribute('aria-pressed', 'true')
+    expect(eye).toHaveAttribute('title', 'Esconder admins')
+
+    await user.click(eye)
+
+    await waitFor(() => expect(lastCall()).toEqual([{ search: '', includeAdmins: false, page: 1 }, expect.any(AbortSignal)]))
+    expect(eye).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('pesquisar dentro de um chip mantém o chip e volta à primeira página', async () => {
@@ -322,7 +341,7 @@ describe('Gestão de Utilizadores', () => {
     await waitForTable()
     getAdminUsers.mockResolvedValue(list([adminUser, ...items]))
 
-    await user.click(screen.getByRole('checkbox', { name: 'Ver admins' }))
+    await user.click(screen.getByRole('button', { name: 'Ver admins' }))
 
     await waitFor(() => expect(lastCall()).toEqual([{ search: '', includeAdmins: true, page: 1 }, expect.any(AbortSignal)]))
     await waitFor(() => expect(screen.getAllByText('admin@aspec.pt')).toHaveLength(2))
@@ -434,6 +453,23 @@ describe('Gestão de Utilizadores', () => {
     await waitFor(() => expect(lastCall()[0]).toEqual({ subscriptionState: 'lapsed', search: '', includeAdmins: false, page: 1 }))
   })
 
+  it('depois de mudar de página, Ver admins mantém o chip e volta à primeira página', async () => {
+    twoPages()
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    await user.click(tab('Ativos'))
+    await waitFor(() => expect(lastCall()[0]).toMatchObject({ subscriptionState: 'active', page: 1 }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Página 2' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Página 2' }))
+    await waitFor(() => expect(lastCall()[0]).toMatchObject({ subscriptionState: 'active', page: 2 }))
+
+    await user.click(screen.getByRole('button', { name: 'Ver admins' }))
+
+    await waitFor(() => expect(lastCall()[0]).toEqual({ subscriptionState: 'active', search: '', includeAdmins: true, page: 1 }))
+  })
+
   it('mostra na coluna Ações só os botões que fazem sentido para cada estado, sem promover em trial e carência', async () => {
     show()
     await waitForTable()
@@ -470,7 +506,7 @@ describe('Gestão de Utilizadores', () => {
       ...items,
     ]))
 
-    await user.click(screen.getByRole('checkbox', { name: 'Ver admins' }))
+    await user.click(screen.getByRole('button', { name: 'Ver admins' }))
     await screen.findAllByText('outro@aspec.pt')
 
     expect(rowOf('Maria Santos').getByRole('button', { name: 'Aprovar Maria Santos' })).toBeInTheDocument()
@@ -906,7 +942,7 @@ describe('Gestão de Utilizadores', () => {
     expect(within(rowOf('Rita Ferreira').getAllByRole('cell').at(-1)).getByText('Sem ações')).toBeInTheDocument()
 
     getAdminUsers.mockResolvedValue(list([otherAdmin, ...items]))
-    await user.click(screen.getByRole('checkbox', { name: 'Ver admins' }))
+    await user.click(screen.getByRole('button', { name: 'Ver admins' }))
     await screen.findAllByText('outro@aspec.pt')
 
     const otherRow = rowOfEmail('outro@aspec.pt')
