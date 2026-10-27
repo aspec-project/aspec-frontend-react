@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import EventDetail from "../components/events/EventDetail";
+import PageTitle from "../components/PageTitle";
 import { getEventDetail, getEventDetailErrorMessage, isEventId } from "../services/events";
 import { useAuthStore } from "../store/authStore";
 import { validEventSessions } from "../utils/eventSessions";
@@ -63,6 +64,7 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
 
   return (
     <div className="min-h-[65vh] bg-gray-50 text-[#0D1F35]">
+      <PageTitle title={notFound ? "Evento não encontrado" : current?.event?.name || "Detalhe do evento"} />
       <nav
         aria-label="Navegação do evento"
         className="bg-[#0d1f35]"

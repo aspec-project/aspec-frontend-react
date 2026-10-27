@@ -45,7 +45,9 @@ describe('Perfil público de membro', () => {
 
   it('aceita o horário da API em português e mostra segunda-feira aberta no perfil', async () => {
     show()
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     await screen.findByRole('heading', { name: profile.business_name })
+    await waitFor(() => expect(document.title).toBe(`${profile.business_name} | ASPEC`))
     const mondayHours = screen.getByText('Segunda-feira').nextElementSibling
     expect(mondayHours).toHaveTextContent('09:00 – 18:00')
     expect(mondayHours).not.toHaveTextContent('Encerrado')
@@ -223,6 +225,7 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[0].resolve(response(pending[0].config)))
     await screen.findByText('912345678')
     await act(async () => useAuthStore.setState((state) => ({ sessionGeneration: state.sessionGeneration + 1 })))
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
@@ -249,7 +252,9 @@ describe('Perfil público de membro', () => {
     expect(pending[0].config.signal.aborted).toBe(true)
     await act(async () => pending[1].resolve(response(pending[1].config, { ...profile, id: otherId, business_name: 'Outro negócio' })))
     await screen.findByRole('heading', { name: 'Outro negócio' })
+    expect(document.title).toBe('Outro negócio | ASPEC')
     await act(async () => pending[0].resolve(response(pending[0].config)))
+    expect(document.title).toBe('Outro negócio | ASPEC')
     expect(screen.queryByRole('heading', { name: profile.business_name })).not.toBeInTheDocument()
   })
 
@@ -271,10 +276,12 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = adapter
     const view = show('invalido')
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
+    expect(document.title).toBe('Perfil não encontrado | ASPEC')
     expect(adapter).not.toHaveBeenCalled()
     view.unmount()
     show()
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
+    expect(document.title).toBe('Perfil não encontrado | ASPEC')
     expect(screen.queryByText(/pendente|inativ/i)).not.toBeInTheDocument()
   })
 
@@ -283,10 +290,26 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => failure ? fail(config, status) : Promise.resolve(response(config))
     show()
     await screen.findByRole('alert')
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     failure = false
     screen.getByRole('button', { name: 'Tentar novamente' }).focus()
     await userEvent.setup().keyboard('{Enter}')
     await screen.findByRole('heading', { name: profile.business_name })
+    expect(document.title).toBe(`${profile.business_name} | ASPEC`)
+  })
+
+  it('retira o nome carregado ao navegar e usa o nome do membro sem nome comercial', async () => {
+    const pending = []
+    api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
+    render(<MemoryRouter initialEntries={[`/membros/${id}`]}><Link to={`/membros/${otherId}`}>Outro membro</Link><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].resolve(response(pending[0].config)))
+    expect(document.title).toBe(`${profile.business_name} | ASPEC`)
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Outro membro' }))
+    expect(document.title).toBe('Perfil do membro | ASPEC')
+    await waitFor(() => expect(pending).toHaveLength(2))
+    await act(async () => pending[1].resolve(response(pending[1].config, { ...profile, id: otherId, name: 'João & Ana', business_name: null })))
+    expect(document.title).toBe('João & Ana | ASPEC')
   })
 
   it('apresenta estados vazios sem inventar horários ou avaliações', async () => {
