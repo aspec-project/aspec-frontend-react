@@ -1,4 +1,5 @@
 import { addDays, parseIsoDate } from './calendar'
+import { formatShortDate } from './dateFormat'
 
 /** Valores iniciais do formulário de evento: tudo vazio, formato presencial. */
 export const EMPTY_EVENT_FORM = {
@@ -54,8 +55,11 @@ export const EVENT_EDIT_TEXTS = {
   addressNotFound: 'Não foi possível encontrar esta morada no mapa. Verifique a morada e tente novamente.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao guardar as alterações.',
   geocodeSaved: 'Mantém-se a localização guardada do evento enquanto não mudar a morada nem a delegação.',
-  justificationLabel: 'Justificação da alteração',
-  justificationHint: 'Opcional. Segue no email aos inscritos: explique o que mudou (ex.: nova hora ou novo local).',
+  confirmTitle: 'Confirmar alterações?',
+  confirmNotify: 'Guardar e notificar',
+  confirmSave: 'Guardar',
+  confirmCancel: 'Voltar',
+  justificationPlaceholder: 'Se quiser, explique o motivo da alteração.',
 }
 
 /** Atribuição obrigatória dos dados do OpenStreetMap (licença ODbL). */
@@ -450,20 +454,6 @@ export function buildEventUpdatePayload(values, geocode, justification) {
 }
 
 /**
- * Aviso de que os inscritos vão receber um email com a alteração.
- *
- * @param {unknown} count Número de inscritos.
- * @returns {string} Frase ou "" quando não há inscritos.
- */
-export function getEditNotice(count) {
-  if (!Number.isInteger(count) || count < 1) return ''
-
-  return count === 1
-    ? 'O inscrito vai receber um email a avisar que o evento foi alterado.'
-    : `Os ${count} inscritos vão receber um email a avisar que o evento foi alterado.`
-}
-
-/**
  * Hint da capacidade na edição com o número de inscritos.
  *
  * @param {unknown} count Número de inscritos.
@@ -505,4 +495,91 @@ export function parseTime(text) {
  */
 export function getDeadlineMax(eventDate) {
   return parseIsoDate(eventDate) ? addDays(eventDate, -1) : undefined
+}
+
+/** Labels dos campos na lista de alterações da confirmação. */
+const CHANGE_LABELS = {
+  isOnline: 'Formato',
+  name: 'Título',
+  categoryId: 'Tipo de evento',
+  locationId: 'Delegação',
+  eventDate: 'Data',
+  startTime: 'Hora de início',
+  endTime: 'Hora de fim',
+  registrationDeadline: 'Data limite de inscrição',
+  venueName: 'Nome do local',
+  address: 'Morada',
+  onlineUrl: 'Link do evento online',
+  maxAttendees: 'Capacidade máxima',
+  description: 'Sobre o evento',
+  organizerNotes: 'Notas do organizador',
+}
+
+/** Número máximo de caracteres de um texto na lista de alterações (antes das reticências). */
+const CHANGE_TEXT_LIMIT = 80
+
+/**
+ * Valor de um campo como aparece na lista de alterações: nomes em vez de ids, datas curtas, capacidade sem
+ * zeros à esquerda e textos numa só linha, cortados aos 80 caracteres.
+ *
+ * @param {string} name Nome do campo.
+ * @param {unknown} value Valor do campo.
+ * @param {{categoryId?: Record<string, string>, locationId?: Record<string, string>}} names Nomes por id.
+ * @returns {string}
+ */
+function changeValue(name, value, names) {
+  if (name === 'isOnline') return value ? 'Online' : 'Presencial'
+
+  const text = clean(typeof value === 'string' ? value.replace(/\s+/g, ' ') : value)
+
+  if (text === '') return '(vazio)'
+
+  if (name === 'categoryId' || name === 'locationId') return names?.[name]?.[text] ?? '—'
+
+  if (name === 'eventDate' || name === 'registrationDeadline') return formatShortDate(text) || text
+
+  if (name === 'maxAttendees') return comparable(name, text)
+
+  return text.length > CHANGE_TEXT_LIMIT ? `${text.slice(0, CHANGE_TEXT_LIMIT)}…` : text
+}
+
+/**
+ * Lista das alterações para o diálogo de confirmação, com a mesma deteção que ativa "Guardar alterações".
+ *
+ * @param {typeof EMPTY_EVENT_FORM} initialValues Valores iniciais do evento.
+ * @param {typeof EMPTY_EVENT_FORM} values Valores atuais do formulário.
+ * @param {{categoryId?: Record<string, string>, locationId?: Record<string, string>}} names Nomes dos tipos de
+ *   evento e das delegações por id.
+ * @returns {{field: string, label: string, before: string, after: string}[]} Pela ordem de getChangedEventFields.
+ */
+export function getEventChangeSummary(initialValues, values, names) {
+  return getChangedEventFields(initialValues, values).map((field) => ({
+    field,
+    label: CHANGE_LABELS[field],
+    before: changeValue(field, initialValues[field], names),
+    after: changeValue(field, values[field], names),
+  }))
+}
+
+/**
+ * Frase da confirmação sobre o email aos inscritos, partida para a contagem poder ficar a negrito.
+ *
+ * @param {unknown} count Número de inscritos (null quando é desconhecido).
+ * @returns {{lead: string, emphasis: string, tail: string, notify: boolean}} notify indica se vai um email
+ *   (e se faz sentido pedir a justificação).
+ */
+export function getChangeNotice(count) {
+  if (count === 0) {
+    return { lead: 'Não há inscritos, por isso ninguém será notificado.', emphasis: '', tail: '', notify: false }
+  }
+
+  const tail = ' a avisar que o evento foi alterado.'
+
+  if (count === 1) {
+    return { lead: 'Será enviado um email ao ', emphasis: '1 inscrito', tail, notify: true }
+  }
+
+  const known = Number.isInteger(count) && count > 1
+
+  return { lead: 'Será enviado um email aos ', emphasis: known ? `${count} inscritos` : 'inscritos', tail, notify: true }
 }

@@ -290,4 +290,93 @@ describe('ReasonDialog', () => {
       expect(screen.getByRole('heading', { name: 'Recusar candidatura' }).querySelector('svg')).toBeNull()
     })
   })
+
+  describe('subtítulo, conteúdo e sem campo', () => {
+    const SUBTITLE = 'Pequeno-Almoço de Negócios Lisboa'
+    const NOTICE = 'Será enviado um email aos 22 inscritos a avisar que o evento foi alterado.'
+
+    function confirmDialog(props = {}) {
+      return dialog({
+        title: 'Confirmar alterações?',
+        subtitle: SUBTITLE,
+        note: undefined,
+        tone: 'primary',
+        description: <>Será enviado um email aos <strong>22 inscritos</strong> a avisar que o evento foi alterado.</>,
+        confirmLabel: 'Guardar e notificar',
+        cancelLabel: 'Voltar',
+        children: (
+          <ul aria-label="Alterações">
+            <li>Título: antigo → novo</li>
+          </ul>
+        ),
+        ...props,
+      })
+    }
+
+    function isBefore(first, second) {
+      return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+    }
+
+    it('mostra o subtítulo abaixo do título, o conteúdo antes da descrição e a descrição com negrito', () => {
+      render(confirmDialog())
+
+      const element = screen.getByRole('dialog', { name: 'Confirmar alterações?' })
+      const heading = screen.getByRole('heading', { name: 'Confirmar alterações?' })
+      const subtitle = screen.getByText(SUBTITLE)
+      const list = screen.getByRole('list', { name: 'Alterações' })
+      const strong = screen.getByText('22 inscritos')
+      const description = strong.closest('p')
+
+      expect(element).toContainElement(subtitle)
+      expect(element).toContainElement(list)
+      expect(strong.tagName).toBe('STRONG')
+      expect(isBefore(heading, subtitle)).toBe(true)
+      expect(isBefore(subtitle, list)).toBe(true)
+      expect(isBefore(list, description)).toBe(true)
+      expect(isBefore(description, field())).toBe(true)
+      expect(element).toHaveAccessibleDescription(NOTICE)
+    })
+
+    it('sem campo não há caixa de texto nem contador, foca o botão de cancelar e confirma com texto vazio', async () => {
+      const user = userEvent.setup()
+      const onConfirm = vi.fn()
+      render(confirmDialog({ withField: false, confirmLabel: 'Guardar', onConfirm }))
+
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.queryByText(/caracteres/)).not.toBeInTheDocument()
+      expect(screen.queryByText(FIELD)).not.toBeInTheDocument()
+      expect(button('Voltar')).toHaveFocus()
+
+      await user.click(button('Guardar'))
+
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(onConfirm).toHaveBeenCalledWith('')
+    })
+
+    it('sem campo o Tab fica preso entre os botões', async () => {
+      const user = userEvent.setup()
+      render(
+        <>
+          <button type="button">Antes</button>
+          {confirmDialog({ withField: false, confirmLabel: 'Guardar' })}
+          <button type="button">Depois</button>
+        </>
+      )
+
+      expect(button('Voltar')).toHaveFocus()
+
+      await user.tab()
+      expect(button('Guardar')).toHaveFocus()
+
+      await user.tab()
+      expect(button('Fechar')).toHaveFocus()
+
+      await user.tab()
+      expect(button('Voltar')).toHaveFocus()
+
+      act(() => button('Fechar').focus())
+      await user.tab({ shift: true })
+      expect(button('Guardar')).toHaveFocus()
+    })
+  })
 })

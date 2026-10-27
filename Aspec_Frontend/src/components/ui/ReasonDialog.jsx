@@ -16,11 +16,14 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  * dos botões (o erro não apaga o texto escrito). Foco inicial no campo, Enter no campo faz nova linha, Escape e "Fechar" cancelam (exceto
  * durante o pedido), Tab preso entre o campo e os botões ativos e foco devolvido ao elemento que o
  * tinha antes de abrir. O texto recomeça vazio sempre que o diálogo abre.
+ * Também pode mostrar um subtítulo por baixo do título e conteúdo próprio (`children`) antes da descrição.
+ * Com `withField={false}` não há campo: o foco inicial vai para o botão de cancelar e confirmar entrega ''.
  *
  * @param {{
  *   open: boolean,
  *   title?: string,
- *   description?: string,
+ *   subtitle?: string,
+ *   description?: import('react').ReactNode,
  *   note?: string,
  *   confirmLabel?: string,
  *   cancelLabel?: string,
@@ -33,6 +36,8 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  *   hint?: string,
  *   icon?: import('react').ComponentType,
  *   error?: string,
+ *   withField?: boolean,
+ *   children?: import('react').ReactNode,
  *   onConfirm: (reason: string) => void,
  *   onCancel: () => void,
  * }} props
@@ -41,6 +46,7 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
 export default function ReasonDialog({
   open,
   title,
+  subtitle,
   description,
   note,
   confirmLabel,
@@ -54,6 +60,8 @@ export default function ReasonDialog({
   hint,
   icon: Icon,
   error,
+  withField = true,
+  children,
   onConfirm,
   onCancel,
 }) {
@@ -65,6 +73,7 @@ export default function ReasonDialog({
   const hintId = useId()
   const dialogRef = useRef(null)
   const fieldRef = useRef(null)
+  const cancelRef = useRef(null)
   const [value, setValue] = useState('')
   const [wasOpen, setWasOpen] = useState(open)
 
@@ -77,7 +86,8 @@ export default function ReasonDialog({
     if (!open) return undefined
 
     const previous = document.activeElement
-    fieldRef.current?.focus()
+    const initialFocus = fieldRef.current ?? cancelRef.current
+    initialFocus?.focus()
 
     return () => {
       if (previous?.isConnected) previous.focus()
@@ -88,7 +98,7 @@ export default function ReasonDialog({
     return null
   }
 
-  const blocked = required && value.trim() === ''
+  const blocked = withField && required && value.trim() === ''
 
   /**
    * Confirma com o texto escrito, sem pedido em curso.
@@ -97,7 +107,7 @@ export default function ReasonDialog({
    */
   const handleSubmit = (event) => {
     event.preventDefault()
-    if (!pending && !blocked) onConfirm(value)
+    if (!pending && !blocked) onConfirm(withField ? value : '')
   }
 
   /**
@@ -157,36 +167,43 @@ export default function ReasonDialog({
           {Icon && <Icon size={20} aria-hidden="true" className="shrink-0" />}
           {title}
         </h2>
+        {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+        {children && <div className="mt-4">{children}</div>}
         <p id={descriptionId} className="mt-3 text-sm text-gray-600">{description}</p>
         {note && <p id={noteId} role="note" className="mt-4 rounded-lg bg-[#f5f1e8] px-4 py-3 text-sm text-[#6b5631]">{note}</p>}
 
         <form onSubmit={handleSubmit} className="mt-4">
-          <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700">
-            {label}
-            {required && <span aria-hidden="true" className="text-red-600"> *</span>}
-          </label>
-          <textarea
-            ref={fieldRef}
-            id={fieldId}
-            rows={4}
-            maxLength={maxLength}
-            placeholder={placeholder}
-            aria-describedby={hint ? `${hintId} ${counterId}` : counterId}
-            required={required}
-            value={value}
-            disabled={pending}
-            onChange={(event) => setValue(event.target.value)}
-            className="mt-2 w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <div className="mt-1 flex justify-between gap-3">
-            {hint && <p id={hintId} className="text-xs text-gray-500">{hint}</p>}
-            <p id={counterId} className="ml-auto text-right text-xs text-gray-500">{value.length}/{maxLength} caracteres</p>
-          </div>
+          {withField && (
+            <>
+              <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700">
+                {label}
+                {required && <span aria-hidden="true" className="text-red-600"> *</span>}
+              </label>
+              <textarea
+                ref={fieldRef}
+                id={fieldId}
+                rows={4}
+                maxLength={maxLength}
+                placeholder={placeholder}
+                aria-describedby={hint ? `${hintId} ${counterId}` : counterId}
+                required={required}
+                value={value}
+                disabled={pending}
+                onChange={(event) => setValue(event.target.value)}
+                className="mt-2 w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <div className="mt-1 flex justify-between gap-3">
+                {hint && <p id={hintId} className="text-xs text-gray-500">{hint}</p>}
+                <p id={counterId} className="ml-auto text-right text-xs text-gray-500">{value.length}/{maxLength} caracteres</p>
+              </div>
+            </>
+          )}
 
           {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
 
           <div className="mt-6 flex justify-end gap-3">
             <button
+              ref={cancelRef}
               type="button"
               onClick={onCancel}
               disabled={pending}
