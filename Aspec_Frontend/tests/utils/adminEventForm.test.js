@@ -6,9 +6,10 @@ import {
   eventToFormValues,
   formatMissingFields,
   getCapacityHint,
+  getChangeNotice,
   getChangedEventFields,
   getDeadlineMax,
-  getEditNotice,
+  getEventChangeSummary,
   getEventFormErrors,
   getLisbonNow,
   getMissingEventFields,
@@ -445,13 +446,7 @@ describe('buildEventUpdatePayload', () => {
 })
 
 describe('textos da edição', () => {
-  it('o aviso do email e o hint da capacidade dependem do número de inscritos', () => {
-    expect(getEditNotice(22)).toBe('Os 22 inscritos vão receber um email a avisar que o evento foi alterado.')
-    expect(getEditNotice(1)).toBe('O inscrito vai receber um email a avisar que o evento foi alterado.')
-    for (const count of [0, null, -1, 2.5]) {
-      expect(getEditNotice(count)).toBe('')
-    }
-
+  it('o hint da capacidade depende do número de inscritos', () => {
     expect(getCapacityHint(22)).toBe('Já há 22 inscritos: a capacidade não pode ser inferior.')
     expect(getCapacityHint(1)).toBe('Já há 1 inscrito: a capacidade não pode ser inferior.')
     expect(getCapacityHint(0)).toBe('')
@@ -485,5 +480,82 @@ describe('getDeadlineMax', () => {
     expect(getDeadlineMax('2099-03-20')).toBe('2099-03-19')
     expect(getDeadlineMax('2099-03-01')).toBe('2099-02-28')
     expect(getDeadlineMax('2100-01-01')).toBe('2099-12-31')
+  })
+})
+
+describe('getChangeNotice', () => {
+  const TAIL = ' a avisar que o evento foi alterado.'
+
+  it('com inscritos diz a quantos chega o email, com a contagem à parte para ficar a negrito', () => {
+    expect(getChangeNotice(22)).toEqual({ lead: 'Será enviado um email aos ', emphasis: '22 inscritos', tail: TAIL, notify: true })
+    expect(getChangeNotice(1)).toEqual({ lead: 'Será enviado um email ao ', emphasis: '1 inscrito', tail: TAIL, notify: true })
+  })
+
+  it('com o número desconhecido usa a frase genérica e continua a notificar', () => {
+    for (const count of [null, '3']) {
+      expect(getChangeNotice(count)).toEqual({ lead: 'Será enviado um email aos ', emphasis: 'inscritos', tail: TAIL, notify: true })
+    }
+  })
+
+  it('sem inscritos diz que ninguém será notificado', () => {
+    expect(getChangeNotice(0)).toEqual({
+      lead: 'Não há inscritos, por isso ninguém será notificado.',
+      emphasis: '',
+      tail: '',
+      notify: false,
+    })
+  })
+})
+
+describe('getEventChangeSummary', () => {
+  const NAMES = {
+    categoryId: { c1: 'Workshop', c2: 'Formação', c3: 'Jantar' },
+    locationId: { l1: 'Lisboa', l2: 'Porto' },
+  }
+
+  it('lista as alterações pela ordem do formulário com nomes, datas curtas, capacidade normalizada e textos numa linha', () => {
+    const description = `${'A'.repeat(39)}
+${'B'.repeat(80)}`
+    const values = {
+      ...EDIT_VALUES,
+      name: 'Workshop de Liderança — nova data',
+      categoryId: 'c3',
+      eventDate: '2099-01-22',
+      startTime: '17:39',
+      maxAttendees: '040',
+      description,
+    }
+
+    expect(description).toHaveLength(120)
+    expect(getEventChangeSummary(EDIT_VALUES, values, NAMES)).toEqual([
+      { field: 'name', label: 'Título', before: 'Workshop de Liderança', after: 'Workshop de Liderança — nova data' },
+      { field: 'categoryId', label: 'Tipo de evento', before: 'Workshop', after: 'Jantar' },
+      { field: 'eventDate', label: 'Data', before: '21 Jan 2099', after: '22 Jan 2099' },
+      { field: 'startTime', label: 'Hora de início', before: '08:00', after: '17:39' },
+      { field: 'maxAttendees', label: 'Capacidade máxima', before: '30', after: '40' },
+      { field: 'description', label: 'Sobre o evento', before: 'Descrição pública.', after: `${'A'.repeat(39)} ${'B'.repeat(40)}…` },
+    ])
+  })
+
+  it('um valor vazio aparece como (vazio)', () => {
+    expect(getEventChangeSummary({ ...EDIT_VALUES, organizerNotes: '' }, { ...EDIT_VALUES, organizerNotes: 'Novas' }, NAMES)).toEqual([
+      { field: 'organizerNotes', label: 'Notas do organizador', before: '(vazio)', after: 'Novas' },
+    ])
+  })
+
+  it('mudar para online mostra o formato e o link, sem o local nem a morada', () => {
+    const values = { ...EDIT_VALUES, isOnline: true, onlineUrl: 'https://meet.example.pt/nova' }
+
+    expect(getEventChangeSummary(EDIT_VALUES, values, NAMES)).toEqual([
+      { field: 'isOnline', label: 'Formato', before: 'Presencial', after: 'Online' },
+      { field: 'onlineUrl', label: 'Link do evento online', before: '(vazio)', after: 'https://meet.example.pt/nova' },
+    ])
+  })
+
+  it('um id sem nome conhecido aparece como travessão e sem alterações devolve uma lista vazia', () => {
+    expect(getEventChangeSummary(EDIT_VALUES, { ...EDIT_VALUES, categoryId: 'c9' }, NAMES)).toEqual([
+      { field: 'categoryId', label: 'Tipo de evento', before: 'Workshop', after: '—' },
+    ])
+    expect(getEventChangeSummary(EDIT_VALUES, { ...EDIT_VALUES }, NAMES)).toEqual([])
   })
 })

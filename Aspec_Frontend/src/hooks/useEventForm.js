@@ -24,8 +24,9 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  * Estado e envio do formulário de evento do backoffice: valores, campos em falta, erros do browser e do
  * servidor, verificação opcional da morada no mapa e criação ou edição do evento.
  * Sem `event` cria um evento novo; com `event` (item da lista) edita-o: começa com os dados dele e a
- * localização guardada, só deixa guardar com alterações, aceita uma justificação para os inscritos e
- * chama `onStale` quando o evento já decorreu (409) ou já não existe (404).
+ * localização guardada, só deixa guardar com alterações, pede sempre confirmação antes do pedido (onde o
+ * admin pode escrever uma justificação para os inscritos) e chama `onStale` quando o evento já decorreu
+ * (409) ou já não existe (404).
  *
  * @param {{
  *   onSuccess: (message: string) => void,
@@ -42,14 +43,18 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  *   submitting: boolean,
  *   canSubmit: boolean,
  *   footerMessage: string,
- *   submit: () => Promise<void>,
+ *   submit: (justification?: string) => Promise<void>,
+ *   requestSubmit: () => void,
+ *   confirmSubmit: (justification: string) => Promise<void>,
+ *   cancelConfirm: () => void,
+ *   confirming: boolean,
+ *   confirmError: string,
+ *   initialValues: typeof EMPTY_EVENT_FORM,
  *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string, query: object|null},
  *   verifyAddress: () => Promise<void>,
  *   focusField: {name: string, key: number}|null,
  *   isEditing: boolean,
  *   hasChanges: boolean,
- *   justification: string,
- *   setJustification: (value: string) => void,
  *   registrationsCount: number|null,
  * }}
  */
@@ -57,12 +62,13 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   const isEditing = Boolean(event)
   const [initialValues] = useState(() => (event ? eventToFormValues(event) : EMPTY_EVENT_FORM))
   const [values, setValues] = useState(initialValues)
-  const [justification, setJustificationValue] = useState('')
   const [serverErrors, setServerErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [geocode, setGeocode] = useState(() => (event ? getSavedGeocode(event) : IDLE_GEOCODE))
   const [focusField, setFocusField] = useState(null)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState('')
   const submittingRef = useRef(false)
   const geocodeControllerRef = useRef(null)
 
@@ -121,17 +127,6 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
-   * Muda a justificação enviada aos inscritos e apaga o erro do servidor dela e a mensagem geral.
-   *
-   * @param {string} value Novo texto.
-   */
-  const setJustification = (value) => {
-    setJustificationValue(value)
-    clearServerError('justification')
-    setFormError('')
-  }
-
-  /**
    * Muda o formato sem apagar o que já foi escrito (o payload escolhe os campos pelo formato).
    *
    * @param {boolean} isOnline true para online, false para presencial.
@@ -154,18 +149,21 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
-   * Cria ou atualiza o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores e mostra
-   * as mensagens da API junto aos campos ou na mensagem geral; na edição, um 409 ou um 404 do evento
-   * chamam `onStale`.
+   * Cria ou atualiza o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores. Na
+   * edição (com a confirmação aberta): um 422 só da justificação, um 403/429/5xx ou uma falha de rede deixam
+   * a confirmação aberta com a mensagem; um 422 de outros campos ou um 404 da morada fecham-na e assinalam os
+   * campos; um 409 ou um 404 do evento chamam `onStale`.
    *
+   * @param {string} [justification] Justificação para os inscritos (só na edição).
    * @returns {Promise<void>}
    */
-  const submit = async () => {
+  const submit = async (justification = '') => {
     if (submittingRef.current || !canSubmit) return
 
     submittingRef.current = true
     setSubmitting(true)
     setFormError('')
+    setConfirmError('')
     setServerErrors({})
 
     try {
@@ -179,17 +177,28 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
       const { status, message, fieldErrors } = normalizeError(err)
 
       if (status === 422) {
-        const mapped = mapEventServerErrors(fieldErrors)
-        setServerErrors(mapped.fieldErrors)
-        setFormError([message, ...mapped.unmatched].join(' '))
-        focusFirstInvalid(mapped.fieldErrors)
+        const { fieldErrors: mapped, unmatched } = mapEventServerErrors(fieldErrors)
+        const { justification: justificationError, ...eventErrors } = mapped
+
+        if (justificationError && Object.keys(eventErrors).length === 0 && unmatched.length === 0) {
+          setConfirmError(justificationError)
+          return
+        }
+
+        setConfirming(false)
+        setServerErrors(eventErrors)
+        setFormError([message, ...unmatched, justificationError].filter(Boolean).join(' '))
+        focusFirstInvalid(eventErrors)
       } else if (isEditing && status === 409) {
         onStale?.(message)
       } else if (isEditing && status === 404 && message !== EVENT_EDIT_TEXTS.addressNotFound) {
         onStale?.(EVENT_EDIT_TEXTS.notFound)
       } else if (status === 404) {
+        setConfirming(false)
         setServerErrors({ address: message })
         focusFirstInvalid({ address: message })
+      } else if (isEditing) {
+        setConfirmError(message)
       } else {
         setFormError(message)
       }
@@ -197,6 +206,39 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
       submittingRef.current = false
       setSubmitting(false)
     }
+  }
+
+  /**
+   * Envio do formulário: na criação faz logo o pedido; na edição abre a confirmação das alterações.
+   */
+  const requestSubmit = () => {
+    if (submittingRef.current || !canSubmit) return
+
+    if (!isEditing) {
+      submit('')
+      return
+    }
+
+    setConfirmError('')
+    setConfirming(true)
+  }
+
+  /**
+   * Confirma as alterações e guarda o evento com a justificação escrita na confirmação.
+   *
+   * @param {string} justification Texto escrito (vazio quando não há inscritos).
+   * @returns {Promise<void>}
+   */
+  const confirmSubmit = (justification) => submit(justification)
+
+  /**
+   * Fecha a confirmação e volta ao formulário, exceto durante o pedido.
+   */
+  const cancelConfirm = () => {
+    if (submittingRef.current) return
+
+    setConfirming(false)
+    setConfirmError('')
   }
 
   /**
@@ -242,13 +284,17 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
     canSubmit,
     footerMessage,
     submit,
+    requestSubmit,
+    confirmSubmit,
+    cancelConfirm,
+    confirming,
+    confirmError,
+    initialValues,
     geocode,
     verifyAddress,
     focusField,
     isEditing,
     hasChanges,
-    justification,
-    setJustification,
     registrationsCount,
   }
 }

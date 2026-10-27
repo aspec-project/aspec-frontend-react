@@ -939,10 +939,15 @@ describe('Gestão de Eventos', () => {
       return screen.queryAllByRole('status').find((element) => element.textContent.includes(SUCCESS))
     }
 
+    function confirmDialog() {
+      return screen.getByRole('dialog', { name: 'Confirmar alterações?' })
+    }
+
     async function editTitleAndSave(user) {
       await user.click(editButton())
       await user.type(dialogField('Título do evento'), ' — nova data')
       await user.click(within(editDialog()).getByRole('button', { name: 'Guardar alterações' }))
+      await user.click(within(confirmDialog()).getByRole('button', { name: 'Guardar e notificar' }))
     }
 
     it('nos agendados cada linha tem o botão de editar depois do de exportar, desativado enquanto a lista recarrega', async () => {
@@ -1016,6 +1021,33 @@ describe('Gestão de Eventos', () => {
       await user.click(within(successBanner()).getByRole('button', { name: 'Fechar mensagem' }))
 
       expect(successBanner()).toBeUndefined()
+    })
+
+    it('sem inscritos a confirmação diz que ninguém será notificado e grava com Guardar', async () => {
+      const empty = event('e4', 'Almoço Sem Inscritos', { registrations_count: 0 })
+      getAdminEvents.mockResolvedValue(list([workshop, online, dinner, empty]))
+      updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'e4' } })
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await user.click(editButton('Almoço Sem Inscritos'))
+      await user.type(dialogField('Título do evento'), ' — nova data')
+      await user.click(within(editDialog()).getByRole('button', { name: 'Guardar alterações' }))
+
+      const dialog = confirmDialog()
+      expect(dialog).toHaveAccessibleDescription('Não há inscritos, por isso ninguém será notificado.')
+      expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
+      expect(updateAdminEvent).not.toHaveBeenCalled()
+
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+      expect(updateAdminEvent).toHaveBeenCalledTimes(1)
+      expect(updateAdminEvent.mock.calls[0][0]).toBe('e4')
+      expect(updateAdminEvent.mock.calls[0][1]).not.toHaveProperty('justification')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(successBanner()).toBeDefined())
     })
 
     it('se o evento já decorreu fecha o modal, mostra o erro e recarrega com os mesmos filtros', async () => {
