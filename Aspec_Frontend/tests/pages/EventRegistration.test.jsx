@@ -87,6 +87,42 @@ describe("Inscrição no detalhe do evento", () => {
     expect(within(dialog).queryByText(/privado|Sem notas/i)).not.toBeInTheDocument();
   });
 
+  it("confirma inscrição online sem morada no resumo nem URL privado antes do prazo", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2030-10-14T12:00:00Z"));
+    const address = "Rua física indevida, 12";
+    const location = "Local físico indevido";
+    const venue = "Sala física indevida";
+    const onlineUrl = "https://meet.example.test/inscricao-privada";
+    data = {
+      ...data, is_online: true, event_date: "2030-10-16", event_start_time: "14:00", event_end_time: "17:30",
+      location: { name: location }, venue_name: venue, address, latitude: 38.72, longitude: -9.14,
+      online_url: onlineUrl,
+    };
+    show();
+    await openRegistration();
+    const dialog = screen.getByRole("dialog", { name: "Confirmar inscrição?" });
+    expect(within(dialog).getByText("Evento online")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Morada")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Localização")).not.toBeInTheDocument();
+    for (const text of [address, location, venue, onlineUrl]) expect(document.body.innerHTML).not.toContain(text);
+    expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar na reunião" })).not.toBeInTheDocument();
+    expect(mutations()).toHaveLength(0);
+
+    await userEvent.setup().click(within(dialog).getByRole("button", { name: "Confirmar inscrição" }));
+    await screen.findByText("Inscrição confirmada");
+    expect(screen.getByText("18 / 20")).toBeInTheDocument();
+    expect(screen.getByText("Apenas 2 vagas disponíveis!")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancelar a minha inscrição" })).toBeInTheDocument();
+    expect(calls.map((config) => [config.method, config.url])).toEqual([
+      ["get", `/events/${id}`], ["post", `/events/${id}/registrations`], ["get", `/events/${id}`],
+    ]);
+    expect(mutations()[0].data).toBeUndefined();
+    for (const text of [address, location, venue, onlineUrl]) expect(document.body.innerHTML).not.toContain(text);
+    expect(screen.queryByRole("link", { name: "Entrar na reunião" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copiar" })).not.toBeInTheDocument();
+  });
+
   it("não inventa notas quando o organizador não forneceu informação", async () => {
     data = { ...data, organizer_notes: null };
     show(); await openRegistration();
