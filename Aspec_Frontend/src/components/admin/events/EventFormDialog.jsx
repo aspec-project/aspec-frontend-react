@@ -1,10 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useRef } from 'react'
-import { Info, Mail, Save, Send, X } from 'lucide-react'
+import { Info, Mail, Repeat, Save, Send, X } from 'lucide-react'
 import EventChangesList from './EventChangesList'
 import EventFormFields from './EventFormFields'
+import ConfirmDialog from '../../ui/ConfirmDialog'
 import ReasonDialog from '../../ui/ReasonDialog'
 import useEventForm from '../../../hooks/useEventForm'
 import { EVENT_EDIT_TEXTS, EVENT_FORM_LIMITS, getChangeNotice, getEventChangeSummary } from '../../../utils/adminEventForm'
+import { getSeriesEditNote } from '../../../utils/adminEvents'
+import { EVENT_SERIES_TEXTS, getSeriesConfirmDescription, getSeriesConfirmLabel } from '../../../utils/adminEventSeries'
 
 const FOCUSABLE = 'input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)'
 
@@ -35,7 +38,10 @@ function namesById(list, current) {
  * começa com o formulário vazio (criação) ou com os dados do evento (edição). Na edição, "Guardar alterações"
  * abre sempre o diálogo "Confirmar alterações?" com a lista do que mudou; com inscritos (ou com o número
  * desconhecido) avisa do email e aceita uma justificação opcional, sem inscritos só pede para guardar.
- * O diálogo fica fora do modal para o Escape e o Tab dele não chegarem ao modal.
+ * Na criação de uma série, "Criar série" abre o diálogo "Criar série de eventos?" com o número de sessões e
+ * as datas; "Voltar" ou Escape voltam ao formulário com os valores. Na edição de uma sessão de uma série, uma
+ * nota no topo diz que as alterações valem só para essa sessão.
+ * Os diálogos ficam fora do modal para o Escape e o Tab deles não chegarem ao modal.
  *
  * @param {{
  *   mode: 'create'|'edit',
@@ -54,7 +60,10 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
   const form = useEventForm({ onSuccess, onStale, event: mode === 'edit' ? event : null })
   const { submitting, focusField } = form
   const texts = MODE_TEXTS[mode] ?? MODE_TEXTS.create
+  const isSeries = !form.isEditing && Boolean(form.values.isRecurring)
+  const submitLabel = isSeries ? EVENT_SERIES_TEXTS.submit : texts.submit
   const SubmitIcon = texts.icon
+  const seriesNote = form.isEditing ? getSeriesEditNote(event) : ''
 
   // useLayoutEffect: ao fechar, o foco volta ao botão antes de a página o desativar (a lista recarrega).
   useLayoutEffect(() => {
@@ -156,6 +165,12 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
 
           <form noValidate onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              {seriesNote && (
+                <p className="mb-5 flex items-start gap-2 rounded-lg bg-[#f5f3ee] px-4 py-3 text-sm text-gray-700">
+                  <Repeat size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+                  {seriesNote}
+                </p>
+              )}
               {form.formError && (
                 <p role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {form.formError}
@@ -168,6 +183,8 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
                   options={options}
                   onFieldChange={form.setField}
                   onFormatChange={form.setFormat}
+                  onRepetitionChange={form.setRepetition}
+                  seriesSessions={form.seriesSessions}
                   geocode={form.geocode}
                   onVerifyAddress={form.verifyAddress}
                   disabled={submitting}
@@ -202,13 +219,30 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
                   className={`${buttonBase} flex items-center gap-2 bg-[#0d1f35] text-white hover:bg-[#183650]`}
                 >
                   <SubmitIcon size={16} aria-hidden="true" />
-                  {submitting ? texts.pending : texts.submit}
+                  {submitting ? texts.pending : submitLabel}
                 </button>
               </div>
             </div>
           </form>
         </div>
       </div>
+
+      {isSeries && (
+        <div className="relative z-[70]">
+          <ConfirmDialog
+            open={form.confirming}
+            title={EVENT_SERIES_TEXTS.confirmTitle}
+            icon={Repeat}
+            tone="primary"
+            description={getSeriesConfirmDescription(form.values.name.trim(), form.seriesSessions.dates)}
+            confirmLabel={getSeriesConfirmLabel(form.seriesSessions.dates.length)}
+            cancelLabel={EVENT_SERIES_TEXTS.confirmCancel}
+            pending={submitting}
+            onConfirm={() => form.confirmSubmit('')}
+            onCancel={form.cancelConfirm}
+          />
+        </div>
+      )}
 
       {form.isEditing && (
         <div className="relative z-[70]">

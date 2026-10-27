@@ -17,6 +17,7 @@ import {
   getSavedGeocode,
   mapEventServerErrors,
 } from '../utils/adminEventForm'
+import { getSeriesSessions } from '../utils/adminEventSeries'
 
 const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
 
@@ -26,7 +27,9 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  * Sem `event` cria um evento novo; com `event` (item da lista) edita-o: começa com os dados dele e a
  * localização guardada, só deixa guardar com alterações, pede sempre confirmação antes do pedido (onde o
  * admin pode escrever uma justificação para os inscritos) e chama `onStale` quando o evento já decorreu
- * (409) ou já não existe (404).
+ * (409) ou já não existe (404). Na criação de uma série (`isRecurring`), o envio abre primeiro a confirmação
+ * "Criar série de eventos?" e qualquer erro do pedido fecha-a; `seriesSessions` tem as sessões calculadas a
+ * partir da 1.ª data, da última e da frequência (para a pré-visualização e a confirmação).
  *
  * @param {{
  *   onSuccess: (message: string) => void,
@@ -37,6 +40,8 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  *   values: typeof EMPTY_EVENT_FORM,
  *   setField: (name: string, value: string) => void,
  *   setFormat: (isOnline: boolean) => void,
+ *   setRepetition: (isRecurring: boolean) => void,
+ *   seriesSessions: {dates: string[], tooMany: boolean},
  *   missingFields: string[],
  *   errors: Record<string, string>,
  *   formError: string,
@@ -80,6 +85,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   const missingFields = getMissingEventFields(values)
   const browserErrors = getEventFormErrors(values, undefined, isEditing ? { initialValues, registrationsCount } : undefined)
   const hasBrowserErrors = Object.keys(browserErrors).length > 0
+  const seriesSessions = getSeriesSessions(values.eventDate, values.seriesEndsOn, values.frequency)
   const hasChanges = !isEditing || getChangedEventFields(initialValues, values).length > 0
   const canSubmit = missingFields.length === 0 && !hasBrowserErrors && hasChanges && !submitting
   const footerMessage = missingFields.length > 0
@@ -136,6 +142,16 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
+   * Muda a repetição (pontual ou recorrente) sem apagar o que já foi escrito: voltar a pontual recupera a
+   * data limite de inscrição escolhida antes (o payload escolhe os campos pela repetição).
+   *
+   * @param {boolean} isRecurring true para recorrente, false para pontual.
+   */
+  const setRepetition = (isRecurring) => {
+    setValues((current) => ({ ...current, isRecurring }))
+  }
+
+  /**
    * Pede ao modal que foque o primeiro campo com erro, pela ordem do formulário.
    *
    * @param {Record<string, string>} fieldErrors Erros por campo.
@@ -150,7 +166,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
 
   /**
    * Cria ou atualiza o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores. Na
-   * edição (com a confirmação aberta): um 422 só da justificação, um 403/429/5xx ou uma falha de rede deixam
+   * criação, qualquer erro fecha a confirmação da série (quando está aberta). Na edição (com a confirmação aberta): um 422 só da justificação, um 403/429/5xx ou uma falha de rede deixam
    * a confirmação aberta com a mensagem; um 422 de outros campos ou um 404 da morada fecham-na e assinalam os
    * campos; um 409 ou um 404 do evento chamam `onStale`.
    *
@@ -173,6 +189,10 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
       onSuccess(response.message)
     } catch (err) {
       if (axios.isCancel(err)) return
+
+      if (!isEditing) {
+        setConfirming(false)
+      }
 
       const { status, message, fieldErrors } = normalizeError(err)
 
@@ -209,12 +229,13 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
-   * Envio do formulário: na criação faz logo o pedido; na edição abre a confirmação das alterações.
+   * Envio do formulário: na criação de um pontual faz logo o pedido; na criação de uma série abre a
+   * confirmação da série; na edição abre a confirmação das alterações.
    */
   const requestSubmit = () => {
     if (submittingRef.current || !canSubmit) return
 
-    if (!isEditing) {
+    if (!isEditing && !values.isRecurring) {
       submit('')
       return
     }
@@ -224,9 +245,10 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
-   * Confirma as alterações e guarda o evento com a justificação escrita na confirmação.
+   * Confirma o envio: na edição guarda o evento com a justificação escrita na confirmação; na criação de uma
+   * série cria-a.
    *
-   * @param {string} justification Texto escrito (vazio quando não há inscritos).
+   * @param {string} justification Texto escrito (vazio quando não há inscritos ou na criação).
    * @returns {Promise<void>}
    */
   const confirmSubmit = (justification) => submit(justification)
@@ -277,6 +299,8 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
     values,
     setField,
     setFormat,
+    setRepetition,
+    seriesSessions,
     missingFields,
     errors: { ...browserErrors, ...serverErrors },
     formError,

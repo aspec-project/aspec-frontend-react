@@ -911,3 +911,36 @@ describe('EditEventDialog', () => {
     expect(third.onStale).not.toHaveBeenCalled()
   })
 })
+
+describe('EditEventDialog — sessão de uma série', () => {
+  const SERIES_NOTE = 'Sessão 3/8 de uma série. As alterações aplicam-se só a esta sessão.'
+  const seriesWorkshop = event('e1', 'Workshop de Liderança', { series: { position: 3, total: 8 } })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('mostra a nota da série sem os campos da repetição e o PUT não leva a recorrência', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup()
+    show(seriesWorkshop)
+
+    expect(screen.getByText(SERIES_NOTE)).toBeInTheDocument()
+    expect(screen.queryByText(/Repetição|Recorrente/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Frequência/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Fim/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Recorrência' })).not.toBeInTheDocument()
+
+    await editTitle(user)
+    await saveAndConfirm(user)
+
+    expect(updateAdminEvent).toHaveBeenCalledTimes(1)
+    expect(lastPayload()).not.toHaveProperty('recurrence')
+  })
+
+  it('sem série não mostra a nota', () => {
+    show()
+
+    expect(screen.queryByText(/de uma série/)).not.toBeInTheDocument()
+  })
+})

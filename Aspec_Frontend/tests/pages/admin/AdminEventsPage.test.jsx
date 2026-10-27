@@ -821,10 +821,11 @@ describe('Gestão de Eventos', () => {
       return screen.getByRole('dialog', { name: 'Criar Novo Evento' })
     }
 
-    function dialogField(text) {
-      const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    function dialogField(text, suffix = '') {
+      const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const ending = suffix ? `\\s*${escape(suffix)}` : ''
 
-      return within(createDialog()).getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
+      return within(createDialog()).getByLabelText(new RegExp(`^${escape(text)}\\s*\\*?${ending}$`))
     }
 
     async function pickDialogDate(user, opener, dayLabel) {
@@ -899,6 +900,44 @@ describe('Gestão de Eventos', () => {
 
       expect(successBanner()).toBeUndefined()
     })
+
+    it('criar uma série pede confirmação, mostra a mensagem da série e recarrega com os mesmos filtros', async () => {
+      const SERIES_SUCCESS = 'Série de eventos criada com sucesso.'
+      useFakeToday()
+      createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: { series: { id: 's1' }, sessions: [] } })
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+      await waitForOptions()
+
+      await chooseOption(user, categorySelect(), 'Jantar')
+      await waitFor(() => expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c3' }, expect.any(AbortSignal)]))
+      await screen.findByRole('table')
+      const callsBefore = getAdminEvents.mock.calls.length
+
+      await user.click(createButton())
+      await fillValidInPerson(user)
+      await user.click(within(within(createDialog()).getByRole('group', { name: 'Repetição' })).getByRole('button', { name: 'Recorrente' }))
+      await chooseOption(user, dialogField('Frequência'), 'Semanal')
+      await pickDialogDate(user, dialogField('Fim', '(inclusive)'), '27 de novembro de 2026')
+      fireEvent.change(dialogField('Fechar inscrições antes de cada sessão'), { target: { value: '3' } })
+      await user.click(within(createDialog()).getByRole('button', { name: 'Criar série' }))
+
+      expect(createAdminEvent).not.toHaveBeenCalled()
+      const confirmation = screen.getByRole('dialog', { name: 'Criar série de eventos?' })
+      await user.click(within(confirmation).getByRole('button', { name: 'Criar 2 sessões' }))
+
+      expect(createAdminEvent).toHaveBeenCalledTimes(1)
+      expect(createAdminEvent.mock.calls[0][0]).toMatchObject({
+        event_date: '2026-11-20',
+        recurrence: { frequency: 'weekly', ends_on: '2026-11-27', registration_deadline_days_before: 3 },
+      })
+      expect(createAdminEvent.mock.calls[0][0]).not.toHaveProperty('registration_deadline')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.queryAllByRole('status').some((element) => element.textContent.includes(SERIES_SUCCESS))).toBe(true))
+      await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
+      expect(lastCall()).toEqual([{ ...BASE_FILTERS, categoryId: 'c3' }, expect.any(AbortSignal)])
+    }, 15000)
 
     it('Cancelar fecha o modal sem mensagem nem novo pedido e devolve o foco ao botão', async () => {
       const user = userEvent.setup()
@@ -1248,6 +1287,17 @@ describe('Gestão de Eventos', () => {
       await waitFor(() => expect(successBanner()).toBeDefined())
       await waitFor(() => expect(getAdminEvents.mock.calls.length).toBe(callsBefore + 1))
       expect(lastCall()).toEqual([BASE_FILTERS, expect.any(AbortSignal)])
+    })
+
+    it('apagar uma sessão de uma série diz que só essa sessão é apagada', async () => {
+      getAdminEvents.mockResolvedValue(list([event('s1', 'Grupo de Oração', { registrations_count: 0, series: { position: 3, total: 8 } })]))
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(deleteButton('Grupo de Oração'))
+
+      expect(deleteDialog()).toHaveAccessibleDescription(expect.stringMatching(/ Só esta sessão \(3\/8\) é apagada; as outras sessões da série mantêm-se\.$/))
     })
 
     it('se o evento já decorreu fecha o diálogo, mostra o erro e recarrega com os mesmos filtros', async () => {

@@ -1,12 +1,14 @@
 import { useId } from 'react'
-import { MapPin, Video } from 'lucide-react'
+import { CalendarDays, MapPin, Repeat, Video } from 'lucide-react'
 import AddressGeocodeCheck from './AddressGeocodeCheck'
 import EventField from './EventField'
+import EventSeriesPreview from './EventSeriesPreview'
 import DatePicker from '../../ui/DatePicker'
 import SegmentedControl from '../../ui/SegmentedControl'
 import SelectMenu from '../../ui/SelectMenu'
 import TimeInput from '../../ui/TimeInput'
 import { EVENT_EDIT_TEXTS, EVENT_FORM_LIMITS, EVENT_FORM_MESSAGES, getCapacityHint, getDeadlineMax, getLisbonNow } from '../../../utils/adminEventForm'
+import { EVENT_SERIES_TEXTS, FREQUENCY_OPTIONS, getSeriesEndLimits } from '../../../utils/adminEventSeries'
 
 const controlClass = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] aria-invalid:border-red-400 disabled:cursor-not-allowed disabled:bg-gray-100'
 
@@ -16,6 +18,14 @@ const FORMATS = [
   { value: false, label: 'Presencial', icon: MapPin },
   { value: true, label: 'Online', icon: Video },
 ]
+
+const REPETITIONS = [
+  { value: false, label: 'Pontual', icon: CalendarDays },
+  { value: true, label: 'Recorrente', icon: Repeat },
+]
+
+/** Campos da série: um erro em qualquer um esconde a pré-visualização e o texto de espera. */
+const SERIES_ERROR_FIELDS = ['frequency', 'seriesEndsOn', 'deadlineDaysBefore']
 
 const HINTS = {
   registrationDeadline: 'Fecha às 23:59 (hora de Lisboa) desse dia.',
@@ -42,8 +52,12 @@ function describedBy(id, { hint, counter, error }) {
  * grelha do design: formato segmentado, listas próprias para o tipo e a delegação, calendários para as
  * datas (o prazo só até à véspera do evento) e campos de hora ao minuto. Recebe os valores e avisa as
  * alterações; na edição (`isEditing`) só muda os hints: a capacidade mostra o número de inscritos e a
- * verificação da morada explica que o servidor a localiza ao guardar. Cada controlo tem `name` igual à
- * chave do formulário, para o modal o poder focar.
+ * verificação da morada explica que o servidor a localiza ao guardar. Só na criação há o controlo
+ * "Repetição": em Recorrente, a data, as horas e a data limite saem do sítio de sempre e a caixa
+ * "Recorrência" (logo a seguir ao tipo e à delegação) junta a frequência, o início, o fim, as horas e o fecho
+ * das inscrições em dias; no fundo da caixa aparece a pré-visualização das sessões (1 a 52 sessões, sem erros
+ * nos campos da série), nada quando há erros de série, ou um texto de espera. Cada controlo existe uma só
+ * vez e tem `name` igual à chave do formulário, para o modal o poder focar.
  *
  * @param {{
  *   values: object,
@@ -51,6 +65,8 @@ function describedBy(id, { hint, counter, error }) {
  *   options: {categories: object[], locations: object[], loading: boolean, error: string, retry: () => void},
  *   onFieldChange: (name: string, value: string) => void,
  *   onFormatChange: (isOnline: boolean) => void,
+ *   onRepetitionChange?: (isRecurring: boolean) => void,
+ *   seriesSessions?: {dates: string[], tooMany: boolean},
  *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string},
  *   onVerifyAddress: () => void,
  *   disabled?: boolean,
@@ -59,7 +75,7 @@ function describedBy(id, { hint, counter, error }) {
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, geocode, onVerifyAddress, disabled = false, isEditing = false, registrationsCount = null }) {
+export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, onRepetitionChange, seriesSessions, geocode, onVerifyAddress, disabled = false, isEditing = false, registrationsCount = null }) {
   const prefix = useId()
   const today = getLisbonNow().date
   const selectsDisabled = options.loading || Boolean(options.error)
@@ -138,11 +154,39 @@ export default function EventFormFields({ values, errors, options, onFieldChange
   const descriptionCounter = `${values.description.length}/${EVENT_FORM_LIMITS.description} caracteres`
   const notesCounter = `${values.organizerNotes.length}/${EVENT_FORM_LIMITS.organizerNotes} caracteres`
   const capacityHint = isEditing ? getCapacityHint(registrationsCount) : ''
+  const isRecurring = !isEditing && Boolean(values.isRecurring)
+  const frequencyHint = values.frequency === 'monthly' ? EVENT_SERIES_TEXTS.monthlyHint : ''
+  const endLimits = getSeriesEndLimits(values.eventDate, values.frequency)
+  const sessionDates = seriesSessions?.dates ?? []
+  const hasSeriesError = Boolean(seriesSessions?.tooMany) || SERIES_ERROR_FIELDS.some((name) => errors[name])
+  const showPreview = isRecurring && sessionDates.length > 0 && !hasSeriesError
+  const inclusiveSuffix = <span className="font-normal text-gray-400"> {EVENT_SERIES_TEXTS.inclusiveSuffix}</span>
+  const timeFields = (
+    <>
+      <EventField {...fieldProps('startTime', 'Hora de início')}>
+        <TimeInput {...customProps('startTime')} required />
+      </EventField>
+      <EventField {...fieldProps('endTime', 'Hora de fim')}>
+        <TimeInput {...customProps('endTime')} required />
+      </EventField>
+    </>
+  )
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SegmentedControl label="Formato" options={FORMATS} value={values.isOnline} onChange={onFormatChange} />
+      <div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <SegmentedControl label="Formato" options={FORMATS} value={values.isOnline} onChange={onFormatChange} />
+          {!isEditing && (
+            <SegmentedControl
+              label={EVENT_SERIES_TEXTS.repetitionLabel}
+              options={REPETITIONS}
+              value={isRecurring}
+              onChange={onRepetitionChange}
+            />
+          )}
+        </div>
+        {isRecurring && <p className="mt-2 text-xs text-gray-500">{EVENT_SERIES_TEXTS.notAnnounced}</p>}
       </div>
 
       <EventField {...fieldProps('name', 'Título do evento')}>
@@ -195,36 +239,99 @@ export default function EventFormFields({ values, errors, options, onFieldChange
         )}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <EventField {...fieldProps('eventDate', 'Data')}>
-          <DatePicker
-            {...customProps('eventDate')}
-            label="Data"
-            labelId={`${prefix}-eventDate-label`}
-            min={today}
-            placeholder="Selecionar data"
-          />
-        </EventField>
-        <EventField {...fieldProps('startTime', 'Hora de início')}>
-          <TimeInput {...customProps('startTime')} required />
-        </EventField>
-        <EventField {...fieldProps('endTime', 'Hora de fim')}>
-          <TimeInput {...customProps('endTime')} required />
-        </EventField>
-      </div>
+      {isRecurring ? (
+        <div role="group" aria-labelledby={`${prefix}-recurrence-title`} className="space-y-5 rounded-xl border border-[#e7e2d6] bg-[#f5f3ee] p-5">
+          <h3 id={`${prefix}-recurrence-title`} className="flex items-center gap-2 text-sm font-semibold text-[#0d1f35]">
+            <Repeat size={16} aria-hidden="true" className="text-[#8a7043]" />
+            {EVENT_SERIES_TEXTS.boxTitle}
+          </h3>
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <EventField {...fieldProps('registrationDeadline', 'Data limite de inscrição', { hint: HINTS.registrationDeadline })}>
-          <DatePicker
-            {...customProps('registrationDeadline', { hint: HINTS.registrationDeadline })}
-            label="Data limite de inscrição"
-            labelId={`${prefix}-registrationDeadline-label`}
-            min={today}
-            max={getDeadlineMax(values.eventDate)}
-            placeholder="Selecionar data"
-          />
-        </EventField>
-      </div>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <EventField {...fieldProps('frequency', EVENT_SERIES_TEXTS.frequencyLabel, { hint: frequencyHint })}>
+              <SelectMenu
+                {...customProps('frequency', { hint: frequencyHint })}
+                label={EVENT_SERIES_TEXTS.frequencyLabel}
+                labelId={`${prefix}-frequency-label`}
+                required
+                placeholder={EVENT_SERIES_TEXTS.frequencyPlaceholder}
+                options={FREQUENCY_OPTIONS}
+              />
+            </EventField>
+            <EventField {...fieldProps('eventDate', EVENT_SERIES_TEXTS.firstDateLabel, { labelSuffix: inclusiveSuffix })}>
+              <DatePicker
+                {...customProps('eventDate')}
+                label={EVENT_SERIES_TEXTS.firstDateLabel}
+                labelId={`${prefix}-eventDate-label`}
+                min={today}
+                placeholder="Selecionar data"
+              />
+            </EventField>
+            <EventField {...fieldProps('seriesEndsOn', EVENT_SERIES_TEXTS.endsOnLabel, { hint: EVENT_SERIES_TEXTS.endsOnHint, labelSuffix: inclusiveSuffix })}>
+              <DatePicker
+                {...customProps('seriesEndsOn', { hint: EVENT_SERIES_TEXTS.endsOnHint })}
+                label={EVENT_SERIES_TEXTS.endsOnLabel}
+                labelId={`${prefix}-seriesEndsOn-label`}
+                min={endLimits.min ?? today}
+                max={endLimits.max}
+                placeholder="Selecionar data"
+              />
+            </EventField>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-4">
+            {timeFields}
+            <div className="sm:col-span-2">
+              <EventField {...fieldProps('deadlineDaysBefore', EVENT_SERIES_TEXTS.deadlineDaysLabel, { hint: EVENT_SERIES_TEXTS.deadlineDaysHint })}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    {...controlProps('deadlineDaysBefore', { hint: EVENT_SERIES_TEXTS.deadlineDaysHint })}
+                    aria-describedby={[`${prefix}-deadlineDaysBefore-unit`, describedBy(`${prefix}-deadlineDaysBefore`, { hint: EVENT_SERIES_TEXTS.deadlineDaysHint, error: errors.deadlineDaysBefore })].join(' ')}
+                  />
+                  <span id={`${prefix}-deadlineDaysBefore-unit`} className="shrink-0 text-sm text-gray-600">{EVENT_SERIES_TEXTS.deadlineDaysUnit}</span>
+                </div>
+              </EventField>
+            </div>
+          </div>
+
+          {showPreview ? (
+            <EventSeriesPreview dates={sessionDates} frequency={values.frequency} deadlineDaysBefore={values.deadlineDaysBefore} />
+          ) : !hasSeriesError && (
+            <p className="text-sm text-gray-500">{EVENT_SERIES_TEXTS.previewPlaceholder}</p>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <EventField {...fieldProps('eventDate', 'Data')}>
+              <DatePicker
+                {...customProps('eventDate')}
+                label="Data"
+                labelId={`${prefix}-eventDate-label`}
+                min={today}
+                placeholder="Selecionar data"
+              />
+            </EventField>
+            {timeFields}
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-3">
+            <EventField {...fieldProps('registrationDeadline', 'Data limite de inscrição', { hint: HINTS.registrationDeadline })}>
+              <DatePicker
+                {...customProps('registrationDeadline', { hint: HINTS.registrationDeadline })}
+                label="Data limite de inscrição"
+                labelId={`${prefix}-registrationDeadline-label`}
+                min={today}
+                max={getDeadlineMax(values.eventDate)}
+                placeholder="Selecionar data"
+              />
+            </EventField>
+          </div>
+        </>
+      )}
 
       {values.isOnline ? (
         <EventField {...fieldProps('onlineUrl', 'Link do evento online', { hint: HINTS.onlineUrl })}>
