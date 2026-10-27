@@ -20,8 +20,22 @@ describe("Acesso à reunião online", () => {
   it.each(["Member", "Admin"])("mostra URL e ações apenas ao %s ativo inscrito depois do prazo", (role) => {
     useAuthStore.setState({ user: { ...user, role: { name: role } } });
     render(<EventOnlineAccess event={event} />);
-    expect(screen.getByRole("link", { name: "Entrar na reunião" })).toHaveAttribute("href", event.online_url);
+    const link = screen.getByRole("link", { name: "Entrar na reunião" });
+    expect(link).toHaveAttribute("href", event.online_url);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByRole("button", { name: "Copiar" })).toBeInTheDocument();
+  });
+
+  it.each([true, false])("copia apenas o URL autorizado e comunica o resultado (sucesso=%s)", async (success) => {
+    const interaction = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    if (success) writeText.mockResolvedValue(undefined);
+    else writeText.mockRejectedValue(new Error("Clipboard indisponível"));
+    render(<EventOnlineAccess event={event} />);
+    await interaction.click(screen.getByRole("button", { name: "Copiar" }));
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(event.online_url);
+    expect(screen.getByRole("status")).toHaveTextContent(success ? "Link copiado." : "Não foi possível copiar o link.");
   });
 
   it.each([
