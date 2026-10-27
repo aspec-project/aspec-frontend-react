@@ -28,6 +28,7 @@ import EventDetailPage from '../pages/EventDetailPage'
 import MembersPage from '../pages/MembersPage'
 import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 import PageTitle from '../components/PageTitle'
+import NotFoundPage from '../pages/NotFoundPage'
 
 /*
  * Centraliza as rotas da aplicação.
@@ -42,6 +43,7 @@ function AppRouter() {
         <Route path="/eventos/:id" element={<EventDetailPage />} />
         <Route path="/membros" element={<PageTitle title="Diretório de Confiança"><MembersPage /></PageTitle>} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
+        <Routepath="*" element={<PageTitle title="Página não encontrada"><NotFoundPage /></PageTitle>} />
       </Route>
 
       {/* Rotas públicas sem o layout global. */}
@@ -155,11 +157,6 @@ function AppRouter() {
         </Route>
       </Route>
 
-      {/* Rota para URLs que não existem. */}
-      <Route
-        path="*"
-        element={<PageTitle title="Página não encontrada"><PlaceholderPage title="Página não encontrada" /></PageTitle>}
-      />
     </Routes>
   )
 }

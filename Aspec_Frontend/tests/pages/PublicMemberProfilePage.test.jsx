@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -23,6 +23,12 @@ const profile = {
   contacts: { email: 'legado@example.test', phone: '999999999', commercial_contacts: 'Contacto legado', address: 'Morada legada' },
   secret: 'Campo desconhecido',
 }
+const portfolioForNavigation = [
+  profile.portfolio[0],
+  { id: 'invalid-image', image_url: 'javascript:alert(1)' },
+  { id: 'second-image', image_url: 'https://example.test/image-2.jpg' },
+  { id: 'third-image', image_url: 'https://example.test/image-3.jpg' },
+]
 const response = (config, data = profile) => ({ data: { success: true, message: 'Perfil', data }, config, status: 200, statusText: '', headers: {} })
 const active = { id, role: { name: 'Member' }, account_status: { name: 'Active' } }
 const show = (memberId = id) => render(<MemoryRouter initialEntries={[`/membros/${memberId}`]}><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
@@ -123,7 +129,8 @@ describe('Perfil público de membro', () => {
     expect(screen.getByRole('link', { name: 'Rede social' }).querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByText('09:00 – 18:00')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: `Imagem 1 do portefólio de ${profile.business_name}` })).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /Ampliar imagem 1/ })).toBeInTheDocument()
   })
 
   it('mostra o card bloqueado ao visitante quando o backend devolve members_only null', async () => {
@@ -360,8 +367,223 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ampliar imagem/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Insegura' })).not.toBeInTheDocument()
+  })
+
+  it('amplia a imagem original, fecha pelo X e repõe o foco e o scroll anteriores', async () => {
+    const user = userEvent.setup()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'auto'
+    try {
+      show()
+      const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+      expect(thumbnail).toHaveClass('cursor-pointer')
+      await user.click(thumbnail)
+      const dialog = screen.getByRole('dialog', { name: `Imagem 1 do portefólio de ${profile.business_name}` })
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      const image = within(dialog).getByRole('img')
+      expect(image).toHaveAttribute('src', profile.portfolio[0].image_url)
+      expect(image).toHaveAttribute('referrerpolicy', 'no-referrer')
+      expect(image).toHaveClass('object-contain')
+      expect(document.body.style.overflow).toBe('hidden')
+      const close = within(dialog).getByRole('button', { name: 'Fechar imagem ampliada' })
+      expect(within(dialog).queryByRole('button', { name: 'Imagem anterior' })).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('button', { name: 'Imagem seguinte' })).not.toBeInTheDocument()
+      expect(close).toHaveFocus()
+      await user.keyboard('{ArrowLeft}{ArrowRight}')
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', profile.portfolio[0].image_url)
+      await user.tab()
+      expect(close).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(close).toHaveFocus()
+      await user.click(close)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(thumbnail).toHaveFocus()
+      expect(document.body.style.overflow).toBe('auto')
+    } finally {
+      document.body.style.overflow = previousOverflow
+    }
+  })
+
+  it.each(['{Enter}', ' '])('abre a imagem por teclado (%s) e fecha com Escape', async (key) => {
+    const user = userEvent.setup()
+    show()
+    const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+    thumbnail.focus()
+    await user.keyboard(key)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(thumbnail).toHaveFocus()
+  })
+
+  it('mantém os fallbacks do logótipo e das miniaturas sem disponibilizar abertura', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, logo_url: 'https://example.test/logo.jpg' }))
+    show()
+    fireEvent.error(await screen.findByRole('img', { name: `Logótipo de ${profile.business_name}` }))
+    expect(screen.getByText('S')).toBeInTheDocument()
+    const thumbnail = screen.getByRole('button', { name: /Ampliar imagem 1/ })
+    fireEvent.error(within(thumbnail).getByRole('img'))
+    expect(screen.getByText('Imagem indisponível')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ampliar imagem/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('mostra fallback quando a imagem ampliada falha e mantém o fecho disponível', async () => {
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.error(within(dialog).getByRole('img'))
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Imagem indisponível.')
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: /Ampliar imagem 1/ }))
+    expect(within(screen.getByRole('dialog')).getByRole('img')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fechar imagem ampliada' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('navega circularmente por clique e teclado sem fechar e preserva a ordem original', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 3/ }))
+    const dialog = screen.getByRole('dialog')
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    const expectImage = (index) => {
+      expect(screen.getByRole('dialog')).toBe(dialog)
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[index].image_url)
+      expect(within(dialog).getByRole('img')).toHaveAccessibleName(`Imagem ${index + 1} do portefólio de ${profile.business_name}`)
+      expect(document.body.style.overflow).toBe('hidden')
+    }
+    expectImage(2)
+    expect(previous).toBeEnabled()
+    expect(next).toBeEnabled()
+    await user.click(next)
+    expectImage(3)
+    expect(next).toBeEnabled()
+    await user.click(next)
+    expectImage(0)
+    await user.click(previous)
+    expectImage(3)
+    await user.click(previous)
+    expectImage(2)
+    await user.click(previous)
+    expectImage(0)
+    expect(previous).toBeEnabled()
+    await user.keyboard('{ArrowLeft}')
+    expectImage(3)
+    await user.keyboard('{ArrowRight}')
+    expectImage(0)
+    await user.keyboard('{ArrowRight}')
+    expectImage(2)
+    await user.keyboard('{ArrowRight}{ArrowRight}')
+    expectImage(0)
+    await user.keyboard('{ArrowLeft}')
+    expectImage(3)
+  })
+
+  it('retém o foco no modal e mantém o foco nas setas ao circular', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+    await user.click(thumbnail)
+    const dialog = screen.getByRole('dialog')
+    const close = within(dialog).getByRole('button', { name: 'Fechar imagem ampliada' })
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    await user.tab()
+    expect(previous).toHaveFocus()
+    await user.tab()
+    expect(next).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(next).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(previous).toHaveFocus()
+    await user.tab()
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(next).toBeEnabled()
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[0].image_url)
+    expect(next).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(previous).toHaveFocus()
+    await user.click(previous)
+    expect(previous).toHaveFocus()
+    expect(previous).toBeEnabled()
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[3].image_url)
+    await user.keyboard('{Escape}')
+    expect(thumbnail).toHaveFocus()
+  })
+
+  it('mantém ambas as setas ativas e circula nos dois sentidos com duas imagens', async () => {
+    const portfolio = [portfolioForNavigation[0], portfolioForNavigation[2]]
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    for (const [control, index] of [[previous, 1], [previous, 0], [next, 1], [next, 0]]) {
+      expect(previous).toBeEnabled()
+      expect(next).toBeEnabled()
+      await user.click(control)
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[index].image_url)
+    }
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[0].image_url)
+    await user.keyboard('{ArrowLeft}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[1].image_url)
+    await user.keyboard('{ArrowRight}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[0].image_url)
+  })
+
+  it('permite continuar a navegar após falha de imagem e limpa o fallback ao mudar', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.error(within(dialog).getByRole('img'))
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Imagem indisponível.')
+    await user.click(within(dialog).getByRole('button', { name: 'Imagem seguinte' }))
+    expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[2].image_url)
+    await user.keyboard('{ArrowLeft}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[0].image_url)
+    expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('limpa o diálogo e o bloqueio de scroll ao desmontar o perfil', async () => {
+    const user = userEvent.setup()
+    const view = show()
+    const previousOverflow = document.body.style.overflow
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    expect(document.body.style.overflow).toBe('hidden')
+    view.unmount()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe(previousOverflow)
+    const outsideButton = document.createElement('button')
+    document.body.append(outsideButton)
+    try {
+      outsideButton.focus()
+      await user.tab()
+      expect(outsideButton).not.toHaveFocus()
+    } finally {
+      outsideButton.remove()
+    }
   })
 
   it('o serviço conserva apenas os cinco campos autorizados dentro de members_only', async () => {

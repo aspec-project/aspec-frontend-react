@@ -1,28 +1,47 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Globe, Link2, Lock, MapPin } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
+import PortfolioImageDialog from './PortfolioImageDialog'
 
 const cardClass = 'rounded-xl border border-gray-100 bg-white p-6 shadow-sm'
 const sidebarClass = 'rounded-xl border border-gray-100 bg-white p-5 shadow-sm'
 const linkClass = 'rounded font-semibold text-[#0d1f35] underline focus-visible:outline-2 focus-visible:outline-offset-4'
 const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
-function ProfileImage({ src, title, logo = false, index }) {
+function ProfileImage({ src, title, logo = false, index, onOpen }) {
   const [failed, setFailed] = useState(null)
   const visible = src && failed !== src
+  const alt = logo ? `Logótipo de ${title}` : `Imagem ${index + 1} do portefólio de ${title}`
+  const className = logo ? 'flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#8a7043] text-3xl font-semibold text-white' : 'flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-100 text-sm text-gray-600'
+  const content = visible ? (
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(src)}
+    />
+  ) : logo ? title.trim().charAt(0).toLocaleUpperCase('pt-PT') : 'Imagem indisponível'
+
+  if (!logo && visible && onOpen) {
+    return (
+      <button
+        type="button"
+        aria-label={`Ampliar imagem ${index + 1} do portefólio de ${title}`}
+        aria-haspopup="dialog"
+        className={`${className} cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]`}
+        onClick={() => onOpen(index)}
+      >
+        {content}
+      </button>
+    )
+  }
+
   return (
-    <div className={logo ? 'flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#8a7043] text-3xl font-semibold text-white' : 'flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-100 text-sm text-gray-600'}>
-      {visible ? (
-        <img
-          src={src}
-          alt={logo ? `Logótipo de ${title}` : `Imagem ${index + 1} do portefólio de ${title}`}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(src)}
-        />
-      ) : logo ? title.trim().charAt(0).toLocaleUpperCase('pt-PT') : 'Imagem indisponível'}
+    <div className={className}>
+      {content}
     </div>
   )
 }
@@ -130,7 +149,12 @@ function LocationCard({ address }) {
 }
 
 export default function PublicMemberProfile({ member, allowContacts, showLockedContacts = false, allowReview = false, allowComments = false }) {
+  const [selectedImage, setSelectedImage] = useState(null)
+  const closeImage = useCallback(() => setSelectedImage(null), [])
   const title = member.business_name || member.name
+  const portfolioImages = member.portfolio.map((item, index) => ({
+    id: item.id, src: item.image_url, index, alt: `Imagem ${index + 1} do portefólio de ${title}`,
+  })).filter((image) => image.src)
   const address = allowContacts ? member.members_only?.address?.trim() : null
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
@@ -177,7 +201,7 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
           <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Portefólio</h2>
           {member.portfolio.length ? (
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {member.portfolio.map((item, index) => <ProfileImage key={item.id} src={item.image_url} title={title} index={index} />)}
+              {member.portfolio.map((item, index) => <ProfileImage key={item.id} src={item.image_url} title={title} index={index} onOpen={setSelectedImage} />)}
             </div>
           ) : <p className="mt-4 text-sm leading-relaxed text-gray-600">Sem imagens no portefólio.</p>}
         </section>
@@ -192,6 +216,7 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
         </section>
       </aside>
     </div>
+    {selectedImage !== null && <PortfolioImageDialog images={portfolioImages} initialIndex={portfolioImages.findIndex((image) => image.index === selectedImage)} onClose={closeImage} />}
     </>
   )
 }
