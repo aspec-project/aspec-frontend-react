@@ -6,8 +6,8 @@ import {
   endOfWeek,
   formatDayLabel,
   formatMonthTitle,
-  formatShortDate,
   getMonthGrid,
+  hasAllowedDay,
   isWithinRange,
   parseIsoDate,
   startOfWeek,
@@ -71,12 +71,10 @@ describe('getMonthGrid', () => {
 })
 
 describe('formatação e limites', () => {
-  it('formata o título do mês, o nome do dia e a data curta em português', () => {
+  it('formata o título do mês e o nome do dia em português', () => {
     expect(formatMonthTitle(2025, 1)).toBe('Janeiro 2025')
     expect(formatMonthTitle(2026, 11)).toBe('Novembro 2026')
     expect(formatDayLabel('2025-01-20')).toBe('20 de janeiro de 2025')
-    expect(formatShortDate('2025-01-21')).toBe('21 Jan 2025')
-    expect(formatShortDate('2025-02-30')).toBe('')
   })
 
   it('os cabeçalhos da semana vão de SEG a DOM', () => {
@@ -93,5 +91,13 @@ describe('formatação e limites', () => {
     expect(isWithinRange('2026-11-10', '2026-11-10', '')).toBe(true)
     expect(isWithinRange('2026-11-09', '2026-11-10')).toBe(false)
     expect(isWithinRange('2026-12-01', '', '2026-11-30')).toBe(false)
+  })
+
+  it('indica se um mês tem algum dia dentro dos limites, ignorando os vazios', () => {
+    expect(hasAllowedDay(2026, 11, '', '')).toBe(true)
+    expect(hasAllowedDay(2026, 12, '', '2026-11-30')).toBe(false)
+    expect(hasAllowedDay(2026, 11, '', '2026-11-01')).toBe(true)
+    expect(hasAllowedDay(2026, 10, '2026-11-01', '')).toBe(false)
+    expect(hasAllowedDay(2026, 11, '2026-11-30', '2026-11-30')).toBe(true)
   })
 })

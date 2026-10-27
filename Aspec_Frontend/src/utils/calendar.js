@@ -11,8 +11,6 @@ export const WEEKDAY_HEADERS = [
 
 const MONTH_NAMES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
-const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -178,16 +176,6 @@ export function formatDayLabel(iso) {
 }
 
 /**
- * @param {unknown} iso Data AAAA-MM-DD.
- * @returns {string} Data curta, ex.: "21 Jan 2025", ou '' se for inválida.
- */
-export function formatShortDate(iso) {
-  const parts = parseIsoDate(iso)
-
-  return parts ? `${parts.day} ${MONTH_SHORT[parts.month - 1]} ${parts.year}` : ''
-}
-
-/**
  * Data de hoje no fuso do browser (os filtros são datas de calendário).
  *
  * @param {Date} [now=new Date()] Momento atual.
@@ -207,4 +195,20 @@ export function todayIso(now = new Date()) {
  */
 export function isWithinRange(iso, min, max) {
   return (!min || iso >= min) && (!max || iso <= max)
+}
+
+/**
+ * Indica se um mês tem pelo menos um dia dentro dos limites (inclusive); limites vazios são ignorados.
+ *
+ * @param {number} year Ano.
+ * @param {number} month Mês de 1 a 12.
+ * @param {string} [min] Data mínima.
+ * @param {string} [max] Data máxima.
+ * @returns {boolean}
+ */
+export function hasAllowedDay(year, month, min, max) {
+  const first = toIsoDate(year, month, 1)
+  const last = toIsoDate(year, month, daysInMonth(year, month))
+
+  return (!min || last >= min) && (!max || first <= max)
 }

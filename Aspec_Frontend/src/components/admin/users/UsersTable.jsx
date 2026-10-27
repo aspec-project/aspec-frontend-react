@@ -2,7 +2,8 @@ import { Eye, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import UserActions from './UserActions'
 import UserStatusBadge from './UserStatusBadge'
-import { formatFullDate, formatRegistrationDate, getAvailableActions, getDisplayName, getInitial, getLockedActions } from '../../../utils/adminUsers'
+import { getAvailableActions, getDisplayName, getInitial, getLockedActions } from '../../../utils/adminUsers'
+import { formatDate } from '../../../utils/dateFormat'
 
 const HEADERS = ['Nome / Negócio', 'Setor', 'Localidade', 'Email', 'Data registo', 'Estado', 'Ações']
 
@@ -71,9 +72,7 @@ export default function UsersTable({ users, busy = false, currentUserId, onActio
                 <td className="px-5 py-4 text-gray-700">{profile?.sector?.name ?? '—'}</td>
                 <td className="px-5 py-4 text-gray-700">{profile?.location?.name ?? '—'}</td>
                 <td className="px-5 py-4 text-gray-500">{user.email}</td>
-                <td className="px-5 py-4 text-gray-500">
-                  <span title={formatFullDate(user.created_at)}>{formatRegistrationDate(user.created_at)}</span>
-                </td>
+                <td className="px-5 py-4 text-gray-500">{formatDate(user.created_at) || '—'}</td>
                 <td className="px-5 py-4"><UserStatusBadge user={user} /></td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">

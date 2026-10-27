@@ -1,4 +1,4 @@
-import { MONTHS } from './adminUsers'
+import { formatShortDate } from './dateFormat'
 import { formatTime } from './eventFormatting'
 
 /** Número de eventos por página na lista do backoffice (enviado sempre ao backend). */
@@ -20,16 +20,6 @@ export const DATE_RANGE_ERROR = 'A data final tem de ser igual ou posterior à d
 
 const NEARLY_FULL_PERCENT = 90
 
-const lisbonFormatter = new Intl.DateTimeFormat('pt-PT', {
-  timeZone: 'Europe/Lisbon',
-  day: 'numeric',
-  month: 'numeric',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
-
 /**
  * Converte um prazo ISO 8601 em milissegundos.
  *
@@ -42,25 +32,6 @@ function parseDeadline(value) {
   const time = Date.parse(value)
 
   return Number.isNaN(time) ? null : time
-}
-
-/**
- * Formata a data de um evento (`Y-m-d`) como "21 Jan 2026", a partir do texto (sem fuso horário).
- *
- * @param {unknown} value Data do evento.
- * @returns {string} Data formatada ou "—" se for inválida.
- */
-export function formatEventDate(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '—'
-
-  const [year, month, day] = value.split('-').map(Number)
-  const date = new Date(Date.UTC(year, month - 1, day))
-
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-    return '—'
-  }
-
-  return `${day} ${MONTHS[month - 1]} ${year}`
 }
 
 /**
@@ -77,34 +48,6 @@ export function formatTimeRange(start, end) {
   if (from === '') return ''
 
   return to === '' ? from : `${from}–${to}`
-}
-
-/**
- * Formata uma data e hora ISO 8601 na hora de Lisboa como "14 Nov 2030, 23:59", seja qual for o fuso do computador.
- *
- * @param {unknown} value Data e hora ISO 8601 com desvio.
- * @returns {string} Data formatada ou "—" se for inválida.
- */
-function formatLisbonDateTime(value) {
-  const time = parseDeadline(value)
-
-  if (time === null) return '—'
-
-  const parts = Object.fromEntries(
-    lisbonFormatter.formatToParts(new Date(time)).map((part) => [part.type, part.value])
-  )
-
-  return `${Number(parts.day)} ${MONTHS[Number(parts.month) - 1]} ${parts.year}, ${parts.hour}:${parts.minute}`
-}
-
-/**
- * Formata o prazo de inscrição na hora de Lisboa como "14 Nov 2030, 23:59", seja qual for o fuso do computador.
- *
- * @param {unknown} value Prazo ISO 8601 com desvio.
- * @returns {string} Prazo formatado ou "—" se for inválido.
- */
-export function formatDeadline(value) {
-  return formatLisbonDateTime(value)
 }
 
 /**
@@ -226,7 +169,7 @@ export const ATTENDEES_EXPORT_TEXTS = {
  * @returns {string}
  */
 export function getAttendeesExportDescription(event) {
-  const intro = `Vai descarregar a lista de presenças de «${event.name}» (${formatEventDate(event.event_date)})`
+  const intro = `Vai descarregar a lista de presenças de «${event.name}» (${formatShortDate(event.event_date) || '—'})`
   const count = event.registrations_count
   const columns = 'com o nome, a empresa e o email e telefone pessoais'
 
@@ -321,7 +264,7 @@ export function needsDeleteJustification(event) {
  * @returns {string}
  */
 export function getDeleteEventDescription(event) {
-  const intro = `Vai apagar «${event.name}» (${formatEventDate(event.event_date)}).`
+  const intro = `Vai apagar «${event.name}» (${formatShortDate(event.event_date) || '—'}).`
   const count = event.registrations_count
 
   if (count === 0) return `${intro} O evento não tem inscritos, por isso ninguém é notificado. O evento é apagado definitivamente.`

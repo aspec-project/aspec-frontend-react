@@ -225,10 +225,25 @@ describe('Gestão de Eventos', () => {
     expect(row.getByText('08:00–10:00')).toBeInTheDocument()
     expect(row.getByText('Lisboa')).toBeInTheDocument()
     expect(row.getByText('19 Jan 2099, 23:59')).toBeInTheDocument()
+    expect(row.queryByText(/\d{2}\/\d{2}\/\d{4}/)).toBeNull()
     expect(row.getByText('Abertas')).toBeInTheDocument()
     expect(row.getByText('22 / 30')).toBeInTheDocument()
     expect(row.getByText('73%')).toBeInTheDocument()
     expect(row.getByText('22 inscritos de 30 lugares (73%)')).toBeInTheDocument()
+  })
+
+  it('os ícones das datas seguem o design', async () => {
+    show()
+    await screen.findByRole('table')
+
+    const date = cellOf('Workshop de Liderança', 'Data e hora')
+    for (const selector of ['svg.lucide-calendar-days', 'svg.lucide-clock']) {
+      expect(date.querySelector(selector)).toHaveAttribute('aria-hidden', 'true')
+    }
+
+    const deadline = cellOf('Workshop de Liderança', 'Inscrições até')
+    expect(deadline.querySelector('svg.lucide-calendar-clock')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(deadline).getByText('Abertas')).toHaveClass('text-[11px]')
   })
 
   it('um evento online mostra Online com o distrito e as inscrições encerradas, sem o link', async () => {
@@ -435,6 +450,16 @@ describe('Gestão de Eventos', () => {
     const capacity = cellOf('Evento Incompleto', 'Lotação')
     expect(capacity).toHaveTextContent('—')
     expect(capacity).not.toHaveTextContent(/%|\//)
+  })
+
+  it('sem data válida mostra um travessão na coluna Data e hora', async () => {
+    getAdminEvents.mockResolvedValue(list([event('e7', 'Evento Sem Data', { event_date: null })]))
+    show()
+    await screen.findByRole('table')
+
+    const date = cellOf('Evento Sem Data', 'Data e hora')
+    expect(date).toHaveTextContent('—')
+    expect(date).not.toHaveTextContent(/Jan|\//)
   })
 
   it('mostra Sessão X/Y só nos eventos de uma série, sem texto provisório nos outros', async () => {

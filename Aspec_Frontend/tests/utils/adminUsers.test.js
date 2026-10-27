@@ -7,12 +7,10 @@ import {
   USER_ACTION_LABELS,
   USER_STATUS_TABS,
   canPromote,
-  formatFullDate,
   formatMonthYear,
   getActionConfirmation,
   getAvailableActions,
   getLockedActions,
-  formatRegistrationDate,
   getDisplayName,
   getInitial,
   getRoleLabel,
@@ -58,18 +56,6 @@ describe('utilitários da lista de utilizadores do backoffice', () => {
     for (const value of [undefined, null, [], 'x']) {
       expect(getStatusTabCounts(value)).toBeNull()
     }
-  })
-
-  it('formata a data de registo como Hoje, Ontem ou mês e ano, e a data completa', () => {
-    const now = new Date(2026, 9, 14, 15)
-
-    expect(formatRegistrationDate(new Date(2026, 9, 14, 8).toISOString(), now)).toBe('Hoje')
-    expect(formatRegistrationDate(new Date(2026, 9, 13, 23).toISOString(), now)).toBe('Ontem')
-    expect(formatRegistrationDate('2024-01-15T09:30:00+00:00', now)).toBe('Jan 2024')
-    expect(formatRegistrationDate('2023-11-02T14:00:00+00:00', now)).toBe('Nov 2023')
-    expect(formatRegistrationDate(null, now)).toBe('—')
-    expect(formatRegistrationDate('lixo', now)).toBe('—')
-    expect(formatFullDate('2024-01-15T09:30:00+00:00')).toBe('15/01/2024')
   })
 
   it('formata só o mês e o ano', () => {

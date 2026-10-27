@@ -1,4 +1,5 @@
 import { Mail, ShieldCheck, ShieldOff } from 'lucide-react'
+import { MONTH_ABBREVIATIONS } from './dateFormat'
 
 /**
  * Chips de estado da subscrição da Gestão de Utilizadores, por ordem. A `key` é o valor de
@@ -41,8 +42,6 @@ export function getStatusTabCounts(subscriptionStateCounts) {
 
   return { ...counts, all }
 }
-
-export const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 const INACTIVE_CLASS = 'bg-slate-100 text-slate-700'
 
@@ -119,54 +118,7 @@ function parseDate(isoString) {
 export function formatMonthYear(isoString) {
   const date = parseDate(isoString)
 
-  return date ? `${MONTHS[date.getMonth()]} ${date.getFullYear()}` : ''
-}
-
-/**
- * Data de registo curta, em hora local: "Hoje", "Ontem" ou mês e ano (ex.: "Jan 2024").
- *
- * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
- * @param {Date} [now] Data de referência (hoje).
- * @returns {string} A data formatada, ou "—" se for inválida.
- */
-export function formatRegistrationDate(isoString, now = new Date()) {
-  const date = parseDate(isoString)
-
-  if (!date) {
-    return '—'
-  }
-
-  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
-
-  if (sameDay(date, now)) {
-    return 'Hoje'
-  }
-
-  if (sameDay(date, yesterday)) {
-    return 'Ontem'
-  }
-
-  return formatMonthYear(isoString)
-}
-
-/**
- * Data completa em dd/mm/aaaa, em hora local.
- *
- * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
- * @returns {string} A data formatada, ou "" se for inválida.
- */
-export function formatFullDate(isoString) {
-  const date = parseDate(isoString)
-
-  if (!date) {
-    return ''
-  }
-
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-
-  return `${day}/${month}/${date.getFullYear()}`
+  return date ? `${MONTH_ABBREVIATIONS[date.getMonth()]} ${date.getFullYear()}` : ''
 }
 
 /**

@@ -5,8 +5,6 @@ import {
   DELETE_EVENT_TEXTS,
   DELETE_JUSTIFICATION_MAX_LENGTH,
   countActiveFilters,
-  formatDeadline,
-  formatEventDate,
   formatResultsRange,
   formatSession,
   formatTimeRange,
@@ -21,19 +19,6 @@ import {
   needsDeleteJustification,
 } from '../../src/utils/adminEvents'
 
-describe('formatEventDate', () => {
-  it('formata a data do evento com o mês abreviado em português', () => {
-    expect(formatEventDate('2026-01-21')).toBe('21 Jan 2026')
-    expect(formatEventDate('2026-12-05')).toBe('5 Dez 2026')
-  })
-
-  it('devolve um travessão para datas vazias, inválidas ou noutro formato', () => {
-    for (const value of ['', null, '2026-13-01', '2026-02-30', '21/01/2026']) {
-      expect(formatEventDate(value)).toBe('—')
-    }
-  })
-})
-
 describe('formatTimeRange', () => {
   it('junta as horas de início e fim com um travessão', () => {
     expect(formatTimeRange('08:00', '10:00')).toBe('08:00–10:00')
@@ -42,20 +27,6 @@ describe('formatTimeRange', () => {
   it('mostra só o início quando o fim falta e nada quando ambas são inválidas', () => {
     expect(formatTimeRange('08:00', '')).toBe('08:00')
     expect(formatTimeRange('x', 'y')).toBe('')
-  })
-})
-
-describe('formatDeadline', () => {
-  it('mostra o prazo na hora de Lisboa, no inverno e no verão', () => {
-    expect(formatDeadline('2030-11-14T23:59:00+00:00')).toBe('14 Nov 2030, 23:59')
-    expect(formatDeadline('2026-10-14T23:59:00+01:00')).toBe('14 Out 2026, 23:59')
-    expect(formatDeadline('2030-11-14T23:59:00Z')).toBe('14 Nov 2030, 23:59')
-  })
-
-  it('devolve um travessão para prazos vazios ou inválidos', () => {
-    for (const value of ['', null, 'abc']) {
-      expect(formatDeadline(value)).toBe('—')
-    }
   })
 })
 
