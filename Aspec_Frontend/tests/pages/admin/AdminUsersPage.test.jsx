@@ -175,13 +175,30 @@ describe('Gestão de Utilizadores', () => {
     expect(rows.map((row) => items.findIndex((item) => within(row).queryByText(item.member_profile.name)))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
 
     const first = within(rows[0])
-    for (const text of ['Ana Costa', 'TechBless Solutions', 'Tecnologia', 'Porto', 'ana@techbless.pt', 'Jan 2024', 'Ativo']) {
+    for (const text of ['Ana Costa', 'TechBless Solutions', 'Tecnologia', 'Porto', 'ana@techbless.pt', '15/01/2024', 'Ativo']) {
       expect(first.getByText(text)).toBeInTheDocument()
     }
-    expect(first.getByText('Jan 2024')).toHaveAttribute('title', '15/01/2024')
+    expect(first.getByText('15/01/2024')).not.toHaveAttribute('title')
+    expect(rowOfEmail('jose@docelar.pt').getByText('02/11/2023')).toBeInTheDocument()
 
     expect(screen.getByText('9 utilizadores encontrados')).toBeInTheDocument()
     expect(getAdminUsers).toHaveBeenNthCalledWith(1, { search: '', includeAdmins: false, page: 1 }, expect.any(AbortSignal))
+  })
+
+  it('mostra a data de registo sempre como dd/mm/aaaa, sem Hoje nem Ontem, e um travessão sem data', async () => {
+    getAdminUsers.mockResolvedValue(list([
+      member('n1', 'Nuno Reis', 'Reis Lda', 'Tecnologia', 'Porto', 'nuno@reis.pt', 'Active', null, STATE.active, new Date().toISOString()),
+      member('n2', 'Inês Mota', 'Mota Lda', 'Design', 'Braga', 'ines@mota.pt', 'Active', null, STATE.active, null),
+    ]))
+    show()
+    const table = await waitForTable()
+
+    expect(screen.queryByText('Hoje')).toBeNull()
+    expect(screen.queryByText('Ontem')).toBeNull()
+
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent.trim())
+    const cell = screen.getByText('Inês Mota').closest('tr').children[headers.indexOf('Data registo')]
+    expect(cell).toHaveTextContent(/^—$/)
   })
 
   it('mostra oito chips de estado da subscrição com contagens e Todos selecionado', async () => {

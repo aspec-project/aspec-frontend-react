@@ -3,12 +3,12 @@ import { Briefcase, Church, Clock, Globe, Image, Link2, Mail, Phone, Star, UserR
 import UserReviewCounts from './UserReviewCounts'
 import { safeMemberUrl } from '../../../services/members'
 import {
-  formatFullDate,
   getDisplayName,
   getRoleLabel,
   getStatusBadge,
   groupBusinessHours,
 } from '../../../utils/adminUsers'
+import { formatDate } from '../../../utils/dateFormat'
 
 const NOT_PROVIDED = 'Não indicado'
 
@@ -141,7 +141,7 @@ export default function UserDetail({ user, busy = false }) {
           ['Perfil', getRoleLabel(user)],
           ['Núcleo', profile?.location?.name],
           ['Subscrição', getStatusBadge(user).label],
-          ['Membro desde', formatFullDate(user.created_at)],
+          ['Membro desde', formatDate(user.created_at)],
         ]}
       />
     </DetailCard>

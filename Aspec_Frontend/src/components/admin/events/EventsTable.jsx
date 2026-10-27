@@ -2,7 +2,8 @@ import { CalendarClock, CalendarDays, Clock, MapPin, Video } from 'lucide-react'
 import CategoryBadge from '../eventCategories/CategoryBadge'
 import EventActions from './EventActions'
 import EventOccupancy from './EventOccupancy'
-import { EVENT_PERIOD_TABS, formatDeadline, formatEventDate, formatSession, formatTimeRange, getRegistrationState } from '../../../utils/adminEvents'
+import { EVENT_PERIOD_TABS, formatSession, formatTimeRange, getRegistrationState } from '../../../utils/adminEvents'
+import { formatShortDate, formatShortDateTime } from '../../../utils/dateFormat'
 
 const REGISTRATION_BADGES = {
   open: { label: 'Abertas', className: 'bg-emerald-50 text-emerald-700' },
@@ -63,7 +64,7 @@ export default function EventsTable({ events, period, busy = false, onExport, on
                 <td className="px-5 py-4 text-gray-700">
                   <p className="flex items-center gap-2">
                     <CalendarDays size={14} aria-hidden="true" className="text-gray-400" />
-                    <span>{formatEventDate(event.event_date)}</span>
+                    <span>{formatShortDate(event.event_date) || '—'}</span>
                   </p>
                   {timeRange && (
                     <p className="mt-1 flex items-center gap-2 text-xs text-gray-500">
@@ -91,10 +92,10 @@ export default function EventsTable({ events, period, busy = false, onExport, on
                 <td className="px-5 py-4 text-gray-700">
                   <p className="flex items-center gap-2">
                     <CalendarClock size={14} aria-hidden="true" className="text-gray-400" />
-                    <span>{formatDeadline(event.registration_deadline)}</span>
+                    <span>{formatShortDateTime(event.registration_deadline) || '—'}</span>
                   </p>
                   {registrationBadge && (
-                    <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${registrationBadge.className}`}>
+                    <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${registrationBadge.className}`}>
                       {registrationBadge.label}
                     </span>
                   )}

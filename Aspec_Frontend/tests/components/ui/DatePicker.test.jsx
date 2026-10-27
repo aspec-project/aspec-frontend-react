@@ -231,4 +231,106 @@ describe('DatePicker', () => {
       expect(picker()).toContainElement(document.activeElement)
     }
   })
+
+  it('o botão tem o valor à esquerda e o ícone dourado à direita', () => {
+    show()
+
+    const button = screen.getByRole('button', { name: 'Data de Qualquer data' })
+    const icon = button.lastElementChild
+    expect(icon).toHaveClass('lucide-calendar-days', 'text-[#8a7043]')
+    expect(icon).toHaveAttribute('aria-hidden', 'true')
+    expect(icon.previousElementSibling.tagName).toBe('SPAN')
+    expect(icon.previousElementSibling).toHaveTextContent('Qualquer data')
+  })
+
+  it('sábado e domingo ficam a dourado nos dias da semana', async () => {
+    const user = userEvent.setup()
+    show()
+
+    const dialog = await open(user)
+    const headers = within(within(dialog).getByRole('grid')).getAllByRole('columnheader')
+    const byText = (text) => headers.find((header) => header.querySelector('abbr').textContent === text)
+
+    for (const text of ['SÁB', 'DOM']) {
+      expect(byText(text)).toHaveClass('text-[#8a7043]')
+    }
+    for (const text of ['SEG', 'TER', 'QUA', 'QUI', 'SEX']) {
+      expect(byText(text)).toHaveClass('text-gray-400')
+      expect(byText(text)).not.toHaveClass('text-[#8a7043]')
+    }
+  })
+
+  it('os dias são círculos, o escolhido a azul-marinho e os permitidos com fundo claro ao passar e ao focar', async () => {
+    const user = userEvent.setup()
+    show({ value: '2026-11-20' })
+
+    const dialog = await open(user)
+
+    for (const button of dialog.querySelectorAll('[data-date]')) {
+      expect(button).toHaveClass('rounded-full', 'h-9', 'w-9')
+    }
+    expect(day('20 de novembro de 2026')).toHaveClass('bg-[#0d1f35]', 'text-white')
+    expect(day('18 de novembro de 2026')).toHaveClass('text-[#0d1f35]', 'font-medium', 'hover:bg-[#f5f3ee]', 'focus:bg-[#f5f3ee]')
+    expect(day('18 de novembro de 2026')).toHaveClass('focus-visible:outline-2')
+    expect(day('20 de novembro de 2026')).toHaveClass('focus-visible:outline-2')
+  })
+
+  it('os dias fora dos limites ficam riscados', async () => {
+    const user = userEvent.setup()
+    show({ max: '2026-11-16' })
+
+    await open(user)
+
+    expect(day('17 de novembro de 2026')).toHaveAttribute('aria-disabled', 'true')
+    expect(day('17 de novembro de 2026')).toHaveClass('line-through', 'text-gray-300')
+    expect(day('16 de novembro de 2026')).not.toHaveClass('line-through')
+    expect(day('16 de novembro de 2026')).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('hoje tem o ponto dourado, também quando está fora dos limites e riscado', async () => {
+    const user = userEvent.setup()
+    const { unmount } = show()
+
+    await open(user)
+    const today = day('15 de novembro de 2026')
+    expect(today).toHaveAttribute('aria-current', 'date')
+    expect(today.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-[#8a7043]')
+    unmount()
+
+    show({ min: '2026-11-16' })
+    await open(user)
+    const disabledToday = day('15 de novembro de 2026')
+    expect(disabledToday.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-[#8a7043]')
+    expect(disabledToday).toHaveClass('line-through')
+    expect(within(picker()).getByRole('button', { name: 'Hoje' })).toBeDisabled()
+  })
+
+  it('as setas ficam desativadas mas focáveis quando o mês ao lado não tem dias permitidos', async () => {
+    const user = userEvent.setup()
+    const { unmount } = show({ value: '2026-11-12', max: '2026-11-30' })
+
+    const dialog = await open(user)
+    const next = within(dialog).getByRole('button', { name: 'Mês seguinte' })
+    const previous = within(dialog).getByRole('button', { name: 'Mês anterior' })
+    expect(next).toHaveAttribute('aria-disabled', 'true')
+    expect(next).toHaveClass('text-gray-300')
+    expect(previous).not.toHaveAttribute('aria-disabled')
+
+    await user.click(next)
+    expect(within(picker()).getByText('Novembro 2026')).toBeInTheDocument()
+    expect(next).toHaveFocus()
+    expect(picker()).toContainElement(document.activeElement)
+
+    await user.tab()
+    expect(day('12 de novembro de 2026')).toHaveFocus()
+
+    await user.keyboard('{PageDown}')
+    expect(within(picker()).getByText('Dezembro 2026')).toBeInTheDocument()
+    expect(within(picker()).getByRole('button', { name: 'Mês anterior' })).not.toHaveAttribute('aria-disabled')
+    unmount()
+
+    show({ min: '2026-11-01' })
+    await open(user)
+    expect(within(picker()).getByRole('button', { name: 'Mês anterior' })).toHaveAttribute('aria-disabled', 'true')
+  })
 })

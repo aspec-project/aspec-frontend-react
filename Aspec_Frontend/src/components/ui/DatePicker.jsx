@@ -7,16 +7,23 @@ import {
   endOfWeek,
   formatDayLabel,
   formatMonthTitle,
-  formatShortDate,
   getMonthGrid,
+  hasAllowedDay,
   isWithinRange,
   parseIsoDate,
   startOfWeek,
   toIsoDate,
   todayIso,
 } from '../../utils/calendar'
+import { formatShortDate } from '../../utils/dateFormat'
 
-const navButtonClass = 'flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]'
+const navButtonClass = 'flex h-8 w-8 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]'
+
+const navEnabledClass = 'text-gray-600 hover:bg-gray-100'
+
+const navDisabledClass = 'text-gray-300 cursor-not-allowed hover:bg-transparent'
+
+const WEEKEND_SHORT = ['SÁB', 'DOM']
 
 const footerButtonClass = 'rounded-md px-2 py-1 text-sm font-semibold text-[#0d1f35] hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent'
 
@@ -46,7 +53,8 @@ function getInitialFocus(value, min, max) {
 /**
  * Campo de data com calendário em popover (padrão WAI-ARIA "date picker dialog"): meses com setas, semana de
  * segunda a domingo, hoje marcado, "Hoje" e "Limpar data", teclado com setas/PageUp/PageDown/Home/End, Escape
- * fecha sem mudar e o foco volta ao botão. Só devolve datas AAAA-MM-DD ou ''.
+ * fecha sem mudar e o foco volta ao botão. Dias fora dos limites riscados; setas desativadas quando o mês ao lado
+ * não tem dias permitidos. Só devolve datas AAAA-MM-DD ou ''.
  *
  * @param {{
  *   id: string,
@@ -75,6 +83,10 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
   const today = todayIso()
   const view = parseIsoDate(focused)
   const dialogLabel = `Escolher ${label.charAt(0).toLowerCase()}${label.slice(1)}`
+  const previousMonth = view ? parseIsoDate(addMonths(focused, -1)) : null
+  const nextMonth = view ? parseIsoDate(addMonths(focused, 1)) : null
+  const previousDisabled = previousMonth !== null && !hasAllowedDay(previousMonth.year, previousMonth.month, min, max)
+  const nextDisabled = nextMonth !== null && !hasAllowedDay(nextMonth.year, nextMonth.month, min, max)
 
   useImperativeHandle(ref, () => openerRef.current, [])
 
@@ -213,8 +225,8 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
         onClick={() => (open ? setOpen(false) : openPicker())}
         className={`flex h-11 w-full items-center gap-2 rounded-lg border bg-white px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] ${invalid ? 'border-red-400' : 'border-gray-200'}`}
       >
-        <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-gray-400" />
         <span id={valueId} className={shortValue ? 'text-gray-800' : 'text-gray-400'}>{shortValue || placeholder}</span>
+        <CalendarDays size={16} aria-hidden="true" className="ml-auto shrink-0 text-[#8a7043]" />
       </button>
 
       {open && view && (
@@ -227,11 +239,23 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
           className="absolute left-0 z-30 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-lg"
         >
           <div className="flex items-center justify-between gap-2">
-            <button type="button" aria-label="Mês anterior" onClick={() => changeMonth(-1)} className={navButtonClass}>
+            <button
+              type="button"
+              aria-label="Mês anterior"
+              aria-disabled={previousDisabled ? 'true' : undefined}
+              onClick={() => !previousDisabled && changeMonth(-1)}
+              className={`${navButtonClass} ${previousDisabled ? navDisabledClass : navEnabledClass}`}
+            >
               <ChevronLeft size={16} aria-hidden="true" />
             </button>
             <p aria-live="polite" className="text-sm font-semibold text-[#0d1f35]">{formatMonthTitle(view.year, view.month)}</p>
-            <button type="button" aria-label="Mês seguinte" onClick={() => changeMonth(1)} className={navButtonClass}>
+            <button
+              type="button"
+              aria-label="Mês seguinte"
+              aria-disabled={nextDisabled ? 'true' : undefined}
+              onClick={() => !nextDisabled && changeMonth(1)}
+              className={`${navButtonClass} ${nextDisabled ? navDisabledClass : navEnabledClass}`}
+            >
               <ChevronRight size={16} aria-hidden="true" />
             </button>
           </div>
@@ -240,7 +264,7 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
             <thead>
               <tr>
                 {WEEKDAY_HEADERS.map((weekday) => (
-                  <th key={weekday.short} scope="col" className="pb-2 text-[11px] font-semibold text-gray-400">
+                  <th key={weekday.short} scope="col" className={`pb-2 text-[11px] font-semibold ${WEEKEND_SHORT.includes(weekday.short) ? 'text-[#8a7043]' : 'text-gray-400'}`}>
                     <abbr title={weekday.long} className="no-underline">{weekday.short}</abbr>
                   </th>
                 ))}
@@ -266,7 +290,7 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
                           aria-current={isToday ? 'date' : undefined}
                           aria-disabled={isDisabled ? 'true' : undefined}
                           onClick={() => select(iso)}
-                          className={`relative flex h-9 w-full items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#315a79] ${isSelected ? 'bg-[#0d1f35] font-semibold text-white' : isDisabled ? 'cursor-not-allowed text-gray-300' : 'text-gray-700 hover:bg-[#f5f3ee]'}`}
+                          className={`relative mx-auto flex h-9 w-9 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#315a79] ${isSelected ? 'bg-[#0d1f35] font-semibold text-white' : isDisabled ? 'cursor-not-allowed text-gray-300 line-through' : 'font-medium text-[#0d1f35] hover:bg-[#f5f3ee] focus:bg-[#f5f3ee]'}`}
                         >
                           {parseIsoDate(iso).day}
                           {isToday && (
