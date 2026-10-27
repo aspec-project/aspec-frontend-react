@@ -7,6 +7,7 @@ import {
   formatMissingFields,
   getCapacityHint,
   getChangedEventFields,
+  getDeadlineMax,
   getEditNotice,
   getEventFormErrors,
   getLisbonNow,
@@ -14,6 +15,7 @@ import {
   getSavedGeocode,
   isSafeMeetingUrl,
   mapEventServerErrors,
+  parseTime,
 } from '../../src/utils/adminEventForm'
 
 const NOW = new Date('2030-06-10T10:00:00Z')
@@ -457,5 +459,31 @@ describe('textos da edição', () => {
 
   it('o erro da justificação vai para o campo da justificação', () => {
     expect(mapEventServerErrors({ justification: ['J'] })).toEqual({ fieldErrors: { justification: 'J' }, unmatched: [] })
+  })
+})
+
+describe('parseTime', () => {
+  it('aceita H:MM, HH:MM, HMM e HHMM entre 00:00 e 23:59 e devolve HH:MM', () => {
+    expect(parseTime('17:39')).toBe('17:39')
+    expect(parseTime('9:05')).toBe('09:05')
+    expect(parseTime('930')).toBe('09:30')
+    expect(parseTime('1739')).toBe('17:39')
+    expect(parseTime('00:00')).toBe('00:00')
+    expect(parseTime('23:59')).toBe('23:59')
+  })
+
+  it('devolve null para horas fora dos limites, incompletas, vazias ou que não são texto', () => {
+    for (const text of ['24:00', '17:60', '17:3', '17', '', 'ab:cd', null]) {
+      expect(parseTime(text)).toBeNull()
+    }
+  })
+})
+
+describe('getDeadlineMax', () => {
+  it('o último dia do prazo é a véspera do evento e sem data do evento não há máximo', () => {
+    expect(getDeadlineMax('')).toBeUndefined()
+    expect(getDeadlineMax('2099-03-20')).toBe('2099-03-19')
+    expect(getDeadlineMax('2099-03-01')).toBe('2099-02-28')
+    expect(getDeadlineMax('2100-01-01')).toBe('2099-12-31')
   })
 })

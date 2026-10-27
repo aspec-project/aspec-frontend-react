@@ -12,19 +12,42 @@ import { Check, ChevronDown } from 'lucide-react'
  *   options: {value: string, label: string}[],
  *   onChange: (value: string) => void,
  *   disabled?: boolean,
- * }} props A primeira opção pode ter value '' (ex.: "Todos os tipos").
+ *   name?: string,
+ *   labelId?: string,
+ *   placeholder?: string,
+ *   invalid?: boolean,
+ *   describedBy?: string,
+ *   required?: boolean,
+ * }} props A primeira opção pode ter value '' (ex.: "Todos os tipos"). Num formulário: `name` vai para o
+ * botão; com `labelId` a label é de fora (não desenha a sua) e liga-se ao botão por `aria-labelledby`, e a lista chama-se "Opções de {label}"; `placeholder`
+ * aparece a cinzento quando o valor não está nas opções (não é uma opção da lista); `invalid`,
+ * `describedBy` e `required` dão `aria-invalid`, `aria-describedby` e `aria-required`.
  * @returns {JSX.Element}
  */
-export default function SelectMenu({ id, label, value, options, onChange, disabled = false }) {
+export default function SelectMenu({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  name,
+  labelId,
+  placeholder,
+  invalid = false,
+  describedBy,
+  required = false,
+}) {
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const containerRef = useRef(null)
   const buttonRef = useRef(null)
   const listRef = useRef(null)
-  const labelId = `${id}-label`
+  const ownLabelId = `${id}-label`
+  const labelledBy = labelId ?? ownLabelId
   const listboxId = `${id}-listbox`
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value))
-  const selected = options.find((option) => option.value === value) ?? options[0]
+  const selected = options.find((option) => option.value === value) ?? (placeholder === undefined ? options[0] : null)
 
   useEffect(() => {
     if (!open) return undefined
@@ -118,16 +141,20 @@ export default function SelectMenu({ id, label, value, options, onChange, disabl
 
   return (
     <div ref={containerRef} className="relative">
-      <label id={labelId} htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+      {!labelId && <label id={ownLabelId} htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">{label}</label>}
       <button
         ref={buttonRef}
         id={id}
+        name={name}
         type="button"
         role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        aria-labelledby={labelId}
+        aria-labelledby={labelledBy}
+        aria-invalid={invalid ? 'true' : undefined}
+        aria-describedby={describedBy}
+        aria-required={required ? 'true' : undefined}
         aria-activedescendant={open ? `${id}-option-${highlighted}` : undefined}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
@@ -135,16 +162,17 @@ export default function SelectMenu({ id, label, value, options, onChange, disabl
         onKeyUp={(event) => {
           if (event.key === ' ') event.preventDefault()
         }}
-        className="flex h-11 w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 text-left text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:bg-gray-100"
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3 text-left text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:bg-gray-100 ${invalid ? 'border-red-400' : 'border-gray-200'}`}
       >
-        <span className="truncate">{selected?.label}</span>
+        <span className={`truncate ${selected ? '' : 'text-gray-400'}`}>{selected ? selected.label : placeholder}</span>
         <ChevronDown size={16} aria-hidden="true" className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <ul
         ref={listRef}
         id={listboxId}
         role="listbox"
-        aria-labelledby={labelId}
+        aria-labelledby={labelId ? undefined : ownLabelId}
+        aria-label={labelId ? `Opções de ${label}` : undefined}
         hidden={!open}
         onMouseDown={(event) => event.preventDefault()}
         className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"

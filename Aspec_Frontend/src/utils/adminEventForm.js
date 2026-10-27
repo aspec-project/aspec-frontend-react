@@ -1,3 +1,5 @@
+import { addDays, parseIsoDate } from './calendar'
+
 /** Valores iniciais do formulário de evento: tudo vazio, formato presencial. */
 export const EMPTY_EVENT_FORM = {
   isOnline: false,
@@ -41,6 +43,7 @@ export const EVENT_FORM_MESSAGES = {
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao criar o evento.',
   geocodeApproximatePrefix: 'Local aproximado:',
   geocodeApproximateHint: 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.',
+  timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
 }
 
 /** Textos próprios do modal de edição de evento. */
@@ -470,4 +473,36 @@ export function getCapacityHint(count) {
   if (!Number.isInteger(count) || count < 1) return ''
 
   return `Já há ${count} ${count === 1 ? 'inscrito' : 'inscritos'}: a capacidade não pode ser inferior.`
+}
+
+/**
+ * Lê uma hora escrita pelo admin. Aceita H:MM, HH:MM, HMM e HHMM entre 00:00 e 23:59.
+ *
+ * @param {unknown} text Texto escrito.
+ * @returns {string|null} Hora `HH:MM` ou null quando não é uma hora válida.
+ */
+export function parseTime(text) {
+  if (typeof text !== 'string') return null
+
+  const match = /^(\d{1,2}):?(\d{2})$/.exec(text)
+
+  if (!match) return null
+
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+
+  if (hours > 23 || minutes > 59) return null
+
+  return `${String(hours).padStart(2, '0')}:${match[2]}`
+}
+
+/**
+ * Último dia que se pode escolher para o prazo de inscrição: a véspera do evento, porque o prazo fecha às
+ * 23:59 e tem de ser anterior ou igual ao início do evento.
+ *
+ * @param {string} eventDate Data do evento (AAAA-MM-DD ou '').
+ * @returns {string|undefined} Data AAAA-MM-DD ou undefined sem data do evento.
+ */
+export function getDeadlineMax(eventDate) {
+  return parseIsoDate(eventDate) ? addDays(eventDate, -1) : undefined
 }

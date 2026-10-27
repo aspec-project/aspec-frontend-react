@@ -41,6 +41,7 @@ const ADDRESS_NOT_FOUND = 'Não foi possível encontrar esta morada no mapa. Ver
 const UNAVAILABLE = 'O serviço de localização não está disponível de momento. Tente novamente dentro de instantes.'
 const PASSED = 'Não é possível alterar um evento que já decorreu.'
 const SUCCESS = 'Evento atualizado com sucesso.'
+const END_TIME_ERROR = 'A hora de fim deve ser posterior à hora de início.'
 
 const FOUND = {
   latitude: 41.15,
@@ -171,6 +172,24 @@ async function typeInto(user, element, text) {
   await user.type(element, text)
 }
 
+function calendar() {
+  return screen.getByRole('dialog', { name: /^Escolher / })
+}
+
+function day(label) {
+  return within(calendar()).getByRole('button', { name: label })
+}
+
+async function chooseOption(user, combobox, optionName) {
+  await user.click(combobox)
+  await user.click(screen.getByRole('option', { name: optionName }))
+}
+
+function useFakeToday() {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2099, 0, 10, 12))
+}
+
 async function editTitle(user, text = 'Workshop de Liderança — nova data') {
   await typeInto(user, field.title(), text)
 }
@@ -201,21 +220,28 @@ function apiError(status, message, errors) {
 
 describe('EditEventDialog', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
   })
 
-  it('abre com os dados do evento, o formato do evento, sem repetição e sem alterações', () => {
+  it('abre com os dados do evento, o formato do evento, sem repetição e sem alterações', async () => {
+    const user = userEvent.setup()
     show()
 
     expect(screen.getByRole('dialog', { name: 'Editar Evento' })).toHaveAttribute('aria-modal', 'true')
     expect(field.title()).toHaveFocus()
     expect(field.title()).toHaveValue('Workshop de Liderança')
-    expect(field.category()).toHaveValue('c1')
-    expect(field.location()).toHaveValue('l1')
-    expect(field.date()).toHaveValue('2099-01-21')
+    expect(field.category()).toHaveAttribute('role', 'combobox')
+    expect(field.category()).toHaveTextContent('Workshop')
+    expect(field.location()).toHaveAttribute('role', 'combobox')
+    expect(field.location()).toHaveTextContent('Lisboa')
+    expect(field.date().tagName).toBe('BUTTON')
+    expect(field.date()).toHaveTextContent('21 Jan 2099')
+    expect(field.start()).toHaveAttribute('placeholder', 'hh:mm')
     expect(field.start()).toHaveValue('08:00')
     expect(field.end()).toHaveValue('10:00')
-    expect(field.deadline()).toHaveValue('2099-01-19')
+    expect(field.deadline().tagName).toBe('BUTTON')
+    expect(field.deadline()).toHaveTextContent('19 Jan 2099')
     expect(field.venue()).toHaveValue('Centro de Congressos')
     expect(field.address()).toHaveValue('Rua Castilho 39, 1250-068 Lisboa')
     expect(field.capacity()).toHaveValue(30)
@@ -227,6 +253,48 @@ describe('EditEventDialog', () => {
     expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
     expect(screen.getByText(SAVED_HINT)).toBeInTheDocument()
+
+    await user.click(field.category())
+
+    expect(screen.getByRole('option', { name: 'Workshop' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('aceita horas ao minuto e uma hora antiga com segundos não conta como alteração', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup()
+    show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
+
+    expect(screen.getAllByRole('textbox')).toContain(field.start())
+    expect(field.start()).toHaveValue('18:45')
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
+
+    await typeInto(user, field.start(), '17:39')
+
+    expect(submitButton()).toBeEnabled()
+
+    await typeInto(user, field.start(), '18:45')
+
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
+    expect(submitButton()).toBeDisabled()
+
+    await typeInto(user, field.start(), '17:39')
+    await user.click(submitButton())
+
+    expect(lastPayload()).toMatchObject({ event_start_time: '17:39', event_end_time: '20:00' })
+  })
+
+  it('uma hora de fim escrita sem zero fica no formato HH:MM e é validada contra a hora de início', async () => {
+    const user = userEvent.setup()
+    show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00' }))
+
+    expect(screen.getAllByRole('textbox')).toContain(field.end())
+    await typeInto(user, field.end(), '8:00')
+    await user.tab()
+
+    expect(field.end()).toHaveValue('08:00')
+    const error = screen.getByText(END_TIME_ERROR)
+    expect(describedIds(field.end())).toContain(error.id)
+    expect(submitButton()).toBeDisabled()
   })
 
   it('o botão só fica ativo com uma alteração real e desativa-se ao desfazê-la', async () => {
@@ -321,7 +389,7 @@ describe('EditEventDialog', () => {
     first.unmount()
 
     const second = show()
-    await user.selectOptions(field.location(), 'l2')
+    await chooseOption(user, field.location(), 'Porto')
 
     expect(screen.queryByText(SAVED_HINT)).not.toBeInTheDocument()
     expect(screen.getByText(EDIT_GEOCODE_HINT)).toBeInTheDocument()
@@ -368,18 +436,27 @@ describe('EditEventDialog', () => {
   })
 
   it('um prazo já encerrado que não muda não bloqueia, mas não se escolhe um prazo no passado', async () => {
+    useFakeToday()
     const user = userEvent.setup()
     show(event('e1', 'Workshop de Liderança', { registration_deadline: CLOSED_DEADLINE }))
+
+    expect(field.deadline()).toHaveTextContent('14 Jan 2020')
 
     await editTitle(user)
 
     expect(submitButton()).toBeEnabled()
     expect(screen.queryByText(DEADLINE_PAST)).not.toBeInTheDocument()
 
-    change(field.deadline(), '2020-01-10')
+    await user.click(field.deadline())
 
-    expect(screen.getByText(DEADLINE_PAST)).toBeInTheDocument()
-    expect(submitButton()).toBeDisabled()
+    expect(day('10 de janeiro de 2020')).toHaveAttribute('aria-disabled', 'true')
+    expect(day('14 de janeiro de 2020')).toHaveAttribute('aria-disabled', 'true')
+
+    await user.click(day('10 de janeiro de 2020'))
+
+    expect(field.deadline()).toHaveTextContent('14 Jan 2020')
+    expect(screen.queryByText(DEADLINE_PAST)).not.toBeInTheDocument()
+    expect(submitButton()).toBeEnabled()
   })
 
   it('um evento sem nome do local mostra o campo em falta em vez de sem alterações', async () => {

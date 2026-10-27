@@ -1,11 +1,13 @@
 /**
  * Moldura acessível de um campo do formulário de evento: label ligada ao controlo, asterisco nos
  * obrigatórios, hint, contador e erro. Quem chama passa ao controlo o `aria-describedby` (ids
- * `{id}-hint`, `{id}-counter` e `{id}-error`) e o `aria-invalid`.
+ * `{id}-hint`, `{id}-counter` e `{id}-error`) e o `aria-invalid`. Com `labelId`, a label ganha esse id,
+ * para os controlos próprios (SelectMenu, DatePicker) se ligarem a ela por `aria-labelledby`.
  *
  * @param {{
  *   id: string,
  *   label: string,
+ *   labelId?: string,
  *   required?: boolean,
  *   hint?: string,
  *   error?: string,
@@ -14,10 +16,10 @@
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventField({ id, label, required = false, hint, error, counter, children }) {
+export default function EventField({ id, label, labelId, required = false, hint, error, counter, children }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-sm font-medium text-gray-700">
+      <label id={labelId} htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">
         {label}
         {required && <span aria-hidden="true" className="text-red-600"> *</span>}
       </label>
