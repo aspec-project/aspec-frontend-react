@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getPublicMemberProfile, isMemberProfileId } from '../services/members'
 import { useAuthStore } from '../store/authStore'
 import PublicMemberProfile from '../components/members/PublicMemberProfile'
+import PageTitle from '../components/PageTitle'
 
 export default function PublicMemberProfilePage() {
   const { id } = useParams()
@@ -35,8 +36,10 @@ export default function PublicMemberProfilePage() {
    */
   const current = result?.id === id && result.user === user && result.sessionStatus === sessionStatus && result.sessionGeneration === sessionGeneration && result.retry === retry ? result : null
   if (result !== null && current === null) setResult(null)
+  const notFound = !isMemberProfileId(id) || current?.status === 'not-found'
+  const title = notFound ? 'Perfil não encontrado' : current?.member?.business_name?.trim() || current?.member?.name || 'Perfil do membro'
   let content
-  if (!isMemberProfileId(id) || current?.status === 'not-found') {
+  if (notFound) {
     content = (
       <div className="mx-auto max-w-7xl px-6 py-16">
         <h1 className="text-2xl font-medium">Perfil não encontrado</h1>
@@ -61,6 +64,7 @@ export default function PublicMemberProfilePage() {
   }
   return (
     <div className="min-h-[50vh] bg-gray-50 text-gray-800">
+      <PageTitle title={title} />
       <div className="bg-[#0d1f35]">
         <div className="mx-auto max-w-7xl px-6 py-4">
           <Link to="/membros" className="rounded text-sm text-gray-300 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4">← Voltar ao diretório</Link>
