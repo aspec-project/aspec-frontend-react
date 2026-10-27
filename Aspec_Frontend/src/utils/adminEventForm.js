@@ -1,9 +1,14 @@
 import { addDays, parseIsoDate } from './calendar'
 import { formatShortDate } from './dateFormat'
+import { getSeriesSessions } from './adminEventSeries'
 
-/** Valores iniciais do formulário de evento: tudo vazio, formato presencial. */
+/**
+ * Valores iniciais do formulário de evento: tudo vazio, formato presencial e repetição pontual. Os campos da
+ * série (`frequency`, `seriesEndsOn`, `deadlineDaysBefore`) só se usam na criação de uma série.
+ */
 export const EMPTY_EVENT_FORM = {
   isOnline: false,
+  isRecurring: false,
   name: '',
   categoryId: '',
   locationId: '',
@@ -17,6 +22,9 @@ export const EMPTY_EVENT_FORM = {
   maxAttendees: '',
   description: '',
   organizerNotes: '',
+  frequency: '',
+  seriesEndsOn: '',
+  deadlineDaysBefore: '',
 }
 
 /** Limites dos campos, iguais aos do EventInstanceRequest do backend. */
@@ -45,6 +53,10 @@ export const EVENT_FORM_MESSAGES = {
   geocodeApproximatePrefix: 'Local aproximado:',
   geocodeApproximateHint: 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.',
   timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
+  deadlineDays: 'Indique um número inteiro de dias, a partir de 1.',
+  firstDeadlinePast: 'O prazo calculado para a primeira sessão já passou.',
+  seriesEndBeforeStart: 'A data de fim tem de ser igual ou posterior à data de início.',
+  seriesTooLong: 'Uma série não pode exceder 52 sessões.',
 }
 
 /** Textos próprios do modal de edição de evento. */
@@ -70,9 +82,12 @@ export const EVENT_FIELD_ORDER = [
   'name',
   'categoryId',
   'locationId',
+  'frequency',
   'eventDate',
+  'seriesEndsOn',
   'startTime',
   'endTime',
+  'deadlineDaysBefore',
   'registrationDeadline',
   'venueName',
   'address',
@@ -83,14 +98,29 @@ export const EVENT_FIELD_ORDER = [
   'justification',
 ]
 
+/** Nomes das datas de uma série na lista "Falta preencher" (as duas em falta juntam-se numa só entrada). */
+const SERIES_START_LABEL = 'data de início'
+const SERIES_END_LABEL = 'data de fim'
+
+/** Campos que só existem na criação de uma série (não contam como alterações na edição). */
+const SERIES_FIELDS = ['isRecurring', 'frequency', 'seriesEndsOn', 'deadlineDaysBefore']
+
+/**
+ * Campos obrigatórios pela ordem do formulário. `format` e `repetition` limitam o campo a um formato
+ * (presencial/online) ou a uma repetição (pontual/recorrente).
+ */
 const REQUIRED_FIELDS = [
   { name: 'name', label: 'título' },
   { name: 'categoryId', label: 'tipo de evento' },
   { name: 'locationId', label: 'delegação' },
-  { name: 'eventDate', label: 'data' },
+  { name: 'frequency', label: 'frequência', repetition: 'recurring' },
+  { name: 'eventDate', label: 'data', repetition: 'single' },
+  { name: 'eventDate', label: SERIES_START_LABEL, repetition: 'recurring' },
+  { name: 'seriesEndsOn', label: SERIES_END_LABEL, repetition: 'recurring' },
   { name: 'startTime', label: 'hora de início' },
   { name: 'endTime', label: 'hora de fim' },
-  { name: 'registrationDeadline', label: 'data limite de inscrição' },
+  { name: 'deadlineDaysBefore', label: 'fecho das inscrições (dias antes)', repetition: 'recurring' },
+  { name: 'registrationDeadline', label: 'data limite de inscrição', repetition: 'single' },
   { name: 'venueName', label: 'nome do local', format: 'inPerson' },
   { name: 'address', label: 'morada', format: 'inPerson' },
   { name: 'onlineUrl', label: 'link do evento', format: 'online' },
@@ -115,6 +145,10 @@ const SERVER_FIELD_MAP = {
   description: 'description',
   organizer_notes: 'organizerNotes',
   justification: 'justification',
+  'recurrence.frequency': 'frequency',
+  'recurrence.ends_on': 'seriesEndsOn',
+  'recurrence.registration_deadline_days_before': 'deadlineDaysBefore',
+  recurrence: 'frequency',
 }
 
 /** Hora a que o backend fecha as inscrições no dia do prazo (hora de Lisboa). */
@@ -153,18 +187,27 @@ export function getLisbonNow(now = new Date()) {
 }
 
 /**
- * Campos obrigatórios por preencher, pela ordem do formulário. Os do local dependem do formato.
+ * Campos obrigatórios por preencher, pela ordem do formulário. Os do local dependem do formato; a data
+ * limite de inscrição (pontual) e os campos da série (recorrente) dependem da repetição. Numa série, com a
+ * data de início e a de fim em falta, as duas aparecem juntas como "datas de início e fim".
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @returns {string[]} Nomes dos campos em falta (em minúsculas).
  */
 export function getMissingEventFields(values) {
   const format = values.isOnline ? 'online' : 'inPerson'
-
-  return REQUIRED_FIELDS
+  const repetition = values.isRecurring ? 'recurring' : 'single'
+  const labels = REQUIRED_FIELDS
     .filter((field) => !field.format || field.format === format)
+    .filter((field) => !field.repetition || field.repetition === repetition)
     .filter((field) => clean(values[field.name]) === '')
     .map((field) => field.label)
+
+  if (!labels.includes(SERIES_START_LABEL) || !labels.includes(SERIES_END_LABEL)) return labels
+
+  return labels
+    .filter((label) => label !== SERIES_END_LABEL)
+    .map((label) => (label === SERIES_START_LABEL ? 'datas de início e fim' : label))
 }
 
 /**
@@ -203,6 +246,10 @@ export function isSafeMeetingUrl(value) {
  * Na edição (3.º parâmetro), as regras "data no passado" e "prazo no passado" só se aplicam aos campos que
  * mudaram em relação aos valores iniciais, e a capacidade não pode ficar abaixo do número de inscritos.
  *
+ * Numa série (`isRecurring`), as regras da data limite de inscrição não se aplicam (o campo não é enviado) e
+ * validam-se o prazo em dias (inteiro ≥ 1 e prazo da 1.ª sessão no futuro) e a data da última sessão (não
+ * antes da 1.ª sessão e no máximo 52 sessões).
+ *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @param {Date} [now] Momento atual.
  * @param {{initialValues?: typeof EMPTY_EVENT_FORM|null, registrationsCount?: number|null}} [edit] Dados da
@@ -224,7 +271,9 @@ export function getEventFormErrors(values, now = new Date(), { initialValues = n
     errors.endTime = EVENT_FORM_MESSAGES.endTime
   }
 
-  if (registrationDeadline) {
+  if (values.isRecurring) {
+    Object.assign(errors, getSeriesErrors(values, `${today.date} ${today.time}`))
+  } else if (registrationDeadline) {
     const deadline = `${registrationDeadline} ${DEADLINE_TIME}`
 
     if (checkPastDeadline && deadline <= `${today.date} ${today.time}`) {
@@ -256,9 +305,42 @@ export function getEventFormErrors(values, now = new Date(), { initialValues = n
 }
 
 /**
+ * Erros dos campos de uma série. Cada regra só é avaliada quando os campos dela estão preenchidos.
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {string} now Data e hora atuais em Lisboa (`AAAA-MM-DD HH:MM`).
+ * @returns {Record<string, string>} Mensagem de erro por campo.
+ */
+function getSeriesErrors(values, now) {
+  const errors = {}
+  const { eventDate, seriesEndsOn, frequency } = values
+  const days = clean(values.deadlineDaysBefore)
+
+  if (days !== '') {
+    if (!/^\d+$/.test(days) || Number(days) < 1) {
+      errors.deadlineDaysBefore = EVENT_FORM_MESSAGES.deadlineDays
+    } else if (parseIsoDate(eventDate) && `${addDays(eventDate, -Number(days))} ${DEADLINE_TIME}` <= now) {
+      errors.deadlineDaysBefore = EVENT_FORM_MESSAGES.firstDeadlinePast
+    }
+  }
+
+  if (eventDate && seriesEndsOn) {
+    if (seriesEndsOn < eventDate) {
+      errors.seriesEndsOn = EVENT_FORM_MESSAGES.seriesEndBeforeStart
+    } else if (frequency && getSeriesSessions(eventDate, seriesEndsOn, frequency).tooMany) {
+      errors.seriesEndsOn = EVENT_FORM_MESSAGES.seriesTooLong
+    }
+  }
+
+  return errors
+}
+
+/**
  * Corpo do POST construído campo a campo (só as chaves do contrato). Num presencial, as coordenadas só
  * seguem se a verificação foi feita com a morada e a delegação atuais; num online, nunca seguem a morada,
- * o local nem as coordenadas.
+ * o local nem as coordenadas. Numa série não segue a chave `registration_deadline` (o backend proíbe-a com a
+ * `recurrence`) e segue a `recurrence` com as 3 chaves do contrato; num pontual a chave `recurrence` não
+ * existe (o backend usa `has('recurrence')`).
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @param {{result: {latitude: number, longitude: number}|null, query: {address: string, locationId: string}|null}} geocode
@@ -273,7 +355,7 @@ export function buildEventPayload(values, geocode) {
     event_date: values.eventDate,
     event_start_time: values.startTime,
     event_end_time: values.endTime,
-    registration_deadline: values.registrationDeadline,
+    ...(values.isRecurring ? {} : { registration_deadline: values.registrationDeadline }),
     is_online: values.isOnline,
   }
 
@@ -299,6 +381,14 @@ export function buildEventPayload(values, geocode) {
 
   if (notes !== '') {
     payload.organizer_notes = notes
+  }
+
+  if (values.isRecurring) {
+    payload.recurrence = {
+      frequency: values.frequency,
+      ends_on: values.seriesEndsOn,
+      registration_deadline_days_before: Number(clean(values.deadlineDaysBefore)),
+    }
   }
 
   return payload
@@ -406,7 +496,8 @@ function comparable(name, value) {
 
 /**
  * Campos que mudaram em relação aos valores iniciais. Mudar o formato conta como alteração e só se comparam
- * os campos de local do formato atual. A justificação não conta (não é um dado do evento).
+ * os campos de local do formato atual. A justificação não conta (não é um dado do evento), nem os campos da
+ * série (só existem na criação).
  *
  * @param {typeof EMPTY_EVENT_FORM} initialValues Valores iniciais do evento.
  * @param {typeof EMPTY_EVENT_FORM} values Valores atuais do formulário.
@@ -417,7 +508,7 @@ export function getChangedEventFields(initialValues, values) {
   const changed = Boolean(initialValues.isOnline) !== Boolean(values.isOnline) ? ['isOnline'] : []
 
   for (const name of EVENT_FIELD_ORDER) {
-    if (name === 'justification' || hidden.includes(name)) continue
+    if (name === 'justification' || SERIES_FIELDS.includes(name) || hidden.includes(name)) continue
 
     if (comparable(name, initialValues[name]) !== comparable(name, values[name])) {
       changed.push(name)

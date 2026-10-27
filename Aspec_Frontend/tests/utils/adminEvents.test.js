@@ -16,6 +16,7 @@ import {
   getFilenameFromContentDisposition,
   getOccupancy,
   getRegistrationState,
+  getSeriesEditNote,
   needsDeleteJustification,
 } from '../../src/utils/adminEvents'
 
@@ -251,5 +252,17 @@ describe('getDeleteEventDescription', () => {
 
   it('com uma data inválida mostra um travessão', () => {
     expect(getDeleteEventDescription(workshop({ event_date: 'x' }))).toMatch(/^Vai apagar «Workshop de Liderança» \(—\)\./)
+  })
+})
+
+describe('sessões de uma série', () => {
+  it('a nota da edição diz a posição na série e que a alteração vale só para essa sessão', () => {
+    expect(getSeriesEditNote({ series: { position: 3, total: 8 } })).toBe('Sessão 3/8 de uma série. As alterações aplicam-se só a esta sessão.')
+    expect(getSeriesEditNote({})).toBe('')
+  })
+
+  it('apagar uma sessão de uma série diz que só essa sessão é apagada', () => {
+    expect(getDeleteEventDescription({ name: 'Grupo de Oração', event_date: '2099-03-27', registrations_count: 0, series: { position: 3, total: 8 } }))
+      .toBe('Vai apagar «Grupo de Oração» (27 Mar 2099). O evento não tem inscritos, por isso ninguém é notificado. O evento é apagado definitivamente. Só esta sessão (3/8) é apagada; as outras sessões da série mantêm-se.')
   })
 })

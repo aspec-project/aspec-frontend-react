@@ -559,3 +559,125 @@ ${'B'.repeat(80)}`
     expect(getEventChangeSummary(EDIT_VALUES, { ...EDIT_VALUES }, NAMES)).toEqual([])
   })
 })
+
+describe('formulário de uma série', () => {
+  const SERIES_NOW = new Date('2099-03-10T12:00:00Z')
+  const DAYS_ERROR = 'Indique um número inteiro de dias, a partir de 1.'
+  const FIRST_DEADLINE_PAST = 'O prazo calculado para a primeira sessão já passou.'
+  const END_BEFORE_START = 'A data de fim tem de ser igual ou posterior à data de início.'
+  const TOO_LONG = 'Uma série não pode exceder 52 sessões.'
+  const SERIES_KEYS = ['frequency', 'seriesEndsOn', 'deadlineDaysBefore']
+
+  const series = {
+    ...validInPerson,
+    isRecurring: true,
+    eventDate: '2099-03-20',
+    frequency: 'weekly',
+    seriesEndsOn: '2099-04-03',
+    deadlineDaysBefore: '3',
+  }
+
+  const SERIES_PAYLOAD = {
+    category_id: 'c3',
+    location_id: 'l1',
+    name: 'Jantar de Networking Lisboa',
+    event_date: '2099-03-20',
+    event_start_time: '19:30',
+    event_end_time: '21:30',
+    is_online: false,
+    venue_name: 'Restaurante Estrela do Norte',
+    address: 'Rua das Flores 42',
+    max_attendees: 40,
+    description: 'Encontro mensal de networking entre membros.',
+    recurrence: { frequency: 'weekly', ends_on: '2099-04-03', registration_deadline_days_before: 3 },
+  }
+
+  it('uma série válida não tem erros', () => {
+    expect(getEventFormErrors(series, SERIES_NOW)).toEqual({})
+  })
+
+  it('o prazo em dias tem de ser um inteiro a partir de 1', () => {
+    for (const deadlineDaysBefore of ['0', '1.5', 'abc']) {
+      expect(getEventFormErrors({ ...series, deadlineDaysBefore }, SERIES_NOW).deadlineDaysBefore).toBe(DAYS_ERROR)
+    }
+  })
+
+  it('o prazo calculado para a primeira sessão tem de ser futuro', () => {
+    expect(getEventFormErrors({ ...series, eventDate: '2099-03-12', deadlineDaysBefore: '3' }, SERIES_NOW).deadlineDaysBefore)
+      .toBe(FIRST_DEADLINE_PAST)
+    expect(getEventFormErrors({ ...series, eventDate: '2099-03-12', deadlineDaysBefore: '1' }, SERIES_NOW))
+      .not.toHaveProperty('deadlineDaysBefore')
+  })
+
+  it('aceita uma só sessão, recusa o fim antes da primeira sessão e mais de 52 sessões', () => {
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-03-20' }, SERIES_NOW)).not.toHaveProperty('seriesEndsOn')
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-03-19' }, SERIES_NOW).seriesEndsOn).toBe(END_BEFORE_START)
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2100-03-20' }, SERIES_NOW).seriesEndsOn).toBe(TOO_LONG)
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-04-03' }, SERIES_NOW)).not.toHaveProperty('seriesEndsOn')
+  })
+
+  it('numa série as regras da data limite de inscrição não se aplicam', () => {
+    expect(getEventFormErrors({ ...series, registrationDeadline: '2000-01-01' }, SERIES_NOW)).not.toHaveProperty('registrationDeadline')
+  })
+
+  it('num pontual os campos da série não são validados', () => {
+    const single = { ...series, isRecurring: false, seriesEndsOn: '2099-03-19', deadlineDaysBefore: '0' }
+    const errors = getEventFormErrors(single, SERIES_NOW)
+
+    for (const key of SERIES_KEYS) {
+      expect(errors).not.toHaveProperty(key)
+    }
+  })
+
+  it('os campos em falta de uma série trocam a data limite pelos campos da série, pela ordem do formulário', () => {
+    expect(getMissingEventFields({ ...EMPTY_EVENT_FORM, isRecurring: true })).toEqual([
+      'título', 'tipo de evento', 'delegação', 'frequência', 'datas de início e fim', 'hora de início', 'hora de fim',
+      'fecho das inscrições (dias antes)', 'nome do local', 'morada', 'capacidade máxima', 'descrição',
+    ])
+  })
+
+  it('só com uma das datas da série em falta mostra só essa', () => {
+    const recurring = { ...EMPTY_EVENT_FORM, isRecurring: true }
+
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).toContain('data de fim')
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).not.toContain('datas de início e fim')
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).not.toContain('data de início')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).toContain('data de início')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).not.toContain('datas de início e fim')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).not.toContain('data de fim')
+  })
+
+  it('o corpo de uma série leva a recorrência com o número de dias e não leva a data limite', () => {
+    const payload = buildEventPayload({ ...series, deadlineDaysBefore: ' 3 ', registrationDeadline: '2000-01-01' }, NO_GEOCODE)
+
+    expect(payload).toEqual(SERIES_PAYLOAD)
+    expect(payload).not.toHaveProperty('registration_deadline')
+  })
+
+  it('o corpo de um pontual e o da edição nunca levam a recorrência', () => {
+    expect('recurrence' in buildEventPayload({ ...series, isRecurring: false }, NO_GEOCODE)).toBe(false)
+    expect(buildEventUpdatePayload(EDIT_VALUES, SAVED_GEOCODE, '')).not.toHaveProperty('recurrence')
+  })
+
+  it('os erros da recorrência vão para os campos da série', () => {
+    expect(mapEventServerErrors({
+      'recurrence.frequency': ['x'],
+      'recurrence.ends_on': ['y'],
+      'recurrence.registration_deadline_days_before': ['z'],
+    })).toEqual({
+      fieldErrors: { frequency: 'x', seriesEndsOn: 'y', deadlineDaysBefore: 'z' },
+      unmatched: [],
+    })
+    expect(mapEventServerErrors({ recurrence: ['w'] })).toEqual({ fieldErrors: { frequency: 'w' }, unmatched: [] })
+  })
+
+  it('os campos da série não contam como alterações', () => {
+    expect(getChangedEventFields(EDIT_VALUES, {
+      ...EDIT_VALUES,
+      isRecurring: true,
+      frequency: 'weekly',
+      seriesEndsOn: '2099-04-03',
+      deadlineDaysBefore: '3',
+    })).toEqual([])
+  })
+})
