@@ -4,7 +4,12 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach } from 'vitest'
+import { clearPublicReferenceCache } from '../src/services/publicReferenceCache'
+
+beforeEach(() => {
+  clearPublicReferenceCache()
+})
 
 afterEach(() => {
   cleanup()

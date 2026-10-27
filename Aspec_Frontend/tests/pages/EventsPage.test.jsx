@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { AxiosError } from "axios";
 import { MemoryRouter } from "react-router-dom";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EventsPage from "../../src/pages/EventsPage.jsx";
 import { api } from "../../src/services/api.js";
@@ -446,17 +447,15 @@ describe("EventsPage", () => {
     expect(pedidosEventos(adapter)).toHaveLength(2);
   });
 
-  it("apresenta a pesquisa indisponível sem enviar um parâmetro não confirmado", async () => {
+  it("apresenta pesquisa ativa e apenas uma ação global de limpeza", async () => {
     const adapter = instalarAdapter();
     mostrarAgenda();
     await esperarPagina(1);
 
     expect(screen.queryByRole("button", { name: /^Limpar (pesquisa|categoria|distrito)$/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Avaliação mínima")).not.toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "Pesquisar eventos" })).toBeDisabled();
-    expect(screen.getByText("Pesquisa indisponível de momento.")).toBeInTheDocument();
-    expect(screen.getByRole("searchbox", { name: "Pesquisar eventos" }))
-      .toHaveAccessibleDescription("Pesquisa indisponível de momento.");
+    expect(screen.getByRole("searchbox", { name: "Pesquisar eventos" })).toBeEnabled();
+    expect(screen.queryByText("Pesquisa indisponível de momento.")).not.toBeInTheDocument();
     expect(pedidosEventos(adapter)[0].params).toEqual({ page: 1, per_page: 9 });
   });
 
@@ -617,6 +616,16 @@ describe("EventsPage", () => {
 
     unmount();
 
-    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    await waitFor(() => expect(signals.every((signal) => signal.aborted)).toBe(true));
+  });
+
+  it("não duplica listagem nem referências durante o replay do StrictMode", async () => {
+    const adapter = instalarAdapter();
+    render(<StrictMode><MemoryRouter><EventsPage /></MemoryRouter></StrictMode>);
+    await esperarPagina(1);
+    await screen.findByRole("option", { name: "Conferência" });
+    expect(pedidosEventos(adapter)).toHaveLength(1);
+    expect(adapter.mock.calls.filter(([config]) => config.url === "/locations")).toHaveLength(1);
+    expect(adapter.mock.calls.filter(([config]) => config.url === "/event-categories")).toHaveLength(1);
   });
 });

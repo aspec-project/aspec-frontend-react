@@ -5,11 +5,12 @@ import {
   X,
   ChevronDown,
   User,
+  Pencil,
   LogOut,
   Settings,
-  CreditCard,
 } from "lucide-react";
 import { useAuthStore } from '../../store/authStore'
+import MemberAvatar from '../member/MemberAvatar'
 
 export default function Header() {
   /*
@@ -35,12 +36,10 @@ export default function Header() {
    * Cria as iniciais a partir do nome real para o avatar.
    * Exemplo: "João Silva" passa a "JS".
    */
-  const userInitials = displayName
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((namePart) => namePart.charAt(0).toUpperCase())
-    .join('')
+  const memberLogoUrl =
+    user?.member_profile?.logo_url ??
+    user?.memberProfile?.logo_url ??
+    ''
 
   /*
    * Normaliza o nome do papel devolvido pela API para podermos
@@ -49,6 +48,11 @@ export default function Header() {
   const roleName = user?.role?.name?.toLowerCase() ?? ''
   const isMember = roleName === 'member'
   const isAdmin = roleName === 'admin'
+  /* O diretório identifica cada empresa pelo ID do perfil, não pelo da conta. */
+  const memberProfileId = user?.member_profile?.id ?? user?.memberProfile?.id ?? ''
+  const publicProfilePath = memberProfileId
+    ? `/membros/${encodeURIComponent(memberProfileId)}`
+    : '/membros'
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -169,39 +173,40 @@ export default function Header() {
                   onClick={() => setUserMenuOpen((open) => !open)}
                   className="flex items-center gap-2 px-3 py-2 rounded-md bg-white/10 text-white cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
-                  <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-slate-950">
-                    {userInitials}
-                  </div>
+                  <MemberAvatar
+                    logoUrl={memberLogoUrl}
+                    name={displayName}
+                    className="h-7 w-7 text-xs"
+                  />
                   <span className="max-w-40 truncate text-sm">{displayName}</span>
                   <ChevronDown size={14} aria-hidden="true" />
                 </button>
 
                 {userMenuOpen && (
                   <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
-                    {isMember && (
-                      <>
-                        {/* Atalhos principais da área privada disponíveis ao membro autenticado. */}
-                        <button
-                          onClick={() => {
-                            navigate('/perfil')
-                            setUserMenuOpen(false)
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                        >
-                          <User size={14} /> A minha montra
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            navigate('/conta/subscricao')
-                            setUserMenuOpen(false)
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                        >
-                          <CreditCard size={14} /> A minha subscrição
-                        </button>
-                      </>
-                    )}
+                  {isMember && (
+                    <>
+                      {/* A vista pública é separada da área privada de edição. */}
+                      <button
+                        onClick={() => {
+                          navigate(publicProfilePath)
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                      >
+                        <User size={14} /> O meu perfil
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/perfil')
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
+                      >
+                        <Pencil size={14} /> Editar perfil
+                      </button>
+                    </>
+                  )}
 
                     {isAdmin && (
                       <button
@@ -303,21 +308,20 @@ export default function Header() {
               <>
                 {isMember && (
                   <>
-                    {/* Atalhos principais da área privada também disponíveis em ecrãs pequenos. */}
+                    {/* O perfil público e a área privada têm destinos distintos. */}
                     <Link
-                      to="/perfil"
-                      onClick={() => setMobileOpen(false)}
-                      className="block w-full text-left px-3 py-2 rounded text-sm text-white/85 hover:text-white hover:bg-white/5"
-                    >
-                      A minha montra
-                    </Link>
-
-                    <Link
-                      to="/conta/subscricao"
+                      to={publicProfilePath}
                       onClick={() => setMobileOpen(false)}
                       className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                     >
-                      A minha subscrição
+                      O meu perfil
+                    </Link>
+                    <Link
+                      to="/perfil"
+                      onClick={() => setMobileOpen(false)}
+                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      Editar perfil
                     </Link>
                   </>
                 )}

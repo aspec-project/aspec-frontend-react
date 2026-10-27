@@ -1,9 +1,36 @@
+import { Globe2 } from 'lucide-react'
+import SocialPlatformIcon from '../member/SocialPlatformIcon'
+
+const socialPlatformOrder = ['linkedin', 'facebook', 'instagram', 'youtube']
+
+function getLinkPlaceholder(platformName) {
+  return `${platformName.toLowerCase()}.com/empresa`
+}
+
+function compareSocialPlatforms(firstLink, secondLink) {
+  const firstIndex = socialPlatformOrder.indexOf(
+    firstLink.name.trim().toLowerCase(),
+  )
+  const secondIndex = socialPlatformOrder.indexOf(
+    secondLink.name.trim().toLowerCase(),
+  )
+
+  const normalizedFirstIndex =
+    firstIndex === -1 ? socialPlatformOrder.length : firstIndex
+  const normalizedSecondIndex =
+    secondIndex === -1 ? socialPlatformOrder.length : secondIndex
+
+  return normalizedFirstIndex - normalizedSecondIndex
+}
+
 /*
  * Mostra e atualiza os links das redes sociais.
  *
  * O envio final continua a ser responsabilidade do formulário pai.
  */
-function SocialLinksEditor({ socialLinks, onChange }) {
+function SocialLinksEditor({ socialLinks, onChange, footer = null }) {
+  const orderedSocialLinks = [...socialLinks].sort(compareSocialPlatforms)
+
   /*
    * Atualiza apenas o URL da plataforma alterada.
    */
@@ -23,38 +50,39 @@ function SocialLinksEditor({ socialLinks, onChange }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 p-6">
-      <h2 className="text-xl font-semibold text-[#0d1f35]">
-        Redes sociais
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0d1f35]">
+        <Globe2 size={20} className="text-[#9b7b45]" aria-hidden="true" />
+        Redes Sociais
       </h2>
 
-      <p className="mt-2 text-sm text-slate-600">
-        Adiciona as ligações para as redes sociais da empresa.
-      </p>
-
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
-        {socialLinks.map((link) => {
+      <div className="mt-5 space-y-3">
+        {orderedSocialLinks.map((link) => {
           const inputId = `social-${link.name.toLowerCase()}`
 
           return (
             <div key={link.name}>
-              <label
-                htmlFor={inputId}
-                className="text-sm font-medium text-slate-700"
-              >
+              <label htmlFor={inputId} className="sr-only">
                 {link.name}
               </label>
 
-              <input
-                id={inputId}
-                type="url"
-                value={link.url}
-                onChange={(event) =>
-                  handleChange(link.name, event.target.value)
-                }
-                placeholder={`https://${link.name.toLowerCase()}.com/empresa`}
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#8a7043] focus:ring-2 focus:ring-[#8a7043]/20"
-              />
+              <div className="relative">
+                <SocialPlatformIcon
+                  platform={link.name}
+                  size={18}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#9b7b45]"
+                />
+
+                <input
+                  id={inputId}
+                  type="url"
+                  value={link.url}
+                  onChange={(event) => handleChange(link.name, event.target.value)}
+                  placeholder={getLinkPlaceholder(link.name)}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#9b7b45] focus:ring-2 focus:ring-[#9b7b45]/20"
+                />
+              </div>
 
               {link.url && !link.platformId && (
                 <p className="mt-2 text-xs text-amber-700">
@@ -65,6 +93,8 @@ function SocialLinksEditor({ socialLinks, onChange }) {
           )
         })}
       </div>
+
+      {footer}
     </section>
   )
 }

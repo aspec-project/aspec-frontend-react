@@ -35,6 +35,43 @@ describe('Diretório de membros', () => {
   afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
 
   it.each([
+    ['visitante', null, 'idle', true],
+    ['sem sessão após erro', null, 'error', true],
+    ['sessão a confirmar', null, 'loading', false],
+    ['identidade anterior a confirmar', { id: member.id, role: { name: 'Member' } }, 'loading', false],
+    ['logout em curso', null, 'logging-out', false],
+    ['membro autenticado', { id: member.id, role: { name: 'Member' } }, 'authenticated', false],
+    ['administrador autenticado', { id: member.id, role: { name: 'Admin' } }, 'authenticated', false],
+  ])('mostra o aviso de contactos apenas ao visitante com sessão resolvida: %s', async (_, user, status, visible) => {
+    setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    useAuthStore.setState({ user, status })
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    const notice = screen.queryByRole('complementary', { name: 'Acesso aos contactos dos membros' })
+    if (visible) {
+      expect(notice).toHaveTextContent('Os contactos diretos e canais privados dos membros estão disponíveis apenas para membros autenticados. Entrar ou candidatar-me a membro.')
+      expect(within(notice).getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
+      expect(within(notice).getByRole('link', { name: 'candidatar-me a membro' })).toHaveAttribute('href', '/registo')
+      expect(notice.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    } else expect(notice).not.toBeInTheDocument()
+  })
+
+  it('não mostra o aviso durante a confirmação da sessão ou logout e não repete a listagem', async () => {
+    const adapter = setupAdapter((config) => Promise.resolve(response(body(config), config)))
+    useAuthStore.setState({ user: null, status: 'loading' })
+    show()
+    await screen.findByRole('heading', { name: member.business_name })
+    expect(screen.queryByRole('complementary', { name: 'Acesso aos contactos dos membros' })).not.toBeInTheDocument()
+    await act(async () => useAuthStore.setState({ user: { id: member.id, role: { name: 'Member' } }, status: 'authenticated' }))
+    expect(screen.queryByRole('complementary', { name: 'Acesso aos contactos dos membros' })).not.toBeInTheDocument()
+    await act(async () => useAuthStore.setState({ status: 'logging-out' }))
+    expect(screen.queryByRole('complementary', { name: 'Acesso aos contactos dos membros' })).not.toBeInTheDocument()
+    await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
+    expect(screen.getByRole('complementary', { name: 'Acesso aos contactos dos membros' })).toBeInTheDocument()
+    expect(adapter.mock.calls.filter(([config]) => config.url === '/members')).toHaveLength(1)
+  })
+
+  it.each([
     ['Visitor', null, 'idle'],
     ['Member Active', { id: member.id, role: { name: 'Member' }, account_status: { name: 'Active' } }, 'authenticated'],
   ])('integra /membros no MainLayout sem duplicar Navbar, conteúdo ou Footer para %s', async (_, user, status) => {
@@ -367,8 +404,9 @@ describe('Diretório de membros', () => {
     expect(screen.queryByText('Contacto não disponível')).not.toBeInTheDocument()
     expect(screen.getByText(member.description)).toBeInTheDocument()
     for (const value of [member.email, member.phone, member.tags[0]]) expect(screen.queryByText(value)).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Entrar' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Candidatar-me' })).not.toBeInTheDocument()
+    const card = screen.getByRole('link', { name: `Ver perfil: ${member.business_name}` })
+    expect(within(card).queryByRole('link', { name: 'Entrar' })).not.toBeInTheDocument()
+    expect(within(card).queryByRole('link', { name: 'Candidatar-me' })).not.toBeInTheDocument()
     expect(adapter.mock.calls.map(([config]) => config.url).sort()).toEqual(['/locations', '/members', '/sectors'])
   })
 

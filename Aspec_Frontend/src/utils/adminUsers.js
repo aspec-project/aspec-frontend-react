@@ -1,21 +1,61 @@
+import { Mail, ShieldCheck, ShieldOff } from 'lucide-react'
+import { MONTH_ABBREVIATIONS } from './dateFormat'
+
 /**
- * Separadores de estado da Gestão de Utilizadores, por ordem. A `key` é a chave em `counts`
- * e `filters` são os filtros enviados à API.
+ * Chips de estado da subscrição da Gestão de Utilizadores, por ordem. A `key` é o valor de
+ * `subscription_state` da API, ou `all`; é também a chave das contagens.
  *
- * @type {{key: string, label: string, filters: {status?: string, blocked?: boolean}}[]}
+ * @type {{key: string, label: string}[]}
  */
 export const USER_STATUS_TABS = [
-  { key: 'all', label: 'Todos', filters: {} },
-  { key: 'active', label: 'Ativos', filters: { status: 'Active' } },
-  { key: 'pending', label: 'Pendentes', filters: { status: 'Pending' } },
-  { key: 'approved', label: 'Aprovados', filters: { status: 'Approved' } },
-  { key: 'blocked', label: 'Bloqueados', filters: { status: 'Inactive', blocked: true } },
-  { key: 'inactive', label: 'Inativos', filters: { status: 'Inactive', blocked: false } },
+  { key: 'all', label: 'Todos' },
+  { key: 'pending', label: 'Pendentes' },
+  { key: 'awaiting_activation', label: 'Por ativar' },
+  { key: 'trial', label: 'Em trial' },
+  { key: 'active', label: 'Ativos' },
+  { key: 'grace', label: 'Em carência' },
+  { key: 'lapsed', label: 'Subscrição caída' },
+  { key: 'blocked', label: 'Bloqueados' },
 ]
 
-const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+/**
+ * Contagens dos chips a partir de `subscription_state_counts` da API: só os valores inteiros
+ * não negativos, mais `all` com a soma de todos os estados (cada utilizador está num só estado).
+ *
+ * @param {unknown} subscriptionStateCounts Contagens por estado da subscrição devolvidas pela API.
+ * @returns {Record<string, number>|null} Contagens por chave, ou null se o argumento não for um objeto.
+ */
+export function getStatusTabCounts(subscriptionStateCounts) {
+  if (Object.prototype.toString.call(subscriptionStateCounts) !== '[object Object]') {
+    return null
+  }
+
+  const counts = {}
+  let all = 0
+
+  for (const [state, count] of Object.entries(subscriptionStateCounts)) {
+    if (Number.isSafeInteger(count) && count >= 0) {
+      counts[state] = count
+      all += count
+    }
+  }
+
+  return { ...counts, all }
+}
 
 const INACTIVE_CLASS = 'bg-slate-100 text-slate-700'
+
+const SUBSCRIPTION_BADGE_CLASSES = {
+  pending: 'bg-amber-50 text-amber-800',
+  awaiting_activation: 'bg-sky-50 text-sky-800',
+  trial: 'bg-indigo-50 text-indigo-800',
+  active: 'bg-emerald-50 text-emerald-800',
+  grace: 'bg-orange-50 text-orange-800',
+  lapsed: INACTIVE_CLASS,
+  inactive: INACTIVE_CLASS,
+  blocked: 'bg-red-50 text-red-700',
+  exempt: 'bg-amber-50 text-[#8a7043]',
+}
 
 const INACTIVE_LABELS = {
   rejected: 'Recusado',
@@ -24,12 +64,19 @@ const INACTIVE_LABELS = {
 }
 
 /**
- * Etiqueta do estado de um utilizador, a partir do estado da conta e do motivo de inatividade.
+ * Etiqueta do estado de um utilizador: o estado da subscrição quando a API o envia (texto da API,
+ * cor pelo valor); senão, o estado da conta e o motivo de inatividade.
  *
- * @param {{account_status?: {name?: string}, inactive_reason?: string|null}} user
+ * @param {{account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string, label?: string}|null}} user
  * @returns {{label: string, className: string, title?: string}}
  */
 export function getStatusBadge(user) {
+  const state = user?.subscription_state
+
+  if (typeof state?.label === 'string' && state.label.trim() !== '') {
+    return { label: state.label, className: SUBSCRIPTION_BADGE_CLASSES[state.value] ?? INACTIVE_CLASS }
+  }
+
   switch (user?.account_status?.name) {
     case 'Pending':
       return { label: 'Pendente', className: 'bg-amber-50 text-amber-800' }
@@ -63,50 +110,15 @@ function parseDate(isoString) {
 }
 
 /**
- * Data de registo curta, em hora local: "Hoje", "Ontem" ou mês e ano (ex.: "Jan 2024").
- *
- * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
- * @param {Date} [now] Data de referência (hoje).
- * @returns {string} A data formatada, ou "—" se for inválida.
- */
-export function formatRegistrationDate(isoString, now = new Date()) {
-  const date = parseDate(isoString)
-
-  if (!date) {
-    return '—'
-  }
-
-  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
-
-  if (sameDay(date, now)) {
-    return 'Hoje'
-  }
-
-  if (sameDay(date, yesterday)) {
-    return 'Ontem'
-  }
-
-  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`
-}
-
-/**
- * Data completa em dd/mm/aaaa, em hora local.
+ * Mês abreviado e ano, em hora local (ex.: "Jan 2024").
  *
  * @param {string|null|undefined} isoString Data ISO 8601 devolvida pela API.
  * @returns {string} A data formatada, ou "" se for inválida.
  */
-export function formatFullDate(isoString) {
+export function formatMonthYear(isoString) {
   const date = parseDate(isoString)
 
-  if (!date) {
-    return ''
-  }
-
-  const day = String(date.getDate()).padStart(2, '0')
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-
-  return `${day}/${month}/${date.getFullYear()}`
+  return date ? `${MONTH_ABBREVIATIONS[date.getMonth()]} ${date.getFullYear()}` : ''
 }
 
 /**
@@ -146,46 +158,169 @@ export function getRoleLabel(user) {
   }
 }
 
-const WEEK_DAY_LABELS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+const WEEK_DAY_SHORT_LABELS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+
+const CLOSED_LABEL = 'Encerrado'
 
 /**
- * Horário semanal para mostrar, de segunda a domingo, com "Encerrado" nos dias sem horas.
+ * Agrupa o horário semanal em intervalos de dias consecutivos com o mesmo horário (segunda a domingo).
  *
- * @param {{week_day_id: number, open_time: string, close_time: string}[]|undefined} hours Horário da API (dia pelo id 1–7).
- * @returns {{label: string, value: string}[]} Os 7 dias por ordem.
+ * @param {{week_day_id: number, open_time: string, close_time: string}[]|undefined} hours Horário da API.
+ * @returns {{label: string, value: string, closed: boolean}[]} Intervalos por ordem; [] se não houver horário.
  */
-export function formatBusinessHours(hours = []) {
-  return WEEK_DAY_LABELS.map((label, index) => {
-    const day = hours.find((item) => item.week_day_id === index + 1)
+export function groupBusinessHours(hours = []) {
+  const days = WEEK_DAY_SHORT_LABELS.map((label, index) => {
+    const day = (hours ?? []).find((item) => item?.week_day_id === index + 1 && item.open_time && item.close_time)
 
-    return { label, value: day ? `${day.open_time} – ${day.close_time}` : 'Encerrado' }
+    return { label, value: day ? `${day.open_time} — ${day.close_time}` : CLOSED_LABEL, closed: !day }
   })
+
+  if (days.every((day) => day.closed)) {
+    return []
+  }
+
+  const groups = []
+
+  for (const day of days) {
+    const last = groups.at(-1)
+
+    if (last && last.value === day.value) {
+      last.end = day.label
+    } else {
+      groups.push({ start: day.label, end: day.label, value: day.value, closed: day.closed })
+    }
+  }
+
+  return groups.map(({ start, end, value, closed }) => ({
+    label: start === end ? start : `${start} — ${end}`,
+    value,
+    closed,
+  }))
 }
 
 /**
  * Nomes das ações de administração sobre um utilizador, por chave da API.
  *
- * @type {{approve: string, reject: string, block: string, unblock: string}}
+ * @type {{approve: string, reject: string, block: string, unblock: string, promote: string, demote: string, paymentLink: string, anonymize: string}}
  */
 export const USER_ACTION_LABELS = {
   approve: 'Aprovar',
   reject: 'Recusar',
   block: 'Bloquear',
   unblock: 'Desbloquear',
+  promote: 'Promover a administrador',
+  demote: 'Despromover',
+  paymentLink: 'Enviar email',
+  anonymize: 'Anonimizar',
 }
+
+/**
+ * Ações cujo diálogo tem um campo de justificação opcional, enviada ao backend e incluída no email ao membro.
+ *
+ * @type {('reject'|'block')[]}
+ */
+export const REASON_ACTIONS = ['reject', 'block']
+
+/**
+ * Número máximo de caracteres da justificação (igual ao `max:2000` do backend).
+ *
+ * @type {number}
+ */
+export const REASON_MAX_LENGTH = 2000
+
+/**
+ * Palavra que o admin tem de escrever para confirmar a anonimização.
+ *
+ * @type {string}
+ */
+export const ANONYMIZE_CONFIRMATION_WORD = 'ANONIMIZAR'
+
+/**
+ * Indica se o texto escrito confirma a anonimização: a palavra exata, em maiúsculas,
+ * ignorando só os espaços nas pontas.
+ *
+ * @param {unknown} value Texto escrito no campo de confirmação.
+ * @returns {boolean}
+ */
+export function isAnonymizationConfirmed(value) {
+  return typeof value === 'string' && value.trim() === ANONYMIZE_CONFIRMATION_WORD
+}
+
+/**
+ * Textos do diálogo de anonimização de um membro.
+ *
+ * @type {{title: string, description: string, note: string, confirmLabel: string}}
+ */
+export const ANONYMIZE_TEXTS = {
+  title: 'Anonimizar membro',
+  description: 'A conta é fechada e o membro deixa de poder iniciar sessão. É enviado um email de confirmação ao titular.',
+  note: 'Esta ação é irreversível. Os dados pessoais e o perfil são apagados; ficam apenas as faturas (obrigação fiscal), as inscrições em eventos passados sem dados pessoais e o registo de quem anonimizou e quando.',
+  confirmLabel: USER_ACTION_LABELS.anonymize,
+}
+
+/**
+ * Estados da subscrição (valor da API) em que o backend envia um email de pagamento:
+ * ativação, reativação ou lembrete.
+ *
+ * @type {string[]}
+ */
+export const PAYMENT_LINK_STATES = ['awaiting_activation', 'lapsed', 'grace']
 
 const BLOCKABLE_INACTIVE_REASONS = ['unpaid', 'cancelled']
 
 /**
- * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins e a própria conta
- * não têm ações (a API responderia sempre 409).
+ * Estados da subscrição em que um membro ativo não pode ser promovido a administrador.
  *
- * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null}} user
+ * @type {string[]}
+ */
+export const NON_PROMOTABLE_STATES = ['trial', 'grace']
+
+/**
+ * Indica se o utilizador pode ser promovido a administrador: membro com a conta ativa e fora
+ * do trial e da carência. Sem estado da subscrição, decide o backend.
+ *
+ * @param {{role?: {name?: string}, account_status?: {name?: string}, subscription_state?: {value?: string}|null}|null|undefined} user
+ * @returns {boolean}
+ */
+export function canPromote(user) {
+  return user?.role?.name === 'Member'
+    && user?.account_status?.name === 'Active'
+    && !NON_PROMOTABLE_STATES.includes(user?.subscription_state?.value)
+}
+
+/**
+ * Indica se o utilizador é o administrador técnico (isento de subscrição, nunca despromovível).
+ *
+ * @param {{subscription_state?: {value?: string}|null}} user
+ * @returns {boolean}
+ */
+function isExemptAdmin(user) {
+  return user?.subscription_state?.value === 'exempt'
+}
+
+/**
+ * Ações disponíveis para um utilizador, pela ordem de apresentação. Admins só podem ser
+ * despromovidos (exceto o administrador técnico); na própria conta de membro não há ações.
+ * "Enviar email" aparece primeiro quando o estado da subscrição pede um email de pagamento,
+ * nunca na própria conta. Promover só em membros ativos fora do trial e da carência.
+ * Esconder botões é só UX: a autorização e as guardas 409 estão no backend.
+ *
+ * @param {{id?: string, role?: {name?: string}, account_status?: {name?: string}, inactive_reason?: string|null, subscription_state?: {value?: string}|null}} user
  * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
- * @returns {('approve'|'reject'|'block'|'unblock')[]}
+ * @returns {('paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote')[]}
  */
 export function getAvailableActions(user, currentUserId) {
-  if (!user || user.role?.name === 'Admin' || user.id === currentUserId) {
+  if (!user) {
+    return []
+  }
+
+  const paymentLink = PAYMENT_LINK_STATES.includes(user.subscription_state?.value) && user.id !== currentUserId ? ['paymentLink'] : []
+
+  if (user.role?.name === 'Admin') {
+    return isExemptAdmin(user) ? [] : [...paymentLink, 'demote']
+  }
+
+  if (user.id === currentUserId) {
     return []
   }
 
@@ -193,30 +328,123 @@ export function getAvailableActions(user, currentUserId) {
     case 'Pending':
       return ['approve', 'reject']
     case 'Approved':
+      return [...paymentLink, 'block']
     case 'Active':
-      return ['block']
+      return [...paymentLink, 'block', ...(canPromote(user) ? ['promote'] : [])]
     case 'Inactive':
       if (user.inactive_reason === 'blocked') {
         return ['unblock']
       }
 
-      return BLOCKABLE_INACTIVE_REASONS.includes(user.inactive_reason) ? ['block'] : []
+      return BLOCKABLE_INACTIVE_REASONS.includes(user.inactive_reason) ? [...paymentLink, 'block'] : []
     default:
       return []
   }
 }
 
 /**
+ * Título e descrição do diálogo de envio do email de pagamento, conforme o estado da subscrição
+ * (o backend escolhe o email pela mesma regra).
+ *
+ * @param {{email?: string, member_profile?: {name?: string}|null, subscription_state?: {value?: string}|null}} user
+ * @returns {{title: string, description: string}}
+ */
+function paymentLinkTexts(user) {
+  const name = getDisplayName(user)
+  const email = user?.email
+
+  switch (user?.subscription_state?.value) {
+    case 'awaiting_activation':
+      return {
+        title: 'Reenviar email de ativação',
+        description: `Será enviado para ${email} um email com uma ligação para ${name} concluir a ativação da conta e pagar a quota.`,
+      }
+    case 'lapsed':
+      return {
+        title: 'Enviar email de reativação',
+        description: `Será enviado para ${email} um email com uma ligação para ${name} atualizar o método de pagamento e reativar a subscrição.`,
+      }
+    case 'grace':
+      return {
+        title: 'Enviar lembrete de pagamento',
+        description: `Será enviado para ${email} um lembrete para ${name} atualizar o cartão e pagar a quota antes do fim do período de carência.`,
+      }
+    default:
+      return {
+        title: 'Enviar email',
+        description: `Será enviado para ${email} o email de pagamento adequado ao estado da conta.`,
+      }
+  }
+}
+
+/**
+ * Ações que aparecem desativadas: o "Despromover" na própria conta de admin (o backend recusaria
+ * com 409), para explicar a regra em vez de esconder o botão.
+ *
+ * @param {{id?: string, role?: {name?: string}, subscription_state?: {value?: string}|null}} user
+ * @param {string|undefined} currentUserId Id do admin com sessão iniciada.
+ * @returns {'demote'[]}
+ */
+export function getLockedActions(user, currentUserId) {
+  if (user && user.id === currentUserId && user.role?.name === 'Admin' && !isExemptAdmin(user)) {
+    return ['demote']
+  }
+
+  return []
+}
+
+/**
+ * Nota do diálogo de despromover: o número de administradores antes e depois, quando é conhecido.
+ *
+ * @param {unknown} adminsCount Total de administradores devolvido pela API.
+ * @returns {string}
+ */
+function demoteNote(adminsCount) {
+  if (Number.isSafeInteger(adminsCount) && adminsCount >= 2) {
+    return `Existem ${adminsCount} administradores. Depois desta ação ficam ${adminsCount - 1}. A plataforma tem sempre de ter pelo menos um.`
+  }
+
+  return 'A plataforma tem sempre de ter pelo menos um administrador.'
+}
+
+/**
  * Textos do diálogo de confirmação de uma ação, com o efeito real no backend (incluindo emails).
  *
- * @param {'approve'|'reject'|'block'|'unblock'} action
- * @param {{email?: string, member_profile?: {name?: string}|null}} user
- * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger'}}
+ * @param {'paymentLink'|'approve'|'reject'|'block'|'unblock'|'promote'|'demote'} action
+ * @param {{email?: string, member_profile?: {name?: string}|null, subscription_state?: {value?: string}|null}} user
+ * @param {{adminsCount?: number}} [context] Total de administradores, para a nota do despromover.
+ * @returns {{title: string, description: string, confirmLabel: string, tone: 'primary'|'danger', icon?: import('react').ComponentType, confirmDelay?: number, note?: string, showClose?: boolean, maxLength?: number}}
  */
-export function getActionConfirmation(action, user) {
+export function getActionConfirmation(action, user, context = {}) {
   const who = user?.member_profile?.name ? `${getDisplayName(user)} (${user.email})` : getDisplayName(user)
 
   switch (action) {
+    case 'paymentLink':
+      return {
+        ...paymentLinkTexts(user),
+        confirmLabel: USER_ACTION_LABELS.paymentLink,
+        tone: 'primary',
+        icon: Mail,
+        showClose: true,
+      }
+    case 'promote':
+      return {
+        title: 'Promover a administrador',
+        description: `${who} passa a ter acesso total ao backoffice: aprovar e bloquear membros, gerir eventos, moderar avaliações e promover ou despromover outros administradores.`,
+        confirmLabel: USER_ACTION_LABELS.promote,
+        tone: 'primary',
+        icon: ShieldCheck,
+      }
+    case 'demote':
+      return {
+        title: 'Despromover administrador',
+        description: `${getDisplayName(user)} deixa de ter acesso ao backoffice, à gestão de utilizadores, eventos e moderação. Continua a ser membro e só então pode ser gerido(a) como tal. Esta é uma decisão importante: só outro administrador a poderá reverter, promovendo-o(a) de novo.`,
+        confirmLabel: USER_ACTION_LABELS.demote,
+        tone: 'danger',
+        icon: ShieldOff,
+        confirmDelay: 2,
+        note: demoteNote(context?.adminsCount),
+      }
     case 'approve':
       return {
         title: 'Aprovar candidatura',
@@ -227,16 +455,20 @@ export function getActionConfirmation(action, user) {
     case 'reject':
       return {
         title: 'Recusar candidatura',
-        description: `Recusar a candidatura de ${who}? A conta fica inativa e não é enviado nenhum email.`,
+        description: `Vai recusar a candidatura de ${getDisplayName(user)}. É enviado um email para ${user?.email} a informar da decisão; pode indicar uma justificação, que segue nesse email.`,
+        note: 'A conta é apagada e os dados da candidatura são anonimizados. Esta ação não pode ser desfeita, mas a pessoa pode voltar a candidatar-se com o mesmo email.',
         confirmLabel: USER_ACTION_LABELS.reject,
         tone: 'danger',
+        maxLength: REASON_MAX_LENGTH,
       }
     case 'block':
       return {
         title: 'Bloquear membro',
-        description: `Bloquear ${who}? A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Não é enviado nenhum email.`,
+        description: `${getDisplayName(user)} deixa de poder aceder à plataforma. É enviado um email para ${user?.email} a informar da decisão; pode indicar uma justificação, que segue nesse email.`,
+        note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde.',
         confirmLabel: USER_ACTION_LABELS.block,
         tone: 'danger',
+        maxLength: REASON_MAX_LENGTH,
       }
     case 'unblock':
     default:

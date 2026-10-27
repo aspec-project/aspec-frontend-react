@@ -8,6 +8,7 @@ const buttonClass = 'rounded-lg border border-gray-300 px-4 py-2 text-sm font-me
 export default function MemberReviews({ memberId, allowReview = false }) {
   const user = useAuthStore((state) => state.user)
   const sessionStatus = useAuthStore((state) => state.status)
+  const isActiveViewer = sessionStatus === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
   const [page, setPage] = useState(1)
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
@@ -27,8 +28,8 @@ export default function MemberReviews({ memberId, allowReview = false }) {
       .then((data) => {
         if (!controller.signal.aborted) setResult({ ...snapshot, status: 'success', data })
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setResult({ ...snapshot, status: 'error' })
+      .catch((error) => {
+        if (!controller.signal.aborted) setResult({ ...snapshot, status: error?.response?.status === 404 ? 'empty' : 'error' })
       })
     return () => controller.abort()
   }, [memberId, user, sessionStatus, page, retry])
@@ -48,7 +49,7 @@ export default function MemberReviews({ memberId, allowReview = false }) {
         <button type="button" className={`${buttonClass} mt-4`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button>
       </div>
     )
-  } else if (data.items.length === 0) {
+  } else if (current.status === 'empty' || data.items.length === 0) {
     content = <p className="mt-4 text-sm text-gray-600">Ainda não existem avaliações.</p>
   } else {
     content = (
@@ -76,7 +77,7 @@ export default function MemberReviews({ memberId, allowReview = false }) {
   return (
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm" aria-busy={!current}>
       <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Avaliações</h2>
-      {!allowReview && <p className="mt-3 text-sm leading-relaxed text-gray-600">Para avaliar este membro, é necessário ser membro ASPEC.</p>}
+      {!allowReview && !isActiveViewer && data?.items.length > 0 && <p className="mt-3 text-sm leading-relaxed text-gray-600">Para avaliar este membro, é necessário ser membro ASPEC.</p>}
       {content}
       {pagination && pagination.last_page > 1 && (
         <nav aria-label="Paginação das avaliações" className="mt-6 flex flex-wrap items-center justify-center gap-3">

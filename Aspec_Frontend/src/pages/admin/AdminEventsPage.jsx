@@ -1,0 +1,225 @@
+import { useState } from 'react'
+import { Download, Plus, TriangleAlert } from 'lucide-react'
+import CreateEventDialog from '../../components/admin/events/CreateEventDialog'
+import EditEventDialog from '../../components/admin/events/EditEventDialog'
+import EventListFilters from '../../components/admin/events/EventListFilters'
+import EventPeriodTabs from '../../components/admin/events/EventPeriodTabs'
+import EventsTable from '../../components/admin/events/EventsTable'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import FeedbackBanner from '../../components/ui/FeedbackBanner'
+import Pagination from '../../components/ui/Pagination'
+import ReasonDialog from '../../components/ui/ReasonDialog'
+import useAdminEvents from '../../hooks/useAdminEvents'
+import useAttendeesExport from '../../hooks/useAttendeesExport'
+import useEventDeletion from '../../hooks/useEventDeletion'
+import useEventFilterOptions from '../../hooks/useEventFilterOptions'
+import {
+  ATTENDEES_EXPORT_TEXTS,
+  DELETE_EVENT_TEXTS,
+  DELETE_JUSTIFICATION_MAX_LENGTH,
+  EVENT_PERIOD_TABS,
+  NO_RESULTS_MESSAGE,
+  formatResultsRange,
+  getAttendeesExportDescription,
+  getDeleteEventDescription,
+} from '../../utils/adminEvents'
+
+const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
+
+/**
+ * Página Gestão de Eventos do backoffice (design v3): separadores Agendados/Passados com contagens na mesma linha
+ * do botão "Criar Evento" (o título h2 fica só para leitores de ecrã), filtros de datas (calendário), tipo e
+ * local (listas próprias), tabela com 6 eventos por página e paginação numerada, e exportação da lista de presenças
+ * (diálogo com o aviso do RGPD antes de descarregar; só os erros aparecem numa mensagem).
+ * O botão "Criar Evento" abre o modal de criação e o ✎ de cada evento agendado abre o modal de edição;
+ * depois de guardar, a lista recarrega com os mesmos filtros e aparece a mensagem da API. Se o evento já
+ * decorreu ou já não existe, o modal de edição fecha, aparece o erro e a lista recarrega.
+ * O 🗑 de cada evento agendado abre o diálogo de apagar: com inscritos a justificação é obrigatória (segue no
+ * email de cancelamento); sem inscritos é uma confirmação simples. Depois de apagar aparece a mensagem da API
+ * e a lista recarrega com os mesmos filtros.
+ * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal),
+ * useAttendeesExport (exportação) e useEventDeletion (apagar).
+ *
+ * @returns {JSX.Element}
+ */
+export default function AdminEventsPage() {
+  const {
+    filters,
+    selectPeriod,
+    changeFilter,
+    clearFilters,
+    activeFiltersCount,
+    dateRangeError,
+    goToPage,
+    retry,
+    data,
+    loading,
+    error,
+  } = useAdminEvents()
+  const options = useEventFilterOptions()
+  const exporter = useAttendeesExport({ onStale: retry })
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [formFeedback, setFormFeedback] = useState(null)
+  const deletion = useEventDeletion({
+    onSuccess: (message) => {
+      setFormFeedback({ type: 'success', message })
+      retry()
+    },
+    onStale: (message) => {
+      setFormFeedback({ type: 'error', message })
+      retry()
+    },
+    onError: (message) => setFormFeedback({ type: 'error', message }),
+  })
+
+  const tab = EVENT_PERIOD_TABS.find((item) => item.key === filters.period) ?? EVENT_PERIOD_TABS[0]
+  const pagination = data?.pagination
+
+  return (
+    <div className="space-y-6">
+      <h2 className="sr-only">{tab.title}</h2>
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <EventPeriodTabs activePeriod={filters.period} counts={data?.counts} onSelect={selectPeriod} />
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setCreating(true)}
+          className={`${buttonClass} flex items-center gap-2`}
+        >
+          <Plus size={16} aria-hidden="true" />
+          Criar Evento
+        </button>
+      </div>
+
+      {formFeedback && (
+        <FeedbackBanner type={formFeedback.type} message={formFeedback.message} onClose={() => setFormFeedback(null)} />
+      )}
+
+      {exporter.feedback && (
+        <FeedbackBanner type={exporter.feedback.type} message={exporter.feedback.message} onClose={exporter.dismissFeedback} />
+      )}
+
+      <EventListFilters
+        filters={filters}
+        onChange={changeFilter}
+        onClear={clearFilters}
+        activeCount={activeFiltersCount}
+        dateRangeError={dateRangeError}
+        options={options}
+      />
+
+      {error ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+          <p>{error}</p>
+          <button type="button" onClick={retry} className={`${buttonClass} mt-4`}>Tentar novamente</button>
+        </div>
+      ) : !data ? (
+        loading && <p role="status" className="py-12 text-center text-gray-600">A carregar eventos...</p>
+      ) : data.items.length === 0 ? (
+        <p className="rounded-xl bg-white py-12 text-center text-gray-600 shadow-sm">
+          {activeFiltersCount > 0 ? NO_RESULTS_MESSAGE : tab.emptyMessage}
+        </p>
+      ) : (
+        <>
+          <EventsTable
+            events={data.items}
+            period={filters.period}
+            busy={loading}
+            onExport={exporter.requestExport}
+            onEdit={setEditing}
+            onDelete={deletion.requestDelete}
+            actionsDisabled={loading || exporter.pending || deletion.pending}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p role="status" className="text-sm text-gray-500">{formatResultsRange(pagination, data.items.length)}</p>
+            <Pagination
+              currentPage={pagination.current_page}
+              lastPage={pagination.last_page}
+              onChange={goToPage}
+              disabled={loading}
+              label="Paginação de eventos"
+            />
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(exporter.confirming)}
+        title={ATTENDEES_EXPORT_TEXTS.title}
+        icon={Download}
+        description={exporter.confirming ? getAttendeesExportDescription(exporter.confirming) : ''}
+        note={ATTENDEES_EXPORT_TEXTS.note}
+        confirmLabel={ATTENDEES_EXPORT_TEXTS.confirmLabel}
+        pending={exporter.pending}
+        onConfirm={exporter.confirm}
+        onCancel={exporter.cancel}
+      />
+
+      <ReasonDialog
+        open={Boolean(deletion.deleting) && deletion.needsJustification}
+        title={DELETE_EVENT_TEXTS.title}
+        icon={TriangleAlert}
+        description={deletion.deleting ? getDeleteEventDescription(deletion.deleting) : ''}
+        label={DELETE_EVENT_TEXTS.label}
+        placeholder={DELETE_EVENT_TEXTS.placeholder}
+        hint={DELETE_EVENT_TEXTS.hint}
+        required
+        maxLength={DELETE_JUSTIFICATION_MAX_LENGTH}
+        confirmLabel={DELETE_EVENT_TEXTS.confirmLabel}
+        cancelLabel={DELETE_EVENT_TEXTS.cancelLabel}
+        tone="danger"
+        pending={deletion.pending}
+        error={deletion.error}
+        onConfirm={deletion.confirm}
+        onCancel={deletion.cancel}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletion.deleting) && !deletion.needsJustification}
+        title={DELETE_EVENT_TEXTS.title}
+        icon={TriangleAlert}
+        description={deletion.deleting ? getDeleteEventDescription(deletion.deleting) : ''}
+        confirmLabel={DELETE_EVENT_TEXTS.confirmLabelNoRegistrants}
+        cancelLabel={DELETE_EVENT_TEXTS.cancelLabel}
+        tone="danger"
+        pending={deletion.pending}
+        onConfirm={deletion.confirm}
+        onCancel={deletion.cancel}
+      />
+
+      {creating && (
+        <CreateEventDialog
+          options={options}
+          onClose={() => setCreating(false)}
+          onSuccess={(message) => {
+            setCreating(false)
+            setFormFeedback({ type: 'success', message })
+            retry()
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditEventDialog
+          key={editing.id}
+          event={editing}
+          options={options}
+          onClose={() => setEditing(null)}
+          onSuccess={(message) => {
+            setEditing(null)
+            setFormFeedback({ type: 'success', message })
+            retry()
+          }}
+          onStale={(message) => {
+            setEditing(null)
+            setFormFeedback({ type: 'error', message })
+            retry()
+          }}
+        />
+      )}
+    </div>
+  )
+}

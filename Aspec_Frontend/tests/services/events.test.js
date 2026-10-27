@@ -1,7 +1,7 @@
 import { AxiosError, CanceledError } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../src/services/api.js";
-import { getEventsCapabilities, getEventsPage } from "../../src/services/events.js";
+import { getEvents, getEventsCapabilities, getEventsPage } from "../../src/services/events.js";
 
 function respostaApi(data, config, status = 200) {
   return { data, config, status, statusText: "", headers: {} };
@@ -72,6 +72,22 @@ describe("getEventsPage", () => {
     expect(config.signal).toBe(controller.signal);
   });
 
+  it("descarta o URL privado em todas as listagens, mesmo quando a API o devolve", async () => {
+    const item = { id: "evento-online", name: "Evento online", is_online: true, online_url: "https://private.example.test/event", location: { name: "Lisboa" }, address: "Rua", venue_name: "Auditório", latitude: 38, longitude: -9 };
+    simularResposta(respostaPagina([item]));
+    const page = await getEventsPage();
+    const all = await getEvents();
+    for (const result of [page.items[0], all[0]]) {
+      expect(result).toEqual({ id: item.id, name: item.name, is_online: true });
+    }
+    expect(item.online_url).toBe("https://private.example.test/event");
+  });
+
+  it.each([undefined, "true", 1, false])("não infere modalidade a partir de URL ou localização: %s", async (is_online) => {
+    simularResposta(respostaPagina([{ id: "evento", name: "Evento", is_online, location: { name: "Lisboa" }, online_url: "https://private.example.test/event" }]));
+    expect((await getEventsPage()).items[0]).toEqual({ id: "evento", name: "Evento", is_online: is_online === false ? false : null, location: { name: "Lisboa" } });
+  });
+
   it.each([
     [{}, { page: 1, per_page: 9 }],
     [{ categoryId: "", locationId: "", page: 1 }, { page: 1, per_page: 9 }],
@@ -135,12 +151,12 @@ describe("getEventsPage", () => {
     expect(adapter).toHaveBeenCalledTimes(1);
   });
 
-  it("pede nove eventos mesmo com a pesquisa desativada", async () => {
+  it("ativa a pesquisa do contrato atual sem depender da antiga flag", async () => {
     const items = Array.from({ length: 9 }, (_, index) => ({ id: String(index), name: `Evento ${index}` }));
     const adapter = simularResposta(respostaPagina(items));
-    expect(getEventsCapabilities()).toEqual({ search: false });
+    expect(getEventsCapabilities()).toEqual({ search: true });
     expect((await getEventsPage({ search: "conferencia" })).items).toHaveLength(9);
-    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9 });
+    expect(adapter.mock.calls[0][0].params).toEqual({ page: 1, per_page: 9, search: "conferencia" });
   });
 
   it("combina a pesquisa com os filtros e pede nove resultados quando o contrato está ativado", async () => {

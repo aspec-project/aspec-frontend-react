@@ -3,27 +3,56 @@
 ## Agenda e contrato da API
 
 A agenda obtém apenas uma página por pedido em `/api/events`, combinando
-`category_id` e `location_id` e usando os metadados de paginação do backend.
-
-As configurações seguintes estão desativadas por omissão:
-
-- `VITE_EVENTS_SEARCH_ENABLED=true` ativa a pesquisa e envia `search` ao backend.
-- `VITE_EVENTS_PER_PAGE_ENABLED=true` envia `per_page=10`. Respostas com um limite
-  superior a dez são rejeitadas; os resultados não são cortados no frontend.
-
-Estes parâmetros ainda não constam do contrato Postman atual. As opções só devem
-ser ativadas depois de o backend confirmar o respetivo suporte. Com as opções
-desativadas, a pesquisa fica indisponível e a agenda respeita a paginação recebida,
-cujo exemplo atual utiliza quinze resultados por página.
+`search`, `category_id` e `location_id`, com `per_page=9` e metadados de paginação
+do backend. A pesquisa textual está ativa sem flags de configuração.
+O diretório usa a mesma abordagem server-side com `per_page=12`.
 
 Descrição, cor da categoria e ocupação são apresentadas apenas quando a API
 devolver os campos válidos `description`, `category.color`, `max_attendees` e
 `registrations_count`. Não se obtém o detalhe individual para completar cada card.
-Estes campos opcionais também aguardam confirmação no contrato da listagem.
+A API conta as inscrições existentes em `registrations_count`; não existe um
+estado separado `confirmed`. A barra limita a percentagem visual a 100% e
+apresenta um estado indisponível se a contagem ou capacidade não forem válidas.
+
+Setores, distritos e categorias públicas partilham uma cache em memória de cinco
+minutos e pedidos em curso. Cada consumidor pode cancelar a sua espera; só se
+cancela o transporte quando não restam consumidores, após o remount imediato
+do StrictMode. Erros não ficam em cache. Eventos, membros e dados privados não
+são guardados nesta cache.
 
 A homepage mantém a consulta existente de todas as páginas para selecionar os
 três eventos futuros mais próximos. A sua otimização depende de o backend
 confirmar a ordenação completa ou um mecanismo para obter só esses eventos.
+
+## Contrato de modalidade e acesso online
+
+O detalhe prepara `is_online` como booleano estrito e `venue_name` como texto.
+Uma modalidade ausente ou inválida mantém-se desconhecida; a existência de
+morada, categoria ou URL não determina a modalidade. Para online, os serviços
+descartam localização física. As listagens descartam sempre `online_url`.
+
+No detalhe, o URL só é conservado para a mesma sessão autenticada, com papel
+Member/Admin, conta Active, inscrição confirmada e prazo ISO com fuso horário
+estritamente ultrapassado. URLs com protocolos diferentes de HTTP/HTTPS ou
+credenciais são descartados. Esta filtragem não substitui autorização na API.
+
+Verificação do backend local `dev` em `75602eb`: `is_online` existe no modelo,
+mas falta em `EventInstanceResource`; `venue_name` já é devolvido. O recurso
+público condiciona `online_url` à inscrição e ao prazo, mas ainda necessita de
+verificar papel, estado da conta e modalidade. Não existe contrato de séries ou
+sessões nos modelos e rotas consultados. A integração de recorrência depende
+desse contrato; o frontend não gera sessões nem chama endpoints presumidos.
+
+`EventSessions` aceita resumos explícitos e apresenta data, horário, prazo,
+estado e seleção por ID, incluindo estados de carregamento, erro e ausência.
+`EventDetailPage` aceita opcionalmente `sessions` e `recurrenceLabel` como
+modelo interno preparado para um adapter futuro. Esse adapter terá de confirmar
+que cada ID corresponde a uma instância consultável em `/events/:id` e obter
+os resumos para a identidade atual. A rota de produção fornece `sessions=null`;
+não lê campos de série presumidos. Os testes identificam essas listas como
+fixtures. A seleção refaz o GET do detalhe e preserva os estados reconciliados
+das sessões na identidade atual, sem guardar URLs entre sessões. Não existe
+inscrição conjunta na série sem contrato específico do backend.
 
 ## Testes do frontend
 

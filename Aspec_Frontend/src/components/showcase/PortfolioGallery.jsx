@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, GripVertical, ImagePlus, Upload, X } from 'lucide-react'
+import { AlertCircle, ImagePlus, Upload, X } from 'lucide-react'
 
 /*
  * Tipos de imagem aceites pelo frontend e pelo backend.
@@ -377,7 +377,7 @@ useEffect(() => {
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => handleImageDrop(event, image.id)}
               onDragEnd={() => setDraggedImageId(null)}
-              className={`overflow-hidden rounded-lg border bg-white transition ${
+              className={`cursor-grab overflow-hidden rounded-lg border bg-white transition active:cursor-grabbing ${
                 draggedImageId === image.id
                   ? 'border-amber-500 opacity-50'
                   : 'border-slate-200'
@@ -412,13 +412,6 @@ useEffect(() => {
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 p-3 text-sm text-slate-600">
-                <GripVertical size={18} className="shrink-0 text-slate-400" />
-
-                <p className="truncate" title={image.name}>
-                  {image.name}
-                </p>
-              </div>
             </li>
           ))}
         </ul>

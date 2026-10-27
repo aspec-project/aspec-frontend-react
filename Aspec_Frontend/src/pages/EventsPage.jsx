@@ -67,6 +67,7 @@ export default function EventsPage() {
 
     async function load() {
       try {
+        if (controller.signal.aborted) return;
         const data = await getEventsPage({ categoryId, locationId, search, page }, controller.signal);
 
         if (!controller.signal.aborted) {
@@ -79,7 +80,8 @@ export default function EventsPage() {
       }
     }
 
-    load();
+    /* O replay imediato de efeitos do StrictMode cancela antes do envio. */
+    queueMicrotask(load);
 
     return () => controller.abort();
   }, [categoryId, locationId, search, page, queryKey]);
@@ -111,13 +113,13 @@ export default function EventsPage() {
 
   return (
     <div className="min-h-[65vh] bg-gray-50 text-[#0D1F35]">
-      <header className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)] py-14">
+      <header className="py-8">
         <div className="mx-auto max-w-7xl px-6">
-          <h1 className="text-2xl font-medium leading-normal text-primary">Agenda de Eventos</h1>
-          <p className="mt-2 text-sm text-white/80">Encontre e inscreva-se nos próximos eventos ASPEC em todo o país.</p>
+          <h1 className="text-3xl font-semibold leading-normal text-[#0D1F35]">Agenda de Eventos</h1>
+          <p className="mt-2 text-sm text-gray-600">Encontre e inscreva-se nos próximos eventos ASPEC em todo o país.</p>
         </div>
       </header>
-      <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mx-auto max-w-7xl px-6 pb-10 pt-4">
         <EventFilters
           categoryId={categoryId}
           locationId={locationId}
@@ -169,6 +171,7 @@ export default function EventsPage() {
               <p className="mb-6 text-sm text-gray-500">
                 {data.pagination.total} {data.pagination.total === 1 ? "evento encontrado" : "eventos encontrados"}
               </p>
+              {/* Cada card partilha 11 linhas para alinhar as secções na mesma fila. */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {data.items.map((event, index) => <EventCard key={`${event.id}-${index}`} event={event} />)}
               </div>

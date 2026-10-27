@@ -15,13 +15,11 @@ vi.mock('../../src/components/members/MemberReviews', () => ({
 const id = '019512a1-9999-7123-8123-123456789abc'
 const otherId = '019512a1-9998-7123-8123-123456789abc'
 const profile = {
-  id, name: 'Ana', business_name: 'Serviços Ana', description: 'Descrição pública', website_url: 'https://example.test',
+  id, name: 'Ana', business_name: 'Serviços Ana', description: 'Descrição pública',
   sector: { id, name: 'Consultoria' }, location: { id, name: 'Lisboa' }, logo_url: null,
   business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' }],
   portfolio: [{ id, image_url: 'https://example.test/image.jpg' }], average_rating: 4.8, reviews_count: 12,
-  address: 'Morada pública',
-  social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }],
-  members_only: { phone: '912345678', commercial_contacts: 'Contacto privado', email: 'privado@example.test' },
+  members_only: { website_url: 'https://example.test', address: 'Morada privada', social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }], commercial_phone: '912345678', commercial_email: 'comercial@example.test', phone: '999111222', commercial_contacts: 'Contacto antigo' },
   contacts: { email: 'legado@example.test', phone: '999999999', commercial_contacts: 'Contacto legado', address: 'Morada legada' },
   secret: 'Campo desconhecido',
 }
@@ -49,7 +47,27 @@ describe('Perfil público de membro', () => {
   })
 
   it.each([
+    ['visitante', null, 'idle', false],
+    ['sessão a confirmar', null, 'loading', false],
+    ['membro ainda a confirmar', active, 'loading', false],
+    ['logout em curso', active, 'logging-out', false],
+    ['membro ativo', active, 'authenticated', true],
+    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', true],
+    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', true],
+    ['identidade sem ID', { role: { name: 'Member' } }, 'authenticated', false],
+  ])('mantém a classificação pública e restringe a lista de comentários: %s', async (_, user, status, visible) => {
+    useAuthStore.setState({ user, status })
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
+    expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
+    if (visible) expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
+    else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+  })
+
+  it.each([
     ['visitante', null, 'idle'], ['sessão a confirmar', active, 'loading'],
+    ['visitante sem sessão confirmada', null, 'loading'], ['visitante após erro de sessão', null, 'error'],
     ['inativo', { ...active, account_status: { name: 'Inactive' } }, 'authenticated'],
     ['pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated'],
     ['aprovado', { ...active, account_status: { name: 'Approved' } }, 'authenticated'],
@@ -59,37 +77,42 @@ describe('Perfil público de membro', () => {
     useAuthStore.setState({ user, status })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
-    for (const value of ['privado@example.test', '912345678', 'Contacto privado', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', 'Campo desconhecido']) expect(screen.queryByText(value)).not.toBeInTheDocument()
-    expect(screen.getByText('Morada pública')).toBeInTheDocument()
+    for (const value of ['privado@example.test', '912345678', 'comercial@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', 'Campo desconhecido', '999111222', 'Contacto antigo', 'comercial@example.test', 'Morada privada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
+    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByText('https://social.test/')).not.toBeInTheDocument()
     expect(screen.queryByText('https://example.test/')).not.toBeInTheDocument()
     expect(document.querySelector('a[href="https://social.test/"]')).toBeNull()
     expect(document.querySelector('a[href="https://example.test/"]')).toBeNull()
-    expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-    expect(screen.getByRole('link', { name: 'Candidatar-me' })).toHaveAttribute('href', '/registo')
-    const lockedContacts = screen.getByRole('region', { name: 'Contactos reservados' })
-    expect(lockedContacts.querySelector('h2')).toBeNull()
-    expect(lockedContacts.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
-    expect(lockedContacts.querySelectorAll('a')).toHaveLength(2)
-    expect(lockedContacts).toHaveTextContent('Os contactos estão disponíveis para membros ASPEC ativos.')
+    expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
+    if (!user && ['idle', 'error'].includes(status)) {
+      const lockedContacts = screen.getByRole('region', { name: 'Contactos reservados' })
+      expect(lockedContacts).toHaveTextContent('Os contactos estão disponíveis para membros ASPEC ativos.')
+      expect(lockedContacts.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+      expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
+      expect(screen.getByRole('link', { name: 'Candidatar-me' })).toHaveAttribute('href', '/registo')
+    } else expect(screen.queryByRole('region', { name: 'Contactos reservados' })).not.toBeInTheDocument()
     expect(screen.getByText('Descrição pública')).toBeInTheDocument()
     expect(screen.getByText('Segunda-feira')).toBeInTheDocument()
     expect(screen.getByText('Domingo')).toBeInTheDocument()
     expect(screen.getAllByText('Encerrado')).toHaveLength(6)
-    expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
+    expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+    if (status === 'authenticated') {
+      expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
+    } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+    expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
+    expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
   })
 
   it.each(['Member', 'Admin'])('mostra contactos ao %s Active sem usar contactos legados nem criar controlos de edição ou avaliação', async (role) => {
     useAuthStore.setState({ user: { ...active, role: { name: role } }, status: 'authenticated' })
     show()
     await screen.findByText('912345678')
-    expect(screen.getByText('Contacto privado')).toBeInTheDocument()
+    expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
-    expect(screen.getByText('Morada pública')).toBeInTheDocument()
-    for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
+    expect(screen.getByText('Morada privada')).toBeInTheDocument()
+    for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', '999111222', 'Contacto antigo']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('href', 'https://social.test/')
     expect(screen.getByRole('link', { name: 'Visitar website' })).toHaveAttribute('href', 'https://example.test/')
@@ -101,6 +124,23 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
+  it('mostra o card bloqueado ao visitante quando o backend devolve members_only null', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: null }))
+    show()
+    const lockedContacts = await screen.findByRole('region', { name: 'Contactos reservados' })
+    expect(lockedContacts).toHaveTextContent('Os contactos estão disponíveis para membros ASPEC ativos.')
+    expect(lockedContacts.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(lockedContacts.querySelectorAll('a')).toHaveLength(2)
+    expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+    expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expect(screen.queryByText('comercial@example.test')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Classificação Global' })).toBeInTheDocument()
+    expect(screen.getByText('Descrição pública')).toBeInTheDocument()
+  })
+
   it('limpa contactos na troca Member → Visitor → Member e recupera apenas dados da sessão atual', async () => {
     const pending = []
     api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
@@ -109,7 +149,9 @@ describe('Perfil público de membro', () => {
     await waitFor(() => expect(pending).toHaveLength(1))
     await act(async () => pending[0].resolve(response(pending[0].config)))
     await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
     await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -118,7 +160,9 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[1].resolve(response(pending[1].config)))
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
-    expect(screen.getByText('Morada pública')).toBeInTheDocument()
+    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Contactos reservados' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(document.querySelector('a[href="https://social.test/"]')).toBeNull()
@@ -129,10 +173,11 @@ describe('Perfil público de membro', () => {
     await waitFor(() => expect(pending).toHaveLength(3))
     await act(async () => pending[2].resolve(response(pending[2].config)))
     await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Visitar website' })).toBeInTheDocument()
-    expect(screen.getByText('Contacto privado')).toBeInTheDocument()
-    expect(screen.getByText('Morada pública')).toBeInTheDocument()
+    expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
+    expect(screen.getByText('Morada privada')).toBeInTheDocument()
     expect(pending[1].config.signal.aborted).toBe(true)
   })
 
@@ -159,6 +204,27 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => new Promise(() => { expect(config.signal.aborted).toBe(false) })
     await act(async () => useAuthStore.setState({ user: { ...active, id: otherId }, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+  })
+
+  it('retira contactos e pede novos dados quando muda apenas a geração da sessão', async () => {
+    const pending = []
+    api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].resolve(response(pending[0].config)))
+    await screen.findByText('912345678')
+    await act(async () => useAuthStore.setState((state) => ({ sessionGeneration: state.sessionGeneration + 1 })))
+    expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
+    await waitFor(() => expect(pending).toHaveLength(2))
+    expect(pending[0].config.signal.aborted).toBe(true)
+    await act(async () => pending[1].resolve(response(pending[1].config, { ...profile, members_only: null })))
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
+    expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
   })
 
   it('cancela pedido e ignora perfil antigo quando muda o ID na rota', async () => {
@@ -241,9 +307,10 @@ describe('Perfil público de membro', () => {
     expect(screen.getAllByText('Encerrado')).toHaveLength(6)
   })
 
-  it('mostra a morada pública uma vez e codifica a pesquisa externa para visitante', async () => {
+  it('mostra a morada autorizada uma vez e codifica a pesquisa externa', async () => {
     const address = 'Rua da Sé, 2 & 3? Lisboa #A'
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, address }))
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
+    useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
     expect(screen.getAllByText(address)).toHaveLength(1)
@@ -254,8 +321,8 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('img', { name: /mapa/i })).not.toBeInTheDocument()
   })
 
-  it.each([undefined, null, '', '   '])('não mostra cartão de mapa quando a morada não está informada: %s', async (address) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, address }))
+  it.each([null, '', '   '])('não mostra cartão de mapa quando a morada não está informada: %s', async (address) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
@@ -264,7 +331,7 @@ describe('Perfil público de membro', () => {
   })
 
   it('descarta URLs perigosos no serviço e no DOM', async () => {
-    const data = { ...profile, website_url: 'javascript:alert(1)', logo_url: 'https://user:password@example.test', portfolio: [{ id, image_url: 'data:image/svg+xml,unsafe' }], social_links: [{ platform_id: id, platform: 'Insegura', url: 'javascript:alert(1)' }] }
+    const data = { ...profile, logo_url: 'https://user:password@example.test', portfolio: [{ id, image_url: 'data:image/svg+xml,unsafe' }], members_only: { ...profile.members_only, website_url: 'javascript:alert(1)', social_links: [{ platform_id: id, platform: 'Insegura', url: 'javascript:alert(1)' }] } }
     api.defaults.adapter = (config) => Promise.resolve(response(config, data))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
@@ -274,27 +341,40 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('link', { name: 'Insegura' })).not.toBeInTheDocument()
   })
 
+  it('o serviço conserva apenas os cinco campos autorizados dentro de members_only', async () => {
+    const result = await getPublicMemberProfile(id, true)
+    expect(result.members_only).toEqual({
+      website_url: 'https://example.test/', address: 'Morada privada',
+      social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test/' }],
+      commercial_phone: '912345678', commercial_email: 'comercial@example.test',
+    })
+    for (const field of ['website_url', 'address', 'social_links', 'phone', 'commercial_contacts']) expect(result).not.toHaveProperty(field)
+    expect(result.members_only).not.toHaveProperty('phone')
+    expect(result.members_only).not.toHaveProperty('commercial_contacts')
+  })
+
   it('o serviço descarta members_only para visitantes e valida o formato para contactos autorizados', async () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: 'malformado' }))
     const result = await getPublicMemberProfile(id)
     expect(result).not.toHaveProperty('contacts')
     expect(result).not.toHaveProperty('members_only')
     expect(result).not.toHaveProperty('secret')
-    expect(result.address).toBe('Morada pública')
-    expect(result.social_links).toHaveLength(1)
+    expect(result).not.toHaveProperty('address')
+    expect(result).not.toHaveProperty('website_url')
+    expect(result).not.toHaveProperty('social_links')
     await expect(getPublicMemberProfile(id, true)).rejects.toThrow('formato inesperado')
   })
 
-  it('não usa contacts como fallback quando members_only não existe', async () => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: undefined }))
+  it.each([undefined, null])('oculta contactos quando members_only é %s, sem fallback legado', async (members_only) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, website_url: 'https://legacy.test', address: 'Morada legada', social_links: profile.members_only.social_links, members_only }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     for (const value of ['999999999', 'Contacto legado', 'legado@example.test', 'Morada legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
-    expect(screen.getByText('Morada pública')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Rede social' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Visitar website' })).toBeInTheDocument()
-    expect(screen.getByText('Contactos não disponíveis.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     const result = await getPublicMemberProfile(id, true)
     expect(result).not.toHaveProperty('contacts')
     expect(result).not.toHaveProperty('members_only')
@@ -304,7 +384,7 @@ describe('Perfil público de membro', () => {
     const platforms = ['LinkedIn', 'Instagram', 'Facebook', 'YouTube', 'Outra plataforma', 'constructor', '__proto__']
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       ...profile,
-      social_links: platforms.map((platform, index) => ({ platform_id: id, platform, url: `https://social.test/${index}` })),
+      members_only: { ...profile.members_only, social_links: platforms.map((platform, index) => ({ platform_id: id, platform, url: `https://social.test/${index}` })) },
     }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
@@ -323,7 +403,7 @@ describe('Perfil público de membro', () => {
   it('rejeita uma rede social sem nome para evitar links sem nome acessível', async () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       ...profile,
-      social_links: [{ platform_id: id, platform: '   ', url: 'https://social.test' }],
+      members_only: { ...profile.members_only, social_links: [{ platform_id: id, platform: '   ', url: 'https://social.test' }] },
     }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()

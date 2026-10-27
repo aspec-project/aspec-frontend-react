@@ -1,10 +1,45 @@
+import { Clock3 } from 'lucide-react'
+
+/*
+ * O mockup usa selects de meia em meia hora. Mantemos os valores como texto
+ * no mesmo formato que a API recebe (HH:mm).
+ */
+const timeOptions = Array.from({ length: 48 }, (_, index) => {
+  const hours = String(Math.floor(index / 2)).padStart(2, '0')
+  const minutes = index % 2 === 0 ? '00' : '30'
+
+  return `${hours}:${minutes}`
+})
+
+const shortDayNames = {
+  segunda: 'Seg',
+  terça: 'Ter',
+  terca: 'Ter',
+  quarta: 'Qua',
+  quinta: 'Qui',
+  sexta: 'Sex',
+  sábado: 'Sáb',
+  sabado: 'Sáb',
+  domingo: 'Dom',
+}
+
+function getShortDayName(label) {
+  return shortDayNames[label?.trim().toLowerCase()] ?? label?.slice(0, 3)
+}
+
+function isWorkingWeekDay(label) {
+  return ['segunda', 'terça', 'terca', 'quarta', 'quinta', 'sexta'].includes(
+    label?.trim().toLowerCase(),
+  )
+}
+
 /*
  * Componente visual dos horários da empresa.
  *
  * Não comunica diretamente com a API. O componente pai recebe a lista
  * atualizada através de onChange e será responsável pelo envio.
  */
-function BusinessHoursEditor({ businessHours, onChange }) {
+function BusinessHoursEditor({ businessHours, onChange, footer = null }) {
   /*
    * Atualiza apenas a propriedade alterada do dia respetivo.
    */
@@ -23,76 +58,135 @@ function BusinessHoursEditor({ businessHours, onChange }) {
     onChange(updatedHours)
   }
 
+  /*
+   * Replica o atalho do Figma e aplica o horário de segunda-feira aos dias
+   * úteis, sem alterar o sábado ou domingo.
+   */
+  function copyMondayScheduleToWeekdays() {
+    const monday = businessHours.find(
+      (hour) => hour.label?.trim().toLowerCase() === 'segunda',
+    )
+
+    if (!monday) {
+      return
+    }
+
+    onChange(
+      businessHours.map((hour) => {
+        if (!isWorkingWeekDay(hour.label)) {
+          return hour
+        }
+
+        return {
+          ...hour,
+          isOpen: monday.isOpen,
+          openTime: monday.openTime,
+          closeTime: monday.closeTime,
+        }
+      }),
+    )
+  }
+
   return (
-    <section className="rounded-xl border border-slate-200 p-6">
-      <h2 className="text-xl font-semibold text-[#0d1f35]">Horários</h2>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0d1f35]">
+        <Clock3 size={20} className="text-[#9b7b45]" aria-hidden="true" />
+        Horário de Atendimento
+      </h2>
 
-      <p className="mt-2 text-sm text-slate-600">
-        Seleciona os dias em que a empresa está aberta e indica o respetivo
-        horário.
-      </p>
+      <div className="mt-5 space-y-3">
+        {businessHours.map((hour) => {
+          const shortDayName = getShortDayName(hour.label)
 
-      <div className="mt-6 space-y-4">
-        {businessHours.map((hour) => (
-          <div
-            key={hour.weekDayId}
-            className="grid gap-4 rounded-lg border border-slate-200 p-4 md:grid-cols-[minmax(160px,1fr)_140px_140px]"
-          >
-            <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                checked={hour.isOpen}
-                onChange={(event) =>
-                  handleHourChange(
-                    hour.weekDayId,
-                    'isOpen',
-                    event.target.checked,
-                  )
+          return (
+            <div
+              key={hour.weekDayId}
+              className="grid grid-cols-[2.25rem_2.5rem_minmax(0,1fr)] items-center gap-2"
+            >
+              <span className="text-sm font-medium text-slate-600">
+                {shortDayName}
+              </span>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hour.isOpen}
+                aria-label={`${hour.label} aberto`}
+                onClick={() =>
+                  handleHourChange(hour.weekDayId, 'isOpen', !hour.isOpen)
                 }
-                className="h-4 w-4 rounded border-slate-300 text-[#8a7043] focus:ring-[#8a7043]"
-              />
+                className={`relative h-6 w-10 rounded-full transition focus:outline-none focus:ring-2 focus:ring-[#9b7b45]/40 focus:ring-offset-2 ${
+                  hour.isOpen ? 'bg-[#9b7b45]' : 'bg-slate-200'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
+                    hour.isOpen ? 'left-5' : 'left-1'
+                  }`}
+                />
+              </button>
 
-              {hour.label}
-            </label>
+              {hour.isOpen ? (
+                <div className="flex min-w-0 items-center gap-2">
+                  <select
+                    value={hour.openTime}
+                    aria-label={`Abertura de ${hour.label}`}
+                    onChange={(event) =>
+                      handleHourChange(
+                        hour.weekDayId,
+                        'openTime',
+                        event.target.value,
+                      )
+                    }
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800 outline-none focus:border-[#9b7b45] focus:ring-2 focus:ring-[#9b7b45]/20"
+                  >
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
 
-            <label className="text-sm text-slate-700">
-              Abertura
+                  <span className="text-slate-400" aria-hidden="true">
+                    —
+                  </span>
 
-              <input
-                type="time"
-                value={hour.openTime}
-                disabled={!hour.isOpen}
-                onChange={(event) =>
-                  handleHourChange(
-                    hour.weekDayId,
-                    'openTime',
-                    event.target.value,
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-              />
-            </label>
-
-            <label className="text-sm text-slate-700">
-              Fecho
-
-              <input
-                type="time"
-                value={hour.closeTime}
-                disabled={!hour.isOpen}
-                onChange={(event) =>
-                  handleHourChange(
-                    hour.weekDayId,
-                    'closeTime',
-                    event.target.value,
-                  )
-                }
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-              />
-            </label>
-          </div>
-        ))}
+                  <select
+                    value={hour.closeTime}
+                    aria-label={`Fecho de ${hour.label}`}
+                    onChange={(event) =>
+                      handleHourChange(
+                        hour.weekDayId,
+                        'closeTime',
+                        event.target.value,
+                      )
+                    }
+                    className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-800 outline-none focus:border-[#9b7b45] focus:ring-2 focus:ring-[#9b7b45]/20"
+                  >
+                    {timeOptions.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <span className="text-sm italic text-slate-400">Encerrado</span>
+              )}
+            </div>
+          )
+        })}
       </div>
+
+      <button
+        type="button"
+        onClick={copyMondayScheduleToWeekdays}
+        className="mt-5 text-sm font-medium text-[#8a7043] underline decoration-[#8a7043]/50 underline-offset-4 transition hover:text-[#705b36]"
+      >
+        Copiar horário de segunda para sexta
+      </button>
+
+      {footer}
     </section>
   )
 }

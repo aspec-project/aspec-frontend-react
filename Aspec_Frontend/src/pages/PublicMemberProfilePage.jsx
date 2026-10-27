@@ -8,14 +8,17 @@ export default function PublicMemberProfilePage() {
   const { id } = useParams()
   const user = useAuthStore((state) => state.user)
   const sessionStatus = useAuthStore((state) => state.status)
+  const sessionGeneration = useAuthStore((state) => state.sessionGeneration)
+  const showLockedContacts = !user && ['idle', 'error'].includes(sessionStatus)
   const allowContacts = sessionStatus === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
   const allowReview = allowContacts && user?.role?.name === 'Member'
+  const allowComments = sessionStatus === 'authenticated' && !!user?.id && ['Member', 'Admin'].includes(user?.role?.name)
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
 
   useEffect(() => {
     const controller = new AbortController()
-    const snapshot = { id, user, sessionStatus, retry }
+    const snapshot = { id, user, sessionStatus, sessionGeneration, retry }
     if (isMemberProfileId(id)) {
       getPublicMemberProfile(id, allowContacts, controller.signal)
         .then((member) => { if (!controller.signal.aborted) setResult({ ...snapshot, status: 'success', member }) })
@@ -24,13 +27,13 @@ export default function PublicMemberProfilePage() {
         })
     }
     return () => controller.abort()
-  }, [id, user, sessionStatus, allowContacts, retry])
+  }, [id, user, sessionStatus, sessionGeneration, allowContacts, retry])
 
   /*
    * A mudança de contexto limpa o resultado durante o render, antes
    * de o efeito cancelar o pedido, impedindo a exposição de dados antigos.
    */
-  const current = result?.id === id && result.user === user && result.sessionStatus === sessionStatus && result.retry === retry ? result : null
+  const current = result?.id === id && result.user === user && result.sessionStatus === sessionStatus && result.sessionGeneration === sessionGeneration && result.retry === retry ? result : null
   if (result !== null && current === null) setResult(null)
   let content
   if (!isMemberProfileId(id) || current?.status === 'not-found') {
@@ -54,7 +57,7 @@ export default function PublicMemberProfilePage() {
       </div>
     )
   } else {
-    content = <PublicMemberProfile member={current.member} allowContacts={allowContacts} allowReview={allowReview} />
+    content = <PublicMemberProfile member={current.member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} allowReview={allowReview} allowComments={allowComments} />
   }
   return (
     <div className="min-h-[50vh] bg-gray-50 text-gray-800">

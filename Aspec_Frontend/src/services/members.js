@@ -88,12 +88,10 @@ export async function getPublicMemberProfile(id, allowContacts = false, signal) 
   const data = body?.data
   if (body?.success !== true || !data || data.id !== id || !isMemberProfileId(data.id) ||
     typeof data.name !== 'string' || !data.name.trim() ||
-    !['business_name', 'description', 'website_url', 'logo_url'].every((key) => nullableText(data[key])) ||
+    !['business_name', 'description', 'logo_url'].every((key) => nullableText(data[key])) ||
     !validReference(data.sector) || !validReference(data.location) ||
     !(data.average_rating === null || (typeof data.average_rating === 'number' && Number.isFinite(data.average_rating) && data.average_rating >= 0 && data.average_rating <= 5)) ||
     !Number.isSafeInteger(data.reviews_count) || data.reviews_count < 0 ||
-    !(data.address === undefined || nullableText(data.address)) ||
-    !Array.isArray(data.social_links) || !data.social_links.every((item) => item && isMemberProfileId(item.platform_id) && typeof item.platform === 'string' && item.platform.trim() !== '' && typeof item.url === 'string') ||
     !Array.isArray(data.business_hours) || !data.business_hours.every((item) => item && positiveInteger(item.week_day_id) && weekDays.includes(item.week_day) && (item.open_time === null || time(item.open_time)) && (item.close_time === null || time(item.close_time))) ||
     !Array.isArray(data.portfolio) || !data.portfolio.every((item) => item && validId(item.id) && typeof item.image_url === 'string') ||
     new Set(data.portfolio.map((item) => item.id)).size !== data.portfolio.length) {
@@ -105,23 +103,25 @@ export async function getPublicMemberProfile(id, allowContacts = false, signal) 
    */
   const profile = {
     id: data.id, name: data.name, business_name: data.business_name,
-    description: data.description, website_url: safeMemberUrl(data.website_url),
+    description: data.description,
     logo_url: safeMemberUrl(data.logo_url, true),
     sector: { id: data.sector.id, name: data.sector.name },
     location: { id: data.location.id, name: data.location.name },
     average_rating: data.average_rating, reviews_count: data.reviews_count,
-    address: data.address ?? null,
-    social_links: data.social_links.map((item) => ({ platform_id: item.platform_id, platform: item.platform, url: safeMemberUrl(item.url) })),
     business_hours: data.business_hours.map((item) => ({ week_day_id: item.week_day_id, week_day: item.week_day, open_time: item.open_time, close_time: item.close_time })),
     portfolio: data.portfolio.map((item) => ({ id: item.id, image_url: safeMemberUrl(item.image_url, true) })),
   }
   if (allowContacts === true && data.members_only !== undefined && data.members_only !== null) {
     const contacts = data.members_only
-    if (typeof contacts !== 'object' || Array.isArray(contacts) || !['phone', 'commercial_contacts'].every((key) => nullableText(contacts[key]))) {
+    if (typeof contacts !== 'object' || Array.isArray(contacts) ||
+      !['website_url', 'address', 'commercial_phone', 'commercial_email'].every((key) => nullableText(contacts[key])) ||
+      !Array.isArray(contacts.social_links) || !contacts.social_links.every((item) => item && isMemberProfileId(item.platform_id) && typeof item.platform === 'string' && item.platform.trim() !== '' && typeof item.url === 'string')) {
       throw new Error('A resposta do perfil tem um formato inesperado.')
     }
     profile.members_only = {
-      phone: contacts.phone, commercial_contacts: contacts.commercial_contacts,
+      website_url: safeMemberUrl(contacts.website_url), address: contacts.address,
+      social_links: contacts.social_links.map((item) => ({ platform_id: item.platform_id, platform: item.platform, url: safeMemberUrl(item.url) })),
+      commercial_phone: contacts.commercial_phone, commercial_email: contacts.commercial_email,
     }
   }
   return profile

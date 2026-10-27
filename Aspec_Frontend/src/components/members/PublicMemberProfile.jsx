@@ -67,8 +67,8 @@ function ContactLink({ href, label, Icon, accessibleName = label }) {
   )
 }
 
-function Contacts({ member, allowContacts }) {
-  if (!allowContacts) {
+function Contacts({ member, allowContacts, showLockedContacts }) {
+  if (showLockedContacts) {
     return (
       <section aria-label="Contactos reservados" className={`${sidebarClass} flex items-center justify-center`}>
         <div className="flex w-full max-w-xs flex-col items-center text-center text-sm leading-relaxed text-gray-600">
@@ -82,15 +82,16 @@ function Contacts({ member, allowContacts }) {
       </section>
     )
   }
-  const contacts = member.members_only
-  const fields = [['Telefone', contacts?.phone], ['Contactos comerciais', contacts?.commercial_contacts]]
+  const contacts = allowContacts ? member.members_only : null
+  if (!contacts) return null
+  const fields = [['Telefone comercial', contacts.commercial_phone], ['Email comercial', contacts.commercial_email]]
   const visibleFields = fields.filter(([, value]) => value?.trim())
-  const socialLinks = member.social_links.filter((item) => item.url)
+  const socialLinks = contacts.social_links.filter((item) => item.url)
   return (
     <section className={sidebarClass}>
       <h2 className="text-base font-medium leading-normal text-[#0d1f35]">Contactos</h2>
-      {member.website_url && (
-        <div className="mt-4"><ContactLink href={member.website_url} label="Website" Icon={Globe} accessibleName="Visitar website" /></div>
+      {contacts.website_url && (
+        <div className="mt-4"><ContactLink href={contacts.website_url} label="Website" Icon={Globe} accessibleName="Visitar website" /></div>
       )}
       {socialLinks.length > 0 && (
         <ul className="mt-4 space-y-3">
@@ -101,7 +102,8 @@ function Contacts({ member, allowContacts }) {
           ))}
         </ul>
       )}
-      {visibleFields.length === 0 ? <p className="mt-4 text-sm text-gray-600">Contactos não disponíveis.</p> : (
+      {visibleFields.length === 0 && !contacts.website_url && socialLinks.length === 0 && <p className="mt-4 text-sm text-gray-600">Contactos não disponíveis.</p>}
+      {visibleFields.length > 0 && (
         <dl className="mt-4 space-y-4">
           {visibleFields.map(([label, value]) => (
             <div key={label}>
@@ -127,20 +129,20 @@ function LocationCard({ address }) {
   )
 }
 
-export default function PublicMemberProfile({ member, allowContacts, allowReview = false }) {
+export default function PublicMemberProfile({ member, allowContacts, showLockedContacts = false, allowReview = false, allowComments = false }) {
   const title = member.business_name || member.name
-  const address = member.address?.trim()
+  const address = allowContacts ? member.members_only?.address?.trim() : null
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
     <>
-    <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)] pb-16 pt-8 text-white">
+    <section className="bg-white pb-16 pt-10 text-[#0d1f35]">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col items-start gap-6 md:flex-row">
           <ProfileImage key={member.id} src={member.logo_url} title={title} logo />
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-medium leading-normal">{title}</h1>
-            <p className="mb-3 mt-2 text-sm leading-relaxed text-gray-300">{member.sector.name}</p>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300">
+            <p className="mb-3 mt-2 text-sm leading-relaxed text-gray-600">{member.sector.name}</p>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <p className="flex items-center gap-2"><MapPin size={13} aria-hidden="true" />{member.location.name}, Portugal</p>
               <p className="flex items-center gap-2">
                 <RatingStars rating={hasRating ? member.average_rating : null} size={13} />
@@ -179,10 +181,10 @@ export default function PublicMemberProfile({ member, allowContacts, allowReview
             </div>
           ) : <p className="mt-4 text-sm leading-relaxed text-gray-600">Sem imagens no portefólio.</p>}
         </section>
-        <MemberReviews memberId={member.id} allowReview={allowReview} />
+        {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} />}
       </div>
       <aside className="space-y-6">
-        <Contacts member={member} allowContacts={allowContacts} />
+        <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
         {address && <LocationCard address={address} />}
         <section className={sidebarClass}>
           <h2 className="mb-4 text-base font-medium leading-normal text-[#0d1f35]">Classificação Global</h2>
