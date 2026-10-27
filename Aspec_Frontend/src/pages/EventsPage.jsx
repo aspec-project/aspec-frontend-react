@@ -113,10 +113,10 @@ export default function EventsPage() {
 
   return (
     <div className="min-h-[65vh] bg-gray-50 text-[#0D1F35]">
-      <header className="py-8">
+      <header className="bg-[#0d1f35] py-8">
         <div className="mx-auto max-w-7xl px-6">
-          <h1 className="text-3xl font-semibold leading-normal text-[#0D1F35]">Agenda de Eventos</h1>
-          <p className="mt-2 text-sm text-gray-600">Encontre e inscreva-se nos próximos eventos ASPEC em todo o país.</p>
+          <h1 className="text-3xl font-semibold leading-normal text-primary">Agenda de Eventos</h1>
+          <p className="mt-2 text-sm text-white/75">Encontre e inscreva-se nos próximos eventos ASPEC em todo o país.</p>
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-6 pb-10 pt-4">

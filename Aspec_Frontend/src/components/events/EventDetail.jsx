@@ -10,7 +10,7 @@ import EventSessions from "./EventSessions";
 function HeaderInformation({ icon: Icon, label, children }) {
   return (
     <div className="flex min-w-0 items-start gap-2">
-      <Icon size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-[#C3A572]" />
+      <Icon size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-primary" />
       <dt className="sr-only">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
@@ -32,27 +32,27 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
 
   return (
     <article>
-    <header className="bg-white py-10">
+    <header className="bg-[#0d1f35] py-10">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-block max-w-full break-words rounded-full border border-[#D8C698] bg-[#F6F3EA] px-2.5 py-1 text-xs font-semibold text-[#796038]">
+          <span className="inline-block max-w-full break-words rounded-full border border-primary/30 bg-primary/20 px-2.5 py-1 text-xs font-semibold text-primary">
             {event.category.name || "Evento"}
           </span>
 
-          <EventTypeBadges isOnline={event.is_online} recurring={recurring} />
+          <EventTypeBadges isOnline={event.is_online} recurring={recurring} dark />
         </div>
 
-        <h1 className="mt-4 max-w-4xl break-words text-3xl font-semibold leading-snug text-[#0D1F35]">
+        <h1 className="mt-4 max-w-4xl break-words text-3xl font-semibold leading-snug text-white">
           {event.name}
         </h1>
 
         {recurring && recurrenceLabel && (
-          <p className="mt-3 break-words text-sm text-[#796038]">
+          <p className="mt-3 break-words text-sm text-[#C3A572]">
             {recurrenceLabel}
           </p>
         )}
 
-        <dl className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#506580]">
+        <dl className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/80">
           <HeaderInformation icon={CalendarDays} label="Data">
             {dateLabel}
           </HeaderInformation>
