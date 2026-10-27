@@ -827,14 +827,19 @@ describe('Gestão de Eventos', () => {
       return within(createDialog()).getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
     }
 
+    async function pickDialogDate(user, opener, dayLabel) {
+      await user.click(opener)
+      await user.click(within(screen.getByRole('dialog', { name: /^Escolher / })).getByRole('button', { name: dayLabel }))
+    }
+
     async function fillValidInPerson(user) {
       await user.type(dialogField('Título do evento'), 'Jantar de Networking Lisboa')
-      await user.selectOptions(dialogField('Tipo de evento'), 'c3')
-      await user.selectOptions(dialogField('Delegação / Localidade'), 'l1')
-      fireEvent.change(dialogField('Data'), { target: { value: '2099-03-20' } })
-      fireEvent.change(dialogField('Hora de início'), { target: { value: '19:30' } })
-      fireEvent.change(dialogField('Hora de fim'), { target: { value: '21:30' } })
-      fireEvent.change(dialogField('Data limite de inscrição'), { target: { value: '2099-03-18' } })
+      await chooseOption(user, dialogField('Tipo de evento'), 'Jantar')
+      await chooseOption(user, dialogField('Delegação / Localidade'), 'Lisboa')
+      await pickDialogDate(user, dialogField('Data'), '20 de novembro de 2026')
+      await user.type(dialogField('Hora de início'), '19:30')
+      await user.type(dialogField('Hora de fim'), '21:30')
+      await pickDialogDate(user, dialogField('Data limite de inscrição'), '18 de novembro de 2026')
       await user.type(dialogField('Nome do local'), 'Restaurante Estrela do Norte')
       await user.type(dialogField('Morada completa'), 'Rua das Flores 42')
       fireEvent.change(dialogField('Capacidade máxima'), { target: { value: '40' } })
@@ -859,15 +864,14 @@ describe('Gestão de Eventos', () => {
       await user.click(createButton())
 
       expect(createDialog()).toBeInTheDocument()
-      expect(within(dialogField('Tipo de evento')).getAllByRole('option').map((option) => option.textContent))
-        .toEqual(['Selecione o tipo de evento', 'Workshop', 'Formação', 'Jantar'])
-      expect(within(dialogField('Delegação / Localidade')).getAllByRole('option').map((option) => option.textContent))
-        .toEqual(['Selecione a delegação', 'Lisboa', 'Porto', 'Braga'])
+      expect(await openOptions(user, dialogField('Tipo de evento'))).toEqual(['Workshop', 'Formação', 'Jantar'])
+      expect(await openOptions(user, dialogField('Delegação / Localidade'))).toEqual(['Lisboa', 'Porto', 'Braga'])
       expect(getEventCategories).toHaveBeenCalledTimes(1)
       expect(getLocations).toHaveBeenCalledTimes(1)
     })
 
     it('depois de criar fecha o modal, mostra a mensagem e recarrega a lista com os mesmos filtros', async () => {
+      useFakeToday()
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'n1' } })
       const user = userEvent.setup()
       show()
@@ -981,10 +985,8 @@ describe('Gestão de Eventos', () => {
 
       expect(editDialog()).toBeInTheDocument()
       expect(dialogField('Título do evento')).toHaveValue('Workshop de Liderança')
-      expect(within(dialogField('Tipo de evento')).getAllByRole('option').map((option) => option.textContent))
-        .toEqual(['Selecione o tipo de evento', 'Workshop', 'Formação', 'Jantar'])
-      expect(within(dialogField('Delegação / Localidade')).getAllByRole('option').map((option) => option.textContent))
-        .toEqual(['Selecione a delegação', 'Lisboa', 'Porto', 'Braga'])
+      expect(await openOptions(user, dialogField('Tipo de evento'))).toEqual(['Workshop', 'Formação', 'Jantar'])
+      expect(await openOptions(user, dialogField('Delegação / Localidade'))).toEqual(['Lisboa', 'Porto', 'Braga'])
       expect(getEventCategories).toHaveBeenCalledTimes(1)
       expect(getLocations).toHaveBeenCalledTimes(1)
     })
