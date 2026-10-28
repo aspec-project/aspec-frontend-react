@@ -52,7 +52,8 @@ describe('Serviço do diretório', () => {
     const injected = {
       ...member, email: 'privado@example.test', phone: '912345678',
       tags: ['Tag não contratada'],
-      contacts: { phone: '912345678' }, members_only: { commercial_contacts: 'Privado' },
+      contacts: { phone: '912345678' }, postal_code: '1000-100', city: 'Cidade privada',
+      members_only: { commercial_contacts: 'Privado', address: 'Morada privada', postal_code: '1000-100', city: 'Cidade privada' },
       sector: { ...member.sector, private_field: 'Privado' },
       location: { ...member.location, address: 'Morada privada' },
     }
