@@ -208,12 +208,12 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
         {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} />}
       </div>
       <aside className="space-y-6">
-        <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
-        {address && <LocationCard address={address} />}
         <section className={sidebarClass}>
           <h2 className="mb-4 text-base font-medium leading-normal text-[#0d1f35]">Classificação Global</h2>
           <Rating member={member} />
         </section>
+        <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
+        {address && <LocationCard address={address} />}
       </aside>
     </div>
     {selectedImage !== null && <PortfolioImageDialog images={portfolioImages} initialIndex={portfolioImages.findIndex((image) => image.index === selectedImage)} onClose={closeImage} />}
