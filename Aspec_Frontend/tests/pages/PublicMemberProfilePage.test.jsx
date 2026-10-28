@@ -51,7 +51,7 @@ describe('Perfil público de membro', () => {
     const mondayHours = screen.getByText('Segunda-feira').nextElementSibling
     expect(mondayHours).toHaveTextContent('09:00 – 18:00')
     expect(mondayHours).not.toHaveTextContent('Encerrado')
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(screen.getByText('Terça a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
   })
 
   it.each([
@@ -103,8 +103,8 @@ describe('Perfil público de membro', () => {
     } else expect(screen.queryByRole('region', { name: 'Contactos reservados' })).not.toBeInTheDocument()
     expect(screen.getByText('Descrição pública')).toBeInTheDocument()
     expect(screen.getByText('Segunda-feira')).toBeInTheDocument()
-    expect(screen.getByText('Domingo')).toBeInTheDocument()
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(screen.getByText('Terça a Domingo')).toBeInTheDocument()
+    expect(screen.getAllByText('Encerrado')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
     if (status === 'authenticated') {
       expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
@@ -317,10 +317,11 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: 'Ana' })
     for (const text of ['Descrição não disponível.', 'Sem imagens no portefólio.']) expect(screen.getByText(text)).toBeInTheDocument()
-    expect(screen.getAllByText('Encerrado')).toHaveLength(7)
+    expect(screen.getByText('Segunda a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
+    expect(screen.getAllByRole('term')).toHaveLength(1)
   })
 
-  it('mostra os sete dias por ordem e preserva os vários intervalos do mesmo dia', async () => {
+  it('cobre os sete dias por ordem, agrupando encerrados e preservando a ordem dos intervalos', async () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       ...profile,
       business_hours: [
@@ -333,8 +334,42 @@ describe('Perfil público de membro', () => {
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.getByText('14:00 – 18:00 / 09:00 – 12:00')).toBeInTheDocument()
     const labels = screen.getAllByRole('term').map((element) => element.textContent)
-    expect(labels).toEqual(['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'])
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(labels).toEqual(['Segunda-feira', 'Terça a Domingo'])
+    expect(screen.getAllByText('Encerrado')).toHaveLength(1)
+  })
+
+  it('apresenta dias úteis agrupados com todos os intervalos e o fim de semana encerrado', async () => {
+    const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
+    api.defaults.adapter = (config) => Promise.resolve(response(config, {
+      ...profile,
+      business_hours: days.flatMap((week_day, index) => [
+        { week_day_id: index + 1, week_day, open_time: '14:00', close_time: '18:00' },
+        { week_day_id: index + 1, week_day, open_time: '09:00', close_time: '12:00' },
+      ]),
+    }))
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getAllByRole('term').map((element) => element.textContent)).toEqual(['Segunda a Sexta', 'Sábado a Domingo'])
+    expect(screen.getByText('Segunda a Sexta').nextElementSibling).toHaveTextContent('14:00 – 18:00 / 09:00 – 12:00')
+    expect(screen.getByText('Sábado a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
+  })
+
+  it('mantém dias não consecutivos e horários diferentes separados no perfil', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, {
+      ...profile,
+      business_hours: [
+        ...profile.business_hours,
+        { week_day_id: 3, week_day: 'Quarta-feira', open_time: '09:00', close_time: '18:00' },
+        { week_day_id: 4, week_day: 'Quinta-feira', open_time: '09:00', close_time: '17:00' },
+      ],
+    }))
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getAllByRole('term').map((element) => element.textContent)).toEqual(['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta a Domingo'])
+    expect(screen.getByText('Segunda-feira').nextElementSibling).toHaveTextContent('09:00 – 18:00')
+    expect(screen.getByText('Terça-feira').nextElementSibling).toHaveTextContent('Encerrado')
+    expect(screen.getByText('Quarta-feira').nextElementSibling).toHaveTextContent('09:00 – 18:00')
+    expect(screen.getByText('Quinta-feira').nextElementSibling).toHaveTextContent('09:00 – 17:00')
   })
 
   it('mostra a morada autorizada uma vez e codifica a pesquisa externa', async () => {
