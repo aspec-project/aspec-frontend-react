@@ -49,12 +49,12 @@ export async function resumeSubscription() {
 /*
  * Obtém uma página das faturas do membro autenticado.
  *
- * A API fixa 10 resultados por página e devolve tanto os itens como os
- * metadados necessários para construir os controlos de paginação.
+ * A API aceita o tamanho de página pedido pelo membro e devolve tanto os
+ * itens como os metadados necessários para construir a paginação.
  */
-export async function getInvoices(page = 1) {
+export async function getInvoices(page = 1, perPage = 5) {
   const response = await api.get('/invoices', {
-    params: { page },
+    params: { page, per_page: perPage },
   })
 
   return response.data.data

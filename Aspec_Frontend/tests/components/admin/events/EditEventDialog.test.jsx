@@ -568,7 +568,7 @@ describe('EditEventDialog', () => {
 
     expect(screen.getByText(BELOW_REGISTRATIONS)).toBeInTheDocument()
     expect(field.capacity()).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByText('Corrija os campos assinalados.')).toBeInTheDocument()
+    expect(screen.queryByText('Corrija os campos assinalados.')).not.toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
   })
 
@@ -669,8 +669,8 @@ describe('EditEventDialog', () => {
     await saveAndConfirm(user)
 
     await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
-    await waitFor(() => expectAlert(INVALID))
-    expect(screen.getByText(BELOW_REGISTRATIONS)).toBeInTheDocument()
+    expect(await screen.findByText(BELOW_REGISTRATIONS)).toBeInTheDocument()
+    expect(screen.queryByText('Os dados enviados são inválidos.')).not.toBeInTheDocument()
     expect(field.capacity()).toHaveAttribute('aria-invalid', 'true')
     await waitFor(() => expect(field.capacity()).toHaveFocus())
     expect(onSuccess).not.toHaveBeenCalled()

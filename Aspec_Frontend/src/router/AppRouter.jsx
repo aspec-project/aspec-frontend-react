@@ -10,10 +10,10 @@ import MemberProfilePage from '../pages/MemberProfilePage'
 import MemberRegistrationsPage from '../pages/MemberRegistrationsPage'
 import MemberReviewsPage from '../pages/MemberReviewsPage'
 import AccountInformationPage from '../pages/AccountInformationPage'
-import ChangePasswordPage from '../pages/ChangePasswordPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
+import PendingAccountPage from '../pages/PendingAccountPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import MemberAreaLayout from '../components/layout/MemberAreaLayout'
@@ -63,7 +63,7 @@ function AppRouter() {
       <Route path="/ativacao/:user" element={<PageTitle title="Ativar conta"><AccountActivationPage /></PageTitle>} />
       <Route
         path="/pendente"
-        element={<PageTitle title="Conta pendente"><PlaceholderPage title="Conta pendente" /></PageTitle>}
+        element={<PendingAccountPage />}
       />
 
       {/* Área privada do membro: exige sessão ativa e mostra o layout do Figma. */}
@@ -106,7 +106,7 @@ function AppRouter() {
             />
             <Route
               path="/perfil/conta/password"
-              element={<PageTitle title="Alterar palavra-passe"><ChangePasswordPage /></PageTitle>}
+              element={<Navigate replace to="/perfil/conta" />}
             />
             <Route
               path="/perfil/subscricao"

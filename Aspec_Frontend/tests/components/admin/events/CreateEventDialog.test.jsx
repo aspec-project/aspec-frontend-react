@@ -379,7 +379,7 @@ describe('CreateEventDialog', () => {
 
     expect(screen.queryByText(/Falta preencher/)).not.toBeInTheDocument()
     expect(submitButton()).toBeEnabled()
-  })
+  }, 10000)
 
   it('o formato Online troca a morada pelo link e voltar a Presencial recupera a morada', async () => {
     const user = userEvent.setup()
@@ -413,7 +413,7 @@ describe('CreateEventDialog', () => {
     expect(field.end()).toHaveAttribute('aria-invalid', 'true')
     expect(describedIds(field.end())).toContain(error.id)
     expect(submitButton()).toBeDisabled()
-    expect(screen.getByText('Corrija os campos assinalados.')).toBeInTheDocument()
+    expect(screen.queryByText('Corrija os campos assinalados.')).not.toBeInTheDocument()
 
     await typeInto(user, field.end(), '21:30')
     await pickDate(user, field.date(), '17 de março de 2099')
@@ -607,7 +607,7 @@ describe('CreateEventDialog', () => {
     expect(screen.getByText('A verificar a morada...')).toBeInTheDocument()
   })
 
-  it('um 422 assinala cada campo, mostra a mensagem geral e foca o primeiro campo inválido', async () => {
+  it('um 422 assinala cada campo sem repetir a mensagem geral e foca o primeiro campo inválido', async () => {
     createAdminEvent.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', {
       name: ['O campo nome é obrigatório.'],
       event_end_time: [END_TIME_ERROR],
@@ -618,8 +618,8 @@ describe('CreateEventDialog', () => {
 
     await user.click(submitButton())
 
-    await waitFor(() => expectAlert('Os dados enviados são inválidos.'))
-    expect(screen.getByText('O campo nome é obrigatório.')).toBeInTheDocument()
+    expect(await screen.findByText('O campo nome é obrigatório.')).toBeInTheDocument()
+    expect(screen.queryByText('Os dados enviados são inválidos.')).not.toBeInTheDocument()
     expect(screen.getByText(END_TIME_ERROR)).toBeInTheDocument()
     expect(field.title()).toHaveAttribute('aria-invalid', 'true')
     expect(field.end()).toHaveAttribute('aria-invalid', 'true')

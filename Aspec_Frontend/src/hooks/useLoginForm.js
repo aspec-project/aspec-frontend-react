@@ -5,7 +5,10 @@ import { useAuthStore } from "../store/authStore";
 const ACTIVATION_LINK_MESSAGES = [
   'A sua conta foi aprovada. Ative-a através do link enviado por email.',
   'A sua conta está inativa por falta de pagamento. Use o link de reativação enviado por email.',
+  'A sua subscrição terminou. Use o link de reativação enviado por email para reativar a conta.',
 ]
+
+const PENDING_ACCOUNT_MESSAGE = 'A sua conta está pendente de aprovação pelo administrador.'
 
 export function useLoginForm() {
   const [email, setEmail] = useState("");
@@ -13,6 +16,7 @@ export function useLoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [canRequestActivationLink, setCanRequestActivationLink] = useState(false);
+  const [accountNotice, setAccountNotice] = useState(null)
 
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -25,6 +29,7 @@ export function useLoginForm() {
     if (submitting) return;
     setFormError("");
     setCanRequestActivationLink(false);
+    setAccountNotice(null)
 
     if (!email.trim() || !password) {
       setFormError("Preencha o email e a password.");
@@ -34,7 +39,10 @@ export function useLoginForm() {
     const result = await login(email.trim(), password);
     if (result.cancelled) return;
     if (result.success) {
-      navigate("/", { replace: true });
+      const authenticatedUser = useAuthStore.getState().user
+      const isMember = authenticatedUser?.role?.name === 'Member'
+      const isAdmin = authenticatedUser?.role?.name === 'Admin'
+      navigate(isMember ? '/perfil' : isAdmin ? '/admin' : '/', { replace: true });
     } else {
       /*
       * Apenas os estados Approved e Inactive por falta de pagamento
@@ -46,6 +54,13 @@ export function useLoginForm() {
 
       setFormError(result.error.message);
       setCanRequestActivationLink(canRequestLink);
+      setAccountNotice(
+        result.error.status === 403 && result.error.message === PENDING_ACCOUNT_MESSAGE
+          ? 'pending'
+          : canRequestLink
+            ? 'activation'
+            : 'error',
+      )
     }
   };
 
@@ -62,6 +77,7 @@ export function useLoginForm() {
     submitting,
     formError,
     canRequestActivationLink,
+    accountNotice,
     handleLogin,
     goToRegister,
     goToHome,

@@ -1,3 +1,5 @@
+import { isValidPhoneNumber } from 'libphonenumber-js/min'
+
 export const FIELD_STEP = {
   firstName: 0,
   lastName: 0,
@@ -41,11 +43,11 @@ export const normalizePhone = (phone) =>
     .replace(/^00/, '+')
 
 /*
- * Aceita um número com indicativo internacional ou um número nacional.
- * Sem indicativo, o backend interpreta-o como português.
+ * Só aceita números completos e válidos para o respetivo país. O seletor
+ * acrescenta o indicativo antes de esta validação ser chamada.
  */
 export const validatePhone = (phone) =>
-  /^\+?\d{7,15}$/.test(normalizePhone(phone))
+  isValidPhoneNumber(normalizePhone(phone))
 
 export const getPasswordCriteria = (pwd) => ({
   minLength: pwd.length >= 8,
@@ -79,10 +81,6 @@ export const validateStepForm = (currentStep, formData) => {
 
     if (!formData.sector_id) {
       newErrors.sector_id = 'Selecione o setor.'
-    }
-
-    if (formData.website_url.trim() && !/^https?:\/\/.+/i.test(formData.website_url)) {
-      newErrors.website_url = 'Inválido.'
     }
 
     if (!formData.commercial_email.trim()) {

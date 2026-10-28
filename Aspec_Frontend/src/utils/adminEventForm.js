@@ -47,7 +47,6 @@ export const EVENT_FORM_MESSAGES = {
   deadlineAfterStart: 'O prazo de inscrição tem de ser anterior ou igual ao início do evento.',
   maxAttendees: 'A capacidade máxima tem de ser um número inteiro entre 1 e 100000.',
   onlineUrl: 'Indique um link válido que comece por http:// ou https://.',
-  fixErrors: 'Corrija os campos assinalados.',
   optionsError: 'Não foi possível carregar os tipos de evento e as delegações.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao criar o evento.',
   geocodeApproximatePrefix: 'Local aproximado:',

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
+import ChangePasswordDialog from '../components/account/ChangePasswordDialog'
+import InternationalPhoneInput from '../components/ui/InternationalPhoneInput'
 import { normalizeError } from '../services/api'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
@@ -48,6 +50,7 @@ export default function AccountInformationPage() {
   const [isSavingPersonalData, setIsSavingPersonalData] = useState(false)
   const [personalStatus, setPersonalStatus] = useState(null)
   const [personalErrors, setPersonalErrors] = useState({})
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
 
   function handlePersonalChange(event) {
     const { name, value } = event.target
@@ -106,10 +109,6 @@ export default function AccountInformationPage() {
 
     if (Object.keys(clientErrors).length > 0) {
       setPersonalErrors(clientErrors)
-      setPersonalStatus({
-        type: 'error',
-        message: 'Corrige os campos assinalados antes de guardar.',
-      })
       return
     }
 
@@ -122,13 +121,8 @@ export default function AccountInformationPage() {
       const emailChanged =
         personalData.email.trim() !== savedEmail.trim()
 
-        /*
-        * A morada é obrigatória no PUT do perfil. Mantemo-la inalterada
-        * enquanto atualizamos apenas os dados pessoais da conta.
-        */
         const payload = {
-        address: profile.address ?? '',
-        phone: normalizePhone(personalData.phone),
+          phone: normalizePhone(personalData.phone),
         }
 
       if (emailChanged) {
@@ -199,7 +193,7 @@ export default function AccountInformationPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <h1 className="text-3xl font-bold text-[#0d1f35]">
+            <h1 className="text-2xl font-semibold text-[#0d1f35]">
               Informações de conta
             </h1>
 
@@ -216,7 +210,7 @@ export default function AccountInformationPage() {
               className="inline-flex w-fit items-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:bg-slate-200"
             >
               <Pencil size={16} aria-hidden="true" />
-              Editar
+              Alterar dados
             </button>
           )}
         </div>
@@ -244,7 +238,16 @@ export default function AccountInformationPage() {
             </div>
           </dl>
         ) : (
-          <form className="mt-7 max-w-2xl space-y-5" onSubmit={handlePersonalSubmit}>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <form role="dialog" aria-modal="true" aria-labelledby="personal-data-dialog-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8" onSubmit={handlePersonalSubmit}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="personal-data-dialog-title" className="text-xl font-semibold text-[#0d1f35]">Alterar dados pessoais</h2>
+                <p className="mt-2 text-sm text-slate-600">O email pessoal e o telefone nunca são apresentados no perfil comercial.</p>
+              </div>
+              <button type="button" onClick={handleCancelPersonalEdit} disabled={isSavingPersonalData} className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 disabled:opacity-60" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
+            </div>
+            <div className="mt-6 space-y-5">
             <div>
               <label
                 htmlFor="email"
@@ -274,16 +277,12 @@ export default function AccountInformationPage() {
                 Telefone pessoal
               </label>
 
-              <input
+              <InternationalPhoneInput
                 id="phone"
                 name="phone"
-                type="tel"
-                maxLength={40}
                 value={personalData.phone}
                 onChange={handlePersonalChange}
-                autoComplete="tel"
-                placeholder="+351 912 345 678 ou +44 7911 123456"
-                className={inputClassName}
+                className={inputClassName.replace('mt-2 ', '')}
               />
 
               <FieldError message={personalErrors.phone} />
@@ -329,7 +328,8 @@ export default function AccountInformationPage() {
               </p>
             )}
 
-            <div className="flex flex-wrap gap-3">
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
                 onClick={handleCancelPersonalEdit}
@@ -350,6 +350,7 @@ export default function AccountInformationPage() {
               </button>
             </div>
           </form>
+          </div>
         )}
       </section>
 
@@ -357,7 +358,7 @@ export default function AccountInformationPage() {
         <div className="flex items-center gap-3">
           <KeyRound className="text-[#9b7b45]" size={22} aria-hidden="true" />
           <div>
-            <h2 className="text-2xl font-bold text-[#0d1f35]">
+            <h2 className="text-xl font-semibold text-[#0d1f35]">
               Alterar palavra-passe
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -367,13 +368,14 @@ export default function AccountInformationPage() {
           </div>
         </div>
 
-        <Link
-          to="/perfil/conta/password"
+        <button
+          type="button"
+          onClick={() => setIsPasswordDialogOpen(true)}
           className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#0d1f35] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#193451]"
         >
           <KeyRound size={17} aria-hidden="true" />
           Alterar palavra-passe
-        </Link>
+        </button>
       </section>
 
       {/*
@@ -381,7 +383,7 @@ export default function AccountInformationPage() {
        * expõe campos nem endpoint para guardar essa escolha.
        */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="text-2xl font-bold text-[#0d1f35]">
+        <h2 className="text-xl font-semibold text-[#0d1f35]">
           Preferências de comunicação
         </h2>
 
@@ -390,6 +392,10 @@ export default function AccountInformationPage() {
           preferências de emails e notificações da conta.
         </p>
       </section>
+
+      {isPasswordDialogOpen && (
+        <ChangePasswordDialog onClose={() => setIsPasswordDialogOpen(false)} />
+      )}
     </div>
   )
 }
