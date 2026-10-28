@@ -4,6 +4,10 @@ import { Building2, Search, X } from "lucide-react";
 import { getEventRegistrants, getEventRegistrantsErrorMessage } from "../../services/eventRegistrants";
 import { useAuthStore } from "../../store/authStore";
 
+function normalizeSearch(value) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-PT");
+}
+
 function RegistrantsModal({ event, onClose, triggerRef }) {
   const titleId = useId();
   const descriptionId = useId();
@@ -66,7 +70,8 @@ function RegistrantsModal({ event, onClose, triggerRef }) {
   }, [onClose, triggerRef]);
 
   const companies = current?.companies;
-  const filtered = companies?.filter((company) => (company.business_name || "Nome da empresa indisponível").toLocaleLowerCase("pt-PT").includes(search.trim().toLocaleLowerCase("pt-PT")));
+  const normalizedSearch = normalizeSearch(search.trim());
+  const filtered = companies?.filter((company) => normalizeSearch(company.business_name || "Nome da empresa indisponível").includes(normalizedSearch));
 
   return createPortal(
     <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">

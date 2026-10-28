@@ -43,7 +43,7 @@ function AppRouter() {
         <Route path="/eventos/:id" element={<EventDetailPage />} />
         <Route path="/membros" element={<PageTitle title="Diretório de Confiança"><MembersPage /></PageTitle>} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
-        <Routepath="*" element={<PageTitle title="Página não encontrada"><NotFoundPage /></PageTitle>} />
+        <Route path="*" element={<PageTitle title="Página não encontrada"><NotFoundPage /></PageTitle>} />
       </Route>
 
       {/* Rotas públicas sem o layout global. */}
