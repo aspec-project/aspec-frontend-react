@@ -105,7 +105,9 @@ export default function ConfirmDialog({
 
     if (event.key !== 'Tab') return
 
-    const focusable = Array.from(dialogRef.current.querySelectorAll('button:not([disabled]), [tabindex="0"]'))
+    const focusable = Array.from(dialogRef.current.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+    ))
 
     if (focusable.length === 0) {
       event.preventDefault()

@@ -6,7 +6,6 @@ import {
   EMPTY_EVENT_FORM,
   EVENT_EDIT_TEXTS,
   EVENT_FIELD_ORDER,
-  EVENT_FORM_MESSAGES,
   buildEventPayload,
   buildEventUpdatePayload,
   eventToFormValues,
@@ -90,7 +89,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   const canSubmit = missingFields.length === 0 && !hasBrowserErrors && hasChanges && !submitting
   const footerMessage = missingFields.length > 0
     ? formatMissingFields(missingFields)
-    : hasBrowserErrors ? EVENT_FORM_MESSAGES.fixErrors : !hasChanges ? EVENT_EDIT_TEXTS.noChanges : ''
+    : !hasChanges ? EVENT_EDIT_TEXTS.noChanges : ''
 
   /**
    * Descarta a verificação da morada e cancela o pedido pendente.
@@ -207,7 +206,14 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
 
         setConfirming(false)
         setServerErrors(eventErrors)
-        setFormError([message, ...unmatched, justificationError].filter(Boolean).join(' '))
+        /* Os erros já associados a um campo aparecem junto desse campo. */
+        setFormError(
+          unmatched.length > 0
+            ? unmatched.join(' ')
+            : Object.keys(eventErrors).length === 0 && !justificationError
+              ? message
+              : justificationError ?? '',
+        )
         focusFirstInvalid(eventErrors)
       } else if (isEditing && status === 409) {
         onStale?.(message)

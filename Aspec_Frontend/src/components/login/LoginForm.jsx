@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Eye, EyeOff, LogIn, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, LogIn, AlertCircle, Clock3, MailCheck } from "lucide-react";
 
 export default function LoginForm({
   email,
@@ -12,6 +12,7 @@ export default function LoginForm({
   submitting,
   formError,
   canRequestActivationLink,
+  accountNotice,
   handleLogin,
   goToRegister
 }) {
@@ -70,10 +71,20 @@ export default function LoginForm({
         </div>
 
         {formError && (
-          <div className="flex items-start gap-1.5 text-xs text-red-500">
-            <AlertCircle className="mt-0.5 shrink-0" size={13} />
+          <div
+            className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${
+              accountNotice === 'pending'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : accountNotice === 'activation'
+                  ? 'border-blue-200 bg-blue-50 text-blue-900'
+                  : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+            role="alert"
+          >
+            {accountNotice === 'pending' ? <Clock3 className="mt-0.5 shrink-0" size={17} /> : accountNotice === 'activation' ? <MailCheck className="mt-0.5 shrink-0" size={17} /> : <AlertCircle className="mt-0.5 shrink-0" size={17} />}
             <div>
-              <span>{formError}</span>
+              <p className="font-semibold">{accountNotice === 'pending' ? 'Candidatura em análise' : accountNotice === 'activation' ? 'Ativação necessária' : 'Não foi possível iniciar sessão'}</p>
+              <p className="mt-1 text-xs leading-5">{formError}</p>
 
               {canRequestActivationLink && (
                 <Link

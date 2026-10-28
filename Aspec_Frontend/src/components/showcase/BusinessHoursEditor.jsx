@@ -24,13 +24,18 @@ const shortDayNames = {
 }
 
 function getShortDayName(label) {
-  return shortDayNames[label?.trim().toLowerCase()] ?? label?.slice(0, 3)
+  const normalizedLabel = label?.trim().toLowerCase().replace(/-feira$/, '')
+  return shortDayNames[normalizedLabel] ?? label?.slice(0, 3)
 }
 
 function isWorkingWeekDay(label) {
   return ['segunda', 'terça', 'terca', 'quarta', 'quinta', 'sexta'].includes(
-    label?.trim().toLowerCase(),
+    label?.trim().toLowerCase().replace(/-feira$/, ''),
   )
+}
+
+function isMonday(label) {
+  return label?.trim().toLowerCase().replace(/-feira$/, '') === 'segunda'
 }
 
 /*
@@ -59,12 +64,12 @@ function BusinessHoursEditor({ businessHours, onChange, footer = null }) {
   }
 
   /*
-   * Replica o atalho do Figma e aplica o horário de segunda-feira aos dias
-   * úteis, sem alterar o sábado ou domingo.
+   * Replica o horário de segunda-feira nos restantes dias úteis, sem alterar
+   * a própria segunda-feira, o sábado ou o domingo.
    */
   function copyMondayScheduleToWeekdays() {
     const monday = businessHours.find(
-      (hour) => hour.label?.trim().toLowerCase() === 'segunda',
+      (hour) => hour.label?.trim().toLowerCase().replace(/-feira$/, '') === 'segunda',
     )
 
     if (!monday) {
@@ -73,7 +78,7 @@ function BusinessHoursEditor({ businessHours, onChange, footer = null }) {
 
     onChange(
       businessHours.map((hour) => {
-        if (!isWorkingWeekDay(hour.label)) {
+        if (!isWorkingWeekDay(hour.label) || isMonday(hour.label)) {
           return hour
         }
 
@@ -183,7 +188,7 @@ function BusinessHoursEditor({ businessHours, onChange, footer = null }) {
         onClick={copyMondayScheduleToWeekdays}
         className="mt-5 text-sm font-medium text-[#8a7043] underline decoration-[#8a7043]/50 underline-offset-4 transition hover:text-[#705b36]"
       >
-        Copiar horário de segunda para sexta
+        Aplicar horário de segunda aos restantes dias úteis
       </button>
 
       {footer}
