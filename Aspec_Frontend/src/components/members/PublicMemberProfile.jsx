@@ -155,7 +155,11 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
   const portfolioImages = member.portfolio.map((item, index) => ({
     id: item.id, src: item.image_url, index, alt: `Imagem ${index + 1} do portefólio de ${title}`,
   })).filter((image) => image.src)
-  const address = allowContacts ? member.members_only?.address?.trim() : null
+  const contacts = allowContacts ? member.members_only : null
+  const address = [
+    contacts?.address?.trim(),
+    [contacts?.postal_code?.trim(), contacts?.city?.trim()].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ')
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
     <>

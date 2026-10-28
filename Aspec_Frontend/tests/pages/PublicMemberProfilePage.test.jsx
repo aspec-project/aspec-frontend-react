@@ -19,7 +19,7 @@ const profile = {
   sector: { id, name: 'Consultoria' }, location: { id, name: 'Lisboa' }, logo_url: null,
   business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' }],
   portfolio: [{ id, image_url: 'https://example.test/image.jpg' }], average_rating: 4.8, reviews_count: 12,
-  members_only: { website_url: 'https://example.test', address: 'Morada privada', social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }], commercial_phone: '912345678', commercial_email: 'comercial@example.test', phone: '999111222', commercial_contacts: 'Contacto antigo' },
+  members_only: { website_url: 'https://example.test', address: 'Morada privada', postal_code: '1000-100', city: 'Cidade privada', social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }], commercial_phone: '912345678', commercial_email: 'comercial@example.test', phone: '999111222', commercial_contacts: 'Contacto antigo' },
   contacts: { email: 'legado@example.test', phone: '999999999', commercial_contacts: 'Contacto legado', address: 'Morada legada' },
   secret: 'Campo desconhecido',
 }
@@ -31,6 +31,12 @@ const portfolioForNavigation = [
 ]
 const response = (config, data = profile) => ({ data: { success: true, message: 'Perfil', data }, config, status: 200, statusText: '', headers: {} })
 const active = { id, role: { name: 'Member' }, account_status: { name: 'Active' } }
+const fullAddress = 'Morada privada, 1000-100 Cidade privada'
+const expectPrivateLocationHidden = () => {
+  for (const value of ['Morada privada', '1000-100', 'Cidade privada']) expect(document.body).not.toHaveTextContent(value)
+  expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+}
 const show = (memberId = id) => render(<MemoryRouter initialEntries={[`/membros/${memberId}`]}><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
 function fail(config, status) { return Promise.reject(new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config), status })) }
 
@@ -75,6 +81,9 @@ describe('Perfil público de membro', () => {
 
   it.each([
     ['visitante', null, 'idle'], ['sessão a confirmar', active, 'loading'],
+    ['logout em curso', active, 'logging-out'],
+    ['erro de sessão com identidade anterior', active, 'error'],
+    ['papel não autorizado', { ...active, role: { name: 'Visitor' } }, 'authenticated'],
     ['visitante sem sessão confirmada', null, 'loading'], ['visitante após erro de sessão', null, 'error'],
     ['inativo', { ...active, account_status: { name: 'Inactive' } }, 'authenticated'],
     ['pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated'],
@@ -86,7 +95,7 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     for (const value of ['privado@example.test', '912345678', 'comercial@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', 'Campo desconhecido', '999111222', 'Contacto antigo', 'comercial@example.test', 'Morada privada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByText('https://social.test/')).not.toBeInTheDocument()
@@ -106,7 +115,7 @@ describe('Perfil público de membro', () => {
     expect(screen.getByText('Terça a Domingo')).toBeInTheDocument()
     expect(screen.getAllByText('Encerrado')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name)) {
       expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
     } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
@@ -119,7 +128,8 @@ describe('Perfil público de membro', () => {
     await screen.findByText('912345678')
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
-    expect(screen.getByText('Morada privada')).toBeInTheDocument()
+    expect(screen.getByText(fullAddress)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', '999111222', 'Contacto antigo']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('href', 'https://social.test/')
@@ -144,6 +154,7 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByText('comercial@example.test')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Classificação Global' })).toBeInTheDocument()
@@ -162,6 +173,7 @@ describe('Perfil público de membro', () => {
     await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('A carregar perfil')
@@ -169,7 +181,7 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[1].resolve(response(pending[1].config)))
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.getByRole('region', { name: 'Contactos reservados' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -179,6 +191,7 @@ describe('Perfil público de membro', () => {
     expect(pending[0].config.signal.aborted).toBe(true)
     await act(async () => useAuthStore.setState({ user: active, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     await waitFor(() => expect(pending).toHaveLength(3))
     await act(async () => pending[2].resolve(response(pending[2].config)))
     await screen.findByText('912345678')
@@ -186,7 +199,7 @@ describe('Perfil público de membro', () => {
     expect(screen.getByRole('link', { name: 'Rede social' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Visitar website' })).toBeInTheDocument()
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
-    expect(screen.getByText('Morada privada')).toBeInTheDocument()
+    expect(screen.getByText(fullAddress)).toBeInTheDocument()
     expect(pending[1].config.signal.aborted).toBe(true)
   })
 
@@ -203,6 +216,7 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[0].resolve(response(pending[0].config)))
     expect(screen.getByRole('heading', { name: 'Resultado atual' })).toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 
   it('cancela e esconde dados quando muda o utilizador autenticado', async () => {
@@ -213,6 +227,7 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => new Promise(() => { expect(config.signal.aborted).toBe(false) })
     await act(async () => useAuthStore.setState({ user: { ...active, id: otherId }, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
   })
 
@@ -227,7 +242,7 @@ describe('Perfil público de membro', () => {
     await act(async () => useAuthStore.setState((state) => ({ sessionGeneration: state.sessionGeneration + 1 })))
     expect(document.title).toBe('Perfil do membro | ASPEC')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     await waitFor(() => expect(pending).toHaveLength(2))
     expect(pending[0].config.signal.aborted).toBe(true)
@@ -374,25 +389,81 @@ describe('Perfil público de membro', () => {
 
   it('mostra a morada autorizada uma vez e codifica a pesquisa externa', async () => {
     const address = 'Rua da Sé, 2 & 3? Lisboa #A'
+    const fullAddress = `${address}, 1000-100 Cidade privada`
     api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
-    expect(screen.getAllByText(address)).toHaveLength(1)
-    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`)
+    expect(screen.getAllByText(fullAddress)).toHaveLength(1)
+    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     expect(document.querySelector('iframe')).toBeNull()
     expect(screen.queryByRole('img', { name: /mapa/i })).not.toBeInTheDocument()
   })
 
-  it.each([null, '', '   '])('não mostra cartão de mapa quando a morada não está informada: %s', async (address) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
+  it.each([undefined, null, '', '   '])('não mostra cartão de mapa quando todas as partes estão vazias: %s', async (address) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address: address ?? null, postal_code: address, city: address } }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [' Rua X ', ' 1000-100 ', ' Lisboa ', 'Rua X, 1000-100 Lisboa'],
+    ['Rua X', '1000-100', undefined, 'Rua X, 1000-100'],
+    ['Rua X', undefined, 'Lisboa', 'Rua X, Lisboa'],
+    ['Rua X', undefined, undefined, 'Rua X'],
+    [null, '1000-100', 'Lisboa', '1000-100 Lisboa'],
+    [null, '1000-100', undefined, '1000-100'],
+    [null, undefined, 'Cidade privada', 'Cidade privada'],
+    ['Rua X', null, 'Lisboa', 'Rua X, Lisboa'],
+    ['Rua X', '1000-100', null, 'Rua X, 1000-100'],
+    ['Rua X', '', '   ', 'Rua X'],
+    ['', '1000-100', '   ', '1000-100'],
+    ['   ', '', 'Cidade privada', 'Cidade privada'],
+  ])('compõe partes opcionais sem separadores soltos: %j / %j / %j', async (address, postal_code, city, expected) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address, postal_code, city } }))
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
+    const card = link.closest('section')
+    expect(card.querySelector('p').textContent).toBe(expected)
+    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(expected)}`)
+  })
+
+  it.each(['Member', 'Admin'])('retira a morada completa quando %s perde o estado Active', async (role) => {
+    const user = { ...active, role: { name: role } }
+    useAuthStore.setState({ user, status: 'authenticated' })
+    show()
+    await screen.findByText(fullAddress)
+    await act(async () => useAuthStore.setState({ user: { ...user, account_status: { name: 'Inactive' } } }))
+    expectPrivateLocationHidden()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expectPrivateLocationHidden()
+  })
+
+  it.each(['postal_code', 'city'])('conserva %s opcional sem impor formatos não confirmados', async (field) => {
+    for (const value of [undefined, null, '', '   ', 'Texto livre']) {
+      const members_only = { ...profile.members_only }
+      if (value === undefined) delete members_only[field]
+      else members_only[field] = value
+      api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only }))
+      const result = await getPublicMemberProfile(id, true)
+      expect(result.members_only[field]).toBe(value)
+    }
+  })
+
+  it.each(['postal_code', 'city'].flatMap((field) => [42, true, {}, []].map((value) => [field, value])))('rejeita %s com tipo inválido %j apenas quando autorizado', async (field, value) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, [field]: value } }))
+    await expect(getPublicMemberProfile(id, true)).rejects.toThrow('formato inesperado')
+    await expect(getPublicMemberProfile(id, false)).resolves.not.toHaveProperty('members_only')
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
+    expectPrivateLocationHidden()
   })
 
   it('descarta URLs perigosos no serviço e no DOM', async () => {
@@ -621,14 +692,14 @@ describe('Perfil público de membro', () => {
     }
   })
 
-  it('o serviço conserva apenas os cinco campos autorizados dentro de members_only', async () => {
+  it('o serviço conserva apenas os sete campos autorizados dentro de members_only', async () => {
     const result = await getPublicMemberProfile(id, true)
     expect(result.members_only).toEqual({
-      website_url: 'https://example.test/', address: 'Morada privada',
+      website_url: 'https://example.test/', address: 'Morada privada', postal_code: '1000-100', city: 'Cidade privada',
       social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test/' }],
       commercial_phone: '912345678', commercial_email: 'comercial@example.test',
     })
-    for (const field of ['website_url', 'address', 'social_links', 'phone', 'commercial_contacts']) expect(result).not.toHaveProperty(field)
+    for (const field of ['website_url', 'address', 'postal_code', 'city', 'social_links', 'phone', 'commercial_contacts']) expect(result).not.toHaveProperty(field)
     expect(result.members_only).not.toHaveProperty('phone')
     expect(result.members_only).not.toHaveProperty('commercial_contacts')
   })
@@ -646,11 +717,11 @@ describe('Perfil público de membro', () => {
   })
 
   it.each([undefined, null])('oculta contactos quando members_only é %s, sem fallback legado', async (members_only) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, website_url: 'https://legacy.test', address: 'Morada legada', social_links: profile.members_only.social_links, members_only }))
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, website_url: 'https://legacy.test', address: 'Morada legada', postal_code: '9999-999', city: 'Cidade legada', social_links: profile.members_only.social_links, members_only }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
-    for (const value of ['999999999', 'Contacto legado', 'legado@example.test', 'Morada legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
+    for (const value of ['999999999', 'Contacto legado', 'legado@example.test', 'Morada legada', '9999-999', 'Cidade legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -690,6 +761,7 @@ describe('Perfil público de membro', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByRole('link', { name: /^\s*$/ })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 
   it.each([{ id: otherId }, { average_rating: 6 }, { reviews_count: -1 }, { business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '25:00', close_time: '18:00' }] }, { portfolio: [{}] }])('rejeita contrato malformado: %j', async (change) => {
@@ -697,5 +769,6 @@ describe('Perfil público de membro', () => {
     show()
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 })
