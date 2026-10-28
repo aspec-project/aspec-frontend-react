@@ -53,6 +53,67 @@ describe("Modal de empresas inscritas", () => {
     expect(getEventRegistrants).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["Construções São João", "CONSTRUCOES SAO JOAO"],
+    ["Construcoes Sao Joao", "CONSTRUÇÕES SÃO JOÃO"],
+    ["Câmara Açúcar", "  camara acucar  "],
+    ["Camara Acucar", "  CÂMARA AÇÚCAR  "],
+    ["ÁÉÍÓÚ ÀÂÊÔ ÃÕ Ç", "aeiou aaeo ao c"],
+    ["Tecnologia", "TÉCNOLOGIA"],
+    ["Construções São João".normalize("NFD"), "construções são joão"],
+    ["Construções São João", "CONSTRUÇÕES SÃO JOÃO".normalize("NFD")],
+  ])("encontra %s ao pesquisar %s e preserva o nome original", async (name, query) => {
+    const companies = Object.freeze([Object.freeze({ business_name: name }), Object.freeze({ business_name: "Outra empresa" })]);
+    getEventRegistrants.mockResolvedValueOnce(companies);
+    show();
+    const user = await open();
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByText(name);
+    const search = within(dialog).getByRole("searchbox", { name: "Pesquisar empresa" });
+
+    await user.type(search, query);
+
+    expect(search).toHaveValue(query);
+    expect(within(dialog).getAllByRole("listitem").map((item) => item.textContent)).toEqual([name]);
+    expect(within(dialog).getByText("Encontro ASPEC · 2 empresas")).toBeInTheDocument();
+    expect(companies[0].business_name).toBe(name);
+    expect(getEventRegistrants).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserva duplicados, ordenação e nome indisponível ao pesquisar e limpar", async () => {
+    const companies = Object.freeze([
+      Object.freeze({ business_name: "Zeta" }),
+      Object.freeze({ business_name: "Água" }),
+      Object.freeze({ business_name: null }),
+      Object.freeze({ business_name: "Água" }),
+    ]);
+    getEventRegistrants.mockResolvedValueOnce(companies);
+    show();
+    const user = await open();
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByText("Zeta");
+    const names = () => within(dialog).getAllByRole("listitem").map((item) => item.textContent);
+    const originalNames = names();
+    const search = within(dialog).getByRole("searchbox");
+
+    await user.type(search, "aGUA");
+    expect(names()).toEqual(["Água", "Água"]);
+    await user.clear(search);
+    await user.type(search, "INDISPONIVEL");
+    expect(names()).toEqual(["Nome da empresa indisponível"]);
+    await user.clear(search);
+    await user.type(search, "inexistênte");
+    expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Nenhuma empresa encontrada.");
+    expect(within(dialog).getByText("Encontro ASPEC · 4 empresas")).toBeInTheDocument();
+    await user.clear(search);
+    expect(names()).toEqual(originalNames);
+    await user.type(search, "   ");
+    expect(names()).toEqual(originalNames);
+    expect(companies.map((company) => company.business_name)).toEqual(["Zeta", "Água", null, "Água"]);
+    expect(getEventRegistrants).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["Escape", "Fechar", "Fechar modal"])("fecha com %s, devolve foco e liberta o fundo e scroll", async (method) => {
     show();
     const trigger = screen.getByRole("button", { name: "Ver empresas inscritas" });
