@@ -59,8 +59,9 @@ export default function Footer() {
   const associationLinks = [
     { label: "Missão e Valores", to: "/#proposito" },
     { label: "História", to: "/#sobre" },
-    { label: "Código de Conduta" },
-    { label: "Política de Privacidade" },
+    { label: "Código de Conduta", to: "/codigo-de-conduta" },
+    { label: "Política de Privacidade", to: "/politica-de-privacidade" },
+    { label: "Termos e Condições", to: "/termos-e-condicoes" },
   ];
 
   return (
@@ -128,16 +129,12 @@ export default function Footer() {
             <ul className="space-y-2">
               {associationLinks.map((item) => (
                 <li key={item.label}>
-                  {item.to ? (
-                    <Link
-                      to={item.to}
-                      className="text-sm text-gray-400 hover:text-white transition-colors"
-                    >
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <span className="text-sm text-gray-400">{item.label}</span>
-                  )}
+                  <Link
+                    to={item.to}
+                    className="text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>

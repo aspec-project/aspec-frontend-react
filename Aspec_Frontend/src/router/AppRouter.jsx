@@ -30,6 +30,8 @@ import MembersPage from '../pages/MembersPage'
 import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
 import PageTitle from '../components/PageTitle'
 import NotFoundPage from '../pages/NotFoundPage'
+import InstitutionalPage from '../pages/InstitutionalPage'
+import { institutionalPages } from '../content/institutionalPages'
 
 /*
  * Centraliza as rotas da aplicação.
@@ -44,6 +46,9 @@ function AppRouter() {
         <Route path="/eventos/:id" element={<EventDetailPage />} />
         <Route path="/membros" element={<PageTitle title="Diretório de Confiança"><MembersPage /></PageTitle>} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
+        <Route path="/termos-e-condicoes" element={<PageTitle title={institutionalPages.terms.title}><InstitutionalPage content={institutionalPages.terms} /></PageTitle>} />
+        <Route path="/politica-de-privacidade" element={<PageTitle title={institutionalPages.privacy.title}><InstitutionalPage content={institutionalPages.privacy} /></PageTitle>} />
+        <Route path="/codigo-de-conduta" element={<PageTitle title={institutionalPages.conduct.title}><InstitutionalPage content={institutionalPages.conduct} /></PageTitle>} />
         <Route path="*" element={<PageTitle title="Página não encontrada"><NotFoundPage /></PageTitle>} />
       </Route>
 
