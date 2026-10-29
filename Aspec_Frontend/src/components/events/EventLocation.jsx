@@ -1,9 +1,6 @@
-import { lazy, Suspense } from "react";
 import { MapPin } from "lucide-react";
 import { getEventMapsUrl, hasEventCoordinates } from "../../utils/eventLocation";
 import EventLocationEmbed from "./EventLocationEmbed";
-
-const EventLocationMap = lazy(() => import("./EventLocationMap"));
 
 export default function EventLocation({ event }) {
   if (event.is_online === true) return null;
@@ -17,17 +14,13 @@ export default function EventLocation({ event }) {
   const mapsUrl = getEventMapsUrl(query, placeId);
 
   /*
-   * O identificador Google tem prioridade; o Leaflet serve os eventos sem esse campo.
+   * O mapa incorporado exige um identificador Google; os restantes locais mantêm a ligação externa.
    * A existência de localização não determina o tipo ou a recorrência do evento.
    */
   return (
     <section className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm" aria-labelledby="event-location">
-      {placeId ? <EventLocationEmbed placeId={placeId} /> : hasCoordinates && (
-        <Suspense fallback={<p role="status" className="p-6 text-sm text-gray-600">A carregar mapa...</p>}>
-          <EventLocationMap latitude={event.latitude} longitude={event.longitude} />
-        </Suspense>
-      )}
-      <div className="flex items-start gap-2 border-t border-gray-100 p-4">
+      {placeId && <EventLocationEmbed placeId={placeId} />}
+      <div className={`flex items-start gap-2 p-4${placeId ? " border-t border-gray-100" : ""}`}>
         <MapPin size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-[#8a7043]" />
         <div className="min-w-0">
           <h2 id="event-location" className={venue ? "sr-only" : "text-sm font-medium text-[#0D1F35]"}>Localização do evento</h2>

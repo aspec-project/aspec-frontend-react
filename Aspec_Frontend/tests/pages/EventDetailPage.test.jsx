@@ -10,7 +10,6 @@ import { useAuthStore } from "../../src/store/authStore";
 
 vi.mock("../../src/components/layout/Header", () => ({ default: () => <header>ASPEC</header> }));
 vi.mock("../../src/components/layout/Footer", () => ({ default: () => <footer>ASPEC</footer> }));
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => <div aria-label="Mapa do local" /> }));
 
 const id = "019512a1-9999-7123-8123-123456789abc";
 const otherId = "019512a1-9998-7123-8123-123456789abc";
@@ -45,7 +44,6 @@ describe("Página de detalhe do evento", () => {
     const search = new URL(screen.getByRole("link", { name: "Abrir no Google Maps" }).href).searchParams;
     expect(search.get("query")).toBe(event.address);
     expect(search.get("query_place_id")).toBe("local-google-teste");
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
   });
 
   it("oculta o Embed e o botão num evento online mesmo com place_id indevido", async () => {
@@ -54,7 +52,6 @@ describe("Página de detalhe do evento", () => {
     await screen.findByRole("heading", { name: event.name });
     expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
   });
 
   it("apresenta os dados reais e não expõe o link privado nem infere modalidade ou recorrência", async () => {
@@ -102,7 +99,7 @@ describe("Página de detalhe do evento", () => {
     await screen.findByRole("heading", { name: event.name });
     expect(screen.queryByText(event.address)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
     expect(screen.queryByText(event.online_url)).not.toBeInTheDocument();
   });
 
@@ -170,7 +167,7 @@ describe("Página de detalhe do evento", () => {
     api.defaults.adapter = (config) => fail(config, 404);
     show();
     await screen.findByRole("heading", { name: "Evento não encontrado" });
-    expect(document.title).toBe("Evento não encontrado | ASPEC");
+    await waitFor(() => expect(document.title).toBe("Evento não encontrado | ASPEC"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
