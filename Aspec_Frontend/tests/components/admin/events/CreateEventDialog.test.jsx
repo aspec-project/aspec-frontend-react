@@ -648,7 +648,8 @@ describe('CreateEventDialog', () => {
 
     await user.click(submitButton())
 
-    await waitFor(() => expectAlert('Os dados enviados são inválidos.'))
+    expect(await screen.findByText(CATEGORY_ERROR)).toBeInTheDocument()
+    expect(screen.queryByText('Os dados enviados são inválidos.')).not.toBeInTheDocument()
     for (const [element, message] of [[field.category(), CATEGORY_ERROR], [field.start(), START_ERROR], [field.deadline(), DEADLINE_ERROR]]) {
       expect(element).toHaveAttribute('aria-invalid', 'true')
       expect(describedIds(element)).toContain(screen.getByText(message).id)
@@ -1204,7 +1205,7 @@ describe('CreateEventDialog — série recorrente', () => {
     await user.click(confirmButton('Criar 3 sessões'))
 
     await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
-    expectAlert(TOO_LONG)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(series.lastDate()).toHaveAttribute('aria-invalid', 'true')
     expect(fieldError(series.lastDate(), TOO_LONG)).toBeDefined()
     await waitFor(() => expect(series.lastDate()).toHaveFocus())

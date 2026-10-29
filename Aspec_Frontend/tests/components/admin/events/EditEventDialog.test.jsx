@@ -198,10 +198,6 @@ function describedIds(element) {
   return (element.getAttribute('aria-describedby') ?? '').split(/\s+/)
 }
 
-function expectAlert(message) {
-  expect(screen.getAllByRole('alert').some((element) => element.textContent.includes(message))).toBe(true)
-}
-
 function change(element, value) {
   fireEvent.change(element, { target: { value } })
 }
