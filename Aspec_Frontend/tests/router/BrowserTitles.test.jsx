@@ -65,7 +65,7 @@ describe('Títulos do separador por rota', () => {
   it.each([
     ['/dashboard', 'Dashboard'], ['/perfil', 'Perfil'], ['/perfil/portefolio', 'Portefólio'],
     ['/perfil/inscricoes', 'Inscrições em eventos'], ['/perfil/avaliacoes', 'Avaliações'],
-    ['/perfil/conta', 'Informações da conta'], ['/perfil/conta/password', 'Alterar palavra-passe'],
+    ['/perfil/conta', 'Informações da conta'], ['/perfil/conta/password', 'Informações da conta'],
     ['/perfil/subscricao', 'Subscrição'], ['/perfil/editar', 'Perfil'],
     ['/perfil/montra', 'Perfil'], ['/perfil/contactos', 'Perfil'],
     ['/perfil/inscricoes-eventos', 'Inscrições em eventos'], ['/conta/subscricao', 'Subscrição'],
