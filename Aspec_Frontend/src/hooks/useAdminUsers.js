@@ -12,6 +12,8 @@ const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
  * com debounce, "Ver admins" e paginação. Cancela o pedido anterior sempre que os filtros mudam e, se a
  * página atual ficar vazia (ex.: depois de uma ação), passa para a última página.
  *
+ * @param {{initialTab?: string|null}} [options] `initialTab` é o chip inicial (ex.: vindo do URL); só é usado
+ *   se for uma `key` de USER_STATUS_TABS, senão começa em "Todos".
  * @returns {{
  *   filters: {tab: string, search: string, includeAdmins: boolean, page: number},
  *   searchInput: string,
@@ -26,8 +28,11 @@ const initialFilters = { tab: 'all', search: '', includeAdmins: false, page: 1 }
  *   error: string,
  * }}
  */
-export default function useAdminUsers() {
-  const [filters, setFilters] = useState(initialFilters)
+export default function useAdminUsers({ initialTab } = {}) {
+  const [filters, setFilters] = useState(() => ({
+    ...initialFilters,
+    tab: USER_STATUS_TABS.some((item) => item.key === initialTab) ? initialTab : initialFilters.tab,
+  }))
   const [searchInput, setSearchInput] = useState('')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
