@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Search } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import ShowAdminsToggle from '../../components/admin/users/ShowAdminsToggle'
 import UserStatusTabs from '../../components/admin/users/UserStatusTabs'
 import UsersTable from '../../components/admin/users/UsersTable'
@@ -23,11 +23,14 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * no email ao membro) e o resultado aparece numa mensagem com o texto da API.
  * Também mostra a mensagem trazida pela navegação (ex.: depois de anonimizar no detalhe) e limpa-a
  * do histórico para não reaparecer ao recarregar.
+ * O chip de estado fica no URL (?estado=<key>, ex.: vindo do "Ver todas" do painel), para recarregar ou voltar
+ * atrás manter o filtro; um valor desconhecido abre em "Todos".
  * A lógica vive nos hooks useAdminUsers (lista) e useAdminUserActions (ações).
  *
  * @returns {JSX.Element}
  */
 export default function AdminUsersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     filters,
     searchInput,
@@ -40,7 +43,7 @@ export default function AdminUsersPage() {
     data,
     loading,
     error,
-  } = useAdminUsers()
+  } = useAdminUsers({ initialTab: searchParams.get('estado') })
   const currentUserId = useAuthStore((state) => state.user?.id)
   const location = useLocation()
   const navigate = useNavigate()
@@ -52,6 +55,16 @@ export default function AdminUsersPage() {
       navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
     }
   }, [navigationFeedback, navigate, location.pathname, location.search])
+
+  /**
+   * Muda de chip e guarda-o no URL (sem parâmetro para "Todos"), substituindo a entrada do histórico.
+   *
+   * @param {string} key Key do chip escolhido.
+   */
+  const handleSelectTab = (key) => {
+    selectTab(key)
+    setSearchParams(key === 'all' ? {} : { estado: key }, { replace: true })
+  }
 
   const pagination = data?.pagination
   const confirmation = actions.confirming
@@ -67,7 +80,7 @@ export default function AdminUsersPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <ShowAdminsToggle pressed={filters.includeAdmins} onToggle={toggleIncludeAdmins} />
-        <UserStatusTabs activeTab={filters.tab} counts={getStatusTabCounts(data?.subscription_state_counts)} onSelect={selectTab} />
+        <UserStatusTabs activeTab={filters.tab} counts={getStatusTabCounts(data?.subscription_state_counts)} onSelect={handleSelectTab} />
       </div>
 
       <div className="relative">

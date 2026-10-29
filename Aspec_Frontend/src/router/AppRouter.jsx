@@ -22,6 +22,7 @@ import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminEventsPage from '../pages/admin/AdminEventsPage'
 import AdminEventCategoriesPage from '../pages/admin/AdminEventCategoriesPage'
+import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import HomePage from '../pages/HomePage'
 import EventsPage from '../pages/EventsPage'
 import EventDetailPage from '../pages/EventDetailPage'
@@ -142,10 +143,7 @@ function AppRouter() {
       {/* Rotas de administração — exigem sessão válida e role Admin. */}
       <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
         <Route element={<AdminLayout />}>
-          <Route
-            path="/admin"
-            element={<PageTitle title="Administração"><PlaceholderPage title="Administração" /></PageTitle>}
-          />
+          <Route path="/admin" element={<PageTitle title="Administração"><AdminDashboardPage /></PageTitle>} />
           <Route path="/admin/utilizadores" element={<PageTitle title="Utilizadores"><AdminUsersPage /></PageTitle>} />
           <Route path="/admin/utilizadores/:id" element={<PageTitle title="Detalhe do utilizador"><AdminUserDetailPage /></PageTitle>} />
           <Route path="/admin/eventos" element={<PageTitle title="Gestão de eventos"><AdminEventsPage /></PageTitle>} />

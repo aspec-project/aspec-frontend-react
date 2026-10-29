@@ -101,3 +101,50 @@ export function formatShortDateTime(value) {
 
   return `${Number(parts.day)} ${MONTH_ABBREVIATIONS[Number(parts.month) - 1]} ${parts.year}, ${parts.hour}:${parts.minute}`
 }
+
+/**
+ * Dia, mês e ano de um instante no calendário de Lisboa.
+ *
+ * @param {Date} date Instante a converter.
+ * @returns {{day: number, month: number, year: number}} Partes da data (mês de 1 a 12).
+ */
+function getLisbonDay(date) {
+  const parts = Object.fromEntries(lisbonFormatter.formatToParts(date).map((part) => [part.type, part.value]))
+
+  return { day: Number(parts.day), month: Number(parts.month), year: Number(parts.year) }
+}
+
+/**
+ * Formata uma data e hora ISO 8601 com desvio em relação a "agora", no calendário de Lisboa:
+ * "Hoje, 10:32" no mesmo dia, "Ontem, 14:15" no dia anterior e "27 Out 2026, 09:40" nos outros dias
+ * (incluindo o futuro). O dia anterior conta-se por datas de calendário e não por 24 horas, porque nos dias
+ * da mudança de hora há 23 ou 25 horas.
+ *
+ * @param {unknown} value Data e hora ISO 8601 com desvio.
+ * @param {Date} [now] Instante de referência (por omissão, o atual).
+ * @returns {string} Data e hora formatadas, ou '' se for inválida.
+ */
+export function formatRelativeDateTime(value, now = new Date()) {
+  const parts = getLisbonParts(value)
+
+  if (parts === null) return ''
+
+  const day = { day: Number(parts.day), month: Number(parts.month), year: Number(parts.year) }
+  const today = getLisbonDay(now)
+  const yesterday = new Date(Date.UTC(today.year, today.month - 1, today.day - 1))
+  const time = `${parts.hour}:${parts.minute}`
+
+  if (day.year === today.year && day.month === today.month && day.day === today.day) {
+    return `Hoje, ${time}`
+  }
+
+  if (
+    day.year === yesterday.getUTCFullYear() &&
+    day.month === yesterday.getUTCMonth() + 1 &&
+    day.day === yesterday.getUTCDate()
+  ) {
+    return `Ontem, ${time}`
+  }
+
+  return formatShortDateTime(value)
+}
