@@ -28,12 +28,34 @@ const fail = (config, status) => Promise.reject(new AxiosError("Detalhe interno"
 describe("Página de detalhe do evento", () => {
   let original;
   beforeEach(() => {
+    vi.stubEnv("VITE_GOOGLE_MAPS_EMBED_KEY", "chave-ficticia-testes");
     original = api.defaults.adapter;
     useAuthStore.setState({ user: null, status: "idle" });
     api.defaults.adapter = (config) => Promise.resolve(response(config));
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   });
-  afterEach(() => { api.defaults.adapter = original; vi.restoreAllMocks(); });
+  afterEach(() => { api.defaults.adapter = original; vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+  it("liga o place_id devolvido pelo detalhe ao Embed e ao botão Google Maps", async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, place_id: " local-google-teste ", latitude: null, longitude: null }));
+    show();
+    await screen.findByRole("heading", { name: event.name });
+    const iframe = screen.getByTitle("Mapa da localização do evento");
+    expect(new URL(iframe.src).searchParams.get("q")).toBe("place_id:local-google-teste");
+    const search = new URL(screen.getByRole("link", { name: "Abrir no Google Maps" }).href).searchParams;
+    expect(search.get("query")).toBe(event.address);
+    expect(search.get("query_place_id")).toBe("local-google-teste");
+    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+  });
+
+  it("oculta o Embed e o botão num evento online mesmo com place_id indevido", async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, is_online: true, place_id: "local-google-teste" }));
+    show();
+    await screen.findByRole("heading", { name: event.name });
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+  });
 
   it("apresenta os dados reais e não expõe o link privado nem infere modalidade ou recorrência", async () => {
     show();

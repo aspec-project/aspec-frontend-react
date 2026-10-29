@@ -73,7 +73,7 @@ describe("getEventsPage", () => {
   });
 
   it("descarta o URL privado em todas as listagens, mesmo quando a API o devolve", async () => {
-    const item = { id: "evento-online", name: "Evento online", is_online: true, online_url: "https://private.example.test/event", location: { name: "Lisboa" }, address: "Rua", venue_name: "Auditório", latitude: 38, longitude: -9 };
+    const item = { id: "evento-online", name: "Evento online", is_online: true, online_url: "https://private.example.test/event", place_id: "local-google-teste", location: { name: "Lisboa" }, address: "Rua", venue_name: "Auditório", latitude: 38, longitude: -9 };
     simularResposta(respostaPagina([item]));
     const page = await getEventsPage();
     const all = await getEvents();
@@ -86,6 +86,14 @@ describe("getEventsPage", () => {
   it.each([undefined, "true", 1, false])("não infere modalidade a partir de URL ou localização: %s", async (is_online) => {
     simularResposta(respostaPagina([{ id: "evento", name: "Evento", is_online, location: { name: "Lisboa" }, online_url: "https://private.example.test/event" }]));
     expect((await getEventsPage()).items[0]).toEqual({ id: "evento", name: "Evento", is_online: is_online === false ? false : null, location: { name: "Lisboa" } });
+  });
+
+  it.each([[" local-google-teste ", "local-google-teste"], [null, ""], [123, ""]])("normaliza place_id nas listagens sem alterar os dados recebidos: %j", async (place_id, expected) => {
+    const item = { id: "evento", name: "Evento", place_id };
+    simularResposta(respostaPagina([item]));
+    expect((await getEventsPage()).items[0]).toHaveProperty("place_id", expected);
+    expect((await getEvents())[0]).toHaveProperty("place_id", expected);
+    expect(item.place_id).toBe(place_id);
   });
 
   it.each([
