@@ -35,7 +35,12 @@ const NOT_FOUND = 'Não foi possível encontrar esta morada no mapa. Verifique a
 const UNAVAILABLE = 'O serviço de localização não está disponível de momento. Tente novamente dentro de instantes.'
 const SUCCESS = 'Evento criado com sucesso.'
 const FORMAT_ERROR = 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).'
-const APPROXIMATE_HINT = 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.'
+const APPROXIMATE_TITLE = 'A localização no mapa é aproximada'
+const CONFIRM_LOCATION = 'Confirmar localização'
+const CONFIRM_LOCATION_FOOTER = 'Confirme a localização no mapa antes de guardar.'
+const MAP_TITLE = 'Mapa da localização do evento'
+const EXACT_PLACE_ID = 'ChIJTesteCoimbraRuaBrasil25_Aspec'
+const APPROXIMATE_PLACE_ID = 'ChIJTestePontaDelgadaCidade_Aspec'
 
 const IN_PERSON_PAYLOAD = {
   category_id: 'c3',
@@ -170,6 +175,38 @@ async function fillValidInPerson(user) {
   await fillCommon(user)
   await typeInto(user, field.venue(), 'Restaurante Estrela do Norte')
   await typeInto(user, field.address(), 'Rua das Flores 42')
+}
+
+function mapQuery() {
+  return new URL(screen.getByTitle(MAP_TITLE).getAttribute('src')).searchParams.get('q')
+}
+
+function googleResult(overrides = {}) {
+  return {
+    latitude: null,
+    longitude: null,
+    display_name: 'R. do Brasil 25, 3030-175 Coimbra, Portugal',
+    attribution: 'Google Maps',
+    approximate: false,
+    place_id: EXACT_PLACE_ID,
+    ...overrides,
+  }
+}
+
+const GOOGLE_APPROXIMATE = {
+  display_name: 'Ponta Delgada, Portugal',
+  approximate: true,
+  place_id: APPROXIMATE_PLACE_ID,
+}
+
+function argumentText(value) {
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value) ?? String(value)
+  } catch {
+    return String(value)
+  }
 }
 
 function deferred() {
@@ -532,7 +569,7 @@ describe('CreateEventDialog', () => {
     expect(screen.queryByText(/^Morada encontrada:/)).not.toBeInTheDocument()
   }, 10000)
 
-  it('avisa quando o local é aproximado, envia as coordenadas e o aviso desaparece ao mudar a morada', async () => {
+  it('avisa quando o local é aproximado, envia as coordenadas depois de confirmar e o aviso desaparece ao mudar a morada', async () => {
     geocodeAddress.mockResolvedValue({
       latitude: 37.74,
       longitude: -25.67,
@@ -548,9 +585,9 @@ describe('CreateEventDialog', () => {
     await user.click(verifyButton())
 
     expect(await screen.findByText('Local aproximado: Rua da Guiné, Ponta Delgada')).toBeInTheDocument()
-    expect(screen.getByText(APPROXIMATE_HINT)).toBeInTheDocument()
     expect(screen.queryByText(/^Morada encontrada:/)).not.toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: CONFIRM_LOCATION }))
     await user.click(submitButton())
 
     expect(createAdminEvent).toHaveBeenLastCalledWith({ ...IN_PERSON_PAYLOAD, latitude: 37.74, longitude: -25.67 })
@@ -558,7 +595,7 @@ describe('CreateEventDialog', () => {
     await user.type(field.address(), ' A')
 
     expect(screen.queryByText(/^Local aproximado:/)).not.toBeInTheDocument()
-    expect(screen.queryByText(APPROXIMATE_HINT)).not.toBeInTheDocument()
+    expect(screen.queryByText(APPROXIMATE_TITLE)).not.toBeInTheDocument()
 
     await user.click(submitButton())
 
@@ -851,6 +888,146 @@ describe('CreateEventDialog', () => {
       online_url: 'https://meet.example.com/aspec',
       max_attendees: 40,
       description: 'Encontro mensal de networking entre membros.',
+    })
+  })
+
+  describe('mapa da Google', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', 'chave-falsa-418')
+    })
+
+    it('o botão de localizar fica no campo da morada e o mapa mostra a zona da delegação escolhida', async () => {
+      const user = userEvent.setup()
+      show()
+
+      expect(field.address().parentElement).toContainElement(verifyButton())
+      expect(verifyButton()).toBeDisabled()
+      expect(screen.getByTitle(MAP_TITLE).tagName).toBe('IFRAME')
+      expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
+
+      await chooseOption(user, field.location(), 'Porto')
+
+      expect(screen.getByText('A mostrar a zona de Porto')).toBeInTheDocument()
+      expect(screen.queryByText('A mostrar a zona de Lisboa')).not.toBeInTheDocument()
+    })
+
+    it('um resultado exato mostra o local no mapa e cria o evento só com o place_id', async () => {
+      geocodeAddress.mockResolvedValue(googleResult())
+      createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+      const user = userEvent.setup()
+      show()
+      await fillValidInPerson(user)
+
+      await user.click(verifyButton())
+      await screen.findByText(/^Morada encontrada:/)
+
+      expect(mapQuery()).toBe(`place_id:${EXACT_PLACE_ID}`)
+
+      await user.click(submitButton())
+
+      expect(createAdminEvent).toHaveBeenCalledWith({ ...IN_PERSON_PAYLOAD, place_id: EXACT_PLACE_ID })
+      const payload = createAdminEvent.mock.calls[0][0]
+      expect(payload).not.toHaveProperty('latitude')
+      expect(payload).not.toHaveProperty('longitude')
+    })
+
+    it('um resultado aproximado só deixa criar depois de confirmar a localização', async () => {
+      geocodeAddress.mockResolvedValue(googleResult(GOOGLE_APPROXIMATE))
+      createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+      const user = userEvent.setup()
+      show()
+      await fillValidInPerson(user)
+
+      await user.click(verifyButton())
+      await screen.findByText(APPROXIMATE_TITLE)
+
+      expect(submitButton()).toBeDisabled()
+      expect(screen.getByText(CONFIRM_LOCATION_FOOTER)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: CONFIRM_LOCATION }))
+
+      expect(submitButton()).toBeEnabled()
+      expect(screen.queryByText(CONFIRM_LOCATION_FOOTER)).not.toBeInTheDocument()
+
+      await user.click(submitButton())
+
+      expect(createAdminEvent).toHaveBeenLastCalledWith({ ...IN_PERSON_PAYLOAD, place_id: APPROXIMATE_PLACE_ID })
+    }, 10000)
+
+    it('mudar a morada depois de confirmar tira a caixa, volta à zona e cria sem place_id', async () => {
+      geocodeAddress.mockResolvedValue(googleResult(GOOGLE_APPROXIMATE))
+      createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+      const user = userEvent.setup()
+      show()
+      await fillValidInPerson(user)
+
+      await user.click(verifyButton())
+      await user.click(await screen.findByRole('button', { name: CONFIRM_LOCATION }))
+      await user.type(field.address(), ' A')
+
+      expect(screen.queryByText(APPROXIMATE_TITLE)).not.toBeInTheDocument()
+      expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
+
+      await user.click(submitButton())
+
+      const payload = createAdminEvent.mock.calls.at(-1)[0]
+      expect(payload).toMatchObject({ address: 'Rua das Flores 42 A' })
+      for (const key of ['place_id', 'latitude', 'longitude']) {
+        expect(payload).not.toHaveProperty(key)
+      }
+    }, 10000)
+
+    it('em Online o mapa desaparece e o pedido não leva o local; voltar a Presencial recupera o local encontrado', async () => {
+      geocodeAddress.mockResolvedValue(googleResult())
+      createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+      const user = userEvent.setup()
+      show()
+      await fillValidInPerson(user)
+
+      await user.click(verifyButton())
+      await screen.findByText(/^Morada encontrada:/)
+      await user.click(formatButton('Online'))
+
+      expect(screen.queryByTitle(MAP_TITLE)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Verificar no mapa' })).not.toBeInTheDocument()
+      expect(screen.queryByText(APPROXIMATE_TITLE)).not.toBeInTheDocument()
+
+      await user.type(field.onlineUrl(), 'https://meet.example.com/aspec')
+      await user.click(submitButton())
+
+      const payload = createAdminEvent.mock.calls.at(-1)[0]
+      for (const key of ['place_id', 'address', 'latitude', 'longitude']) {
+        expect(payload).not.toHaveProperty(key)
+      }
+
+      await user.click(formatButton('Presencial'))
+
+      expect(mapQuery()).toBe(`place_id:${EXACT_PLACE_ID}`)
+    }, 10000)
+
+    it('a chave do mapa nunca aparece na consola nem no texto do modal', async () => {
+      geocodeAddress.mockRejectedValue(apiError(503, UNAVAILABLE))
+      const spies = ['error', 'warn', 'log'].map((method) => vi.spyOn(console, method).mockImplementation(() => {}))
+
+      try {
+        const user = userEvent.setup()
+        show()
+        await fillValidInPerson(user)
+
+        await user.click(verifyButton())
+        await screen.findByText(UNAVAILABLE)
+
+        for (const spy of spies) {
+          for (const call of spy.mock.calls) {
+            for (const argument of call) {
+              expect(argumentText(argument)).not.toContain('chave-falsa-418')
+            }
+          }
+        }
+        expect(document.body.textContent).not.toContain('chave-falsa-418')
+      } finally {
+        spies.forEach((spy) => spy.mockRestore())
+      }
     })
   })
 })

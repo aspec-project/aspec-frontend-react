@@ -98,14 +98,15 @@ export async function updateAdminEvent(eventId, payload) {
 }
 
 /**
- * Localiza uma morada no mapa (OpenStreetMap) para o admin confirmar o sítio antes de criar o evento.
- * O distrito só é enviado quando foi escolhido. `approximate` é true quando o local encontrado pode não
- * corresponder à morada (rua ou distrito diferentes).
+ * Localiza uma morada no mapa para o admin confirmar o sítio antes de guardar o evento. O distrito só é
+ * enviado quando foi escolhido. Com a Google vem o `place_id` e as coordenadas a null; com o OpenStreetMap
+ * (Nominatim) vêm as coordenadas e o `place_id` a null. `attribution` indica quem respondeu e `approximate` é
+ * true quando o local encontrado pode não corresponder à morada.
  *
  * @param {string} address Morada a localizar.
  * @param {string} locationId Id do distrito (pode ser vazio).
  * @param {AbortSignal} [signal] Permite cancelar o pedido quando a morada ou o distrito mudam.
- * @returns {Promise<{latitude: number, longitude: number, display_name: string, attribution: string, approximate: boolean}>}
+ * @returns {Promise<{latitude: number|null, longitude: number|null, display_name: string, attribution: string, approximate: boolean, place_id: string|null}>}
  */
 export async function geocodeAddress(address, locationId, signal) {
   const params = { address }

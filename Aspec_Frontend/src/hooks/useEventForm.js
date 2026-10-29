@@ -6,6 +6,7 @@ import {
   EMPTY_EVENT_FORM,
   EVENT_EDIT_TEXTS,
   EVENT_FIELD_ORDER,
+  EVENT_FORM_MESSAGES,
   buildEventPayload,
   buildEventUpdatePayload,
   eventToFormValues,
@@ -15,10 +16,11 @@ import {
   getMissingEventFields,
   getSavedGeocode,
   mapEventServerErrors,
+  needsLocationConfirmation,
 } from '../utils/adminEventForm'
 import { getSeriesSessions } from '../utils/adminEventSeries'
 
-const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
+const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null, confirmed: false }
 
 /**
  * Estado e envio do formulário de evento do backoffice: valores, campos em falta, erros do browser e do
@@ -28,7 +30,9 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  * admin pode escrever uma justificação para os inscritos) e chama `onStale` quando o evento já decorreu
  * (409) ou já não existe (404). Na criação de uma série (`isRecurring`), o envio abre primeiro a confirmação
  * "Criar série de eventos?" e qualquer erro do pedido fecha-a; `seriesSessions` tem as sessões calculadas a
- * partir da 1.ª data, da última e da frequência (para a pré-visualização e a confirmação).
+ * partir da 1.ª data, da última e da frequência (para a pré-visualização e a confirmação). Quando a
+ * verificação da morada encontra um local aproximado, só deixa guardar depois de o admin o confirmar
+ * (`confirmLocation`); a confirmação é só da interface e não segue no pedido.
  *
  * @param {{
  *   onSuccess: (message: string) => void,
@@ -54,8 +58,9 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null }
  *   confirming: boolean,
  *   confirmError: string,
  *   initialValues: typeof EMPTY_EVENT_FORM,
- *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string, query: object|null},
+ *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string, query: object|null, confirmed?: boolean},
  *   verifyAddress: () => Promise<void>,
+ *   confirmLocation: () => void,
  *   focusField: {name: string, key: number}|null,
  *   isEditing: boolean,
  *   hasChanges: boolean,
@@ -86,10 +91,13 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   const hasBrowserErrors = Object.keys(browserErrors).length > 0
   const seriesSessions = getSeriesSessions(values.eventDate, values.seriesEndsOn, values.frequency)
   const hasChanges = !isEditing || getChangedEventFields(initialValues, values).length > 0
-  const canSubmit = missingFields.length === 0 && !hasBrowserErrors && hasChanges && !submitting
+  const needsConfirmation = needsLocationConfirmation(values, geocode)
+  const canSubmit = missingFields.length === 0 && !hasBrowserErrors && hasChanges && !needsConfirmation && !submitting
   const footerMessage = missingFields.length > 0
     ? formatMissingFields(missingFields)
-    : !hasChanges ? EVENT_EDIT_TEXTS.noChanges : ''
+    : !hasChanges
+      ? EVENT_EDIT_TEXTS.noChanges
+      : needsConfirmation ? EVENT_FORM_MESSAGES.confirmLocation : ''
 
   /**
    * Descarta a verificação da morada e cancela o pedido pendente.
@@ -289,7 +297,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
     try {
       const result = await geocodeAddress(address, values.locationId, controller.signal)
       if (controller.signal.aborted) return
-      setGeocode({ status: 'found', result, message: '', query })
+      setGeocode({ status: 'found', result, message: '', query, confirmed: false })
     } catch (err) {
       if (controller.signal.aborted || axios.isCancel(err)) return
       const { message, fieldErrors } = normalizeError(err)
@@ -299,6 +307,17 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
         geocodeControllerRef.current = null
       }
     }
+  }
+
+  /**
+   * Confirma (ou desfaz a confirmação de) um local aproximado encontrado na verificação da morada.
+   */
+  const confirmLocation = () => {
+    setGeocode((current) => (
+      current.status === 'found' && current.result?.approximate === true
+        ? { ...current, confirmed: !current.confirmed }
+        : current
+    ))
   }
 
   return {
@@ -322,6 +341,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
     initialValues,
     geocode,
     verifyAddress,
+    confirmLocation,
     focusField,
     isEditing,
     hasChanges,

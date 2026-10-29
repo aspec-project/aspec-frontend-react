@@ -1,7 +1,7 @@
 import { useId } from 'react'
-import { CalendarDays, MapPin, Repeat, Video } from 'lucide-react'
-import AddressGeocodeCheck from './AddressGeocodeCheck'
+import { CalendarDays, LocateFixed, MapPin, Repeat, Video } from 'lucide-react'
 import EventField from './EventField'
+import EventMapPreview from './EventMapPreview'
 import EventSeriesPreview from './EventSeriesPreview'
 import DatePicker from '../../ui/DatePicker'
 import SegmentedControl from '../../ui/SegmentedControl'
@@ -52,8 +52,10 @@ function describedBy(id, { hint, counter, error }) {
  * grelha do design: formato segmentado, listas próprias para o tipo e a delegação, calendários para as
  * datas (o prazo só até à véspera do evento) e campos de hora ao minuto. Recebe os valores e avisa as
  * alterações; na edição (`isEditing`) só muda os hints: a capacidade mostra o número de inscritos e a
- * verificação da morada explica que o servidor a localiza ao guardar. Só na criação há o controlo
- * "Repetição": em Recorrente, a data, as horas e a data limite saem do sítio de sempre e a caixa
+ * verificação da morada explica que o servidor a localiza ao guardar. No presencial, o botão de localizar
+ * fica à direita da morada e, por baixo do nome do local e da morada, o mapa da Google mostra o local
+ * encontrado ou a zona da delegação escolhida (com a confirmação dos locais aproximados). Só na criação há
+ * o controlo "Repetição": em Recorrente, a data, as horas e a data limite saem do sítio de sempre e a caixa
  * "Recorrência" (logo a seguir ao tipo e à delegação) junta a frequência, o início, o fim, as horas e o fecho
  * das inscrições em dias; no fundo da caixa aparece a pré-visualização das sessões (1 a 52 sessões, sem erros
  * nos campos da série), nada quando há erros de série, ou um texto de espera. Cada controlo existe uma só
@@ -69,13 +71,14 @@ function describedBy(id, { hint, counter, error }) {
  *   seriesSessions?: {dates: string[], tooMany: boolean},
  *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string},
  *   onVerifyAddress: () => void,
+ *   onConfirmLocation: () => void,
  *   disabled?: boolean,
  *   isEditing?: boolean,
  *   registrationsCount?: number|null,
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, onRepetitionChange, seriesSessions, geocode, onVerifyAddress, disabled = false, isEditing = false, registrationsCount = null }) {
+export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, onRepetitionChange, seriesSessions, geocode, onVerifyAddress, onConfirmLocation, disabled = false, isEditing = false, registrationsCount = null }) {
   const prefix = useId()
   const today = getLisbonNow().date
   const selectsDisabled = options.loading || Boolean(options.error)
@@ -161,6 +164,8 @@ export default function EventFormFields({ values, errors, options, onFieldChange
   const hasSeriesError = Boolean(seriesSessions?.tooMany) || SERIES_ERROR_FIELDS.some((name) => errors[name])
   const showPreview = isRecurring && sessionDates.length > 0 && !hasSeriesError
   const inclusiveSuffix = <span className="font-normal text-gray-400"> {EVENT_SERIES_TEXTS.inclusiveSuffix}</span>
+  const canVerify = values.address.trim() !== '' && geocode.status !== 'loading'
+  const zoneName = options.locations.find((location) => location.id === values.locationId)?.name ?? ''
   const timeFields = (
     <>
       <EventField {...fieldProps('startTime', 'Hora de início')}>
@@ -355,21 +360,36 @@ export default function EventFormFields({ values, errors, options, onFieldChange
             </EventField>
 
             <EventField {...fieldProps('address', 'Morada completa')}>
-              <input
-                type="text"
-                maxLength={EVENT_FORM_LIMITS.address}
-                placeholder="Ex.: Rua das Flores, 42, 1200-001 Lisboa"
-                {...controlProps('address')}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  maxLength={EVENT_FORM_LIMITS.address}
+                  placeholder="Ex.: Rua das Flores, 42, 1200-001 Lisboa"
+                  {...controlProps('address')}
+                  className={`${inputClass} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={onVerifyAddress}
+                  disabled={!canVerify || disabled}
+                  aria-label="Verificar no mapa"
+                  title="Verificar no mapa"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-[#8a7043] hover:border-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <LocateFixed size={18} aria-hidden="true" />
+                </button>
+              </div>
             </EventField>
           </div>
-          <AddressGeocodeCheck
-            geocode={geocode}
-            canVerify={values.address.trim() !== '' && geocode.status !== 'loading'}
-            onVerify={onVerifyAddress}
-            disabled={disabled}
-            idleHint={isEditing ? EVENT_EDIT_TEXTS.geocodeHint : undefined}
-          />
+          <div className="mt-5">
+            <EventMapPreview
+              geocode={geocode}
+              zoneName={zoneName}
+              onConfirmLocation={onConfirmLocation}
+              disabled={disabled}
+              idleHint={isEditing ? EVENT_EDIT_TEXTS.geocodeHint : undefined}
+            />
+          </div>
         </div>
       )}
 
