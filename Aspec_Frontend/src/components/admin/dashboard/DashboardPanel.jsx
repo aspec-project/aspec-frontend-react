@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom'
 
 /**
  * Cartão de lista do painel: título, ligação dourada à direita (ex.: "Ver todas →") e conteúdo por baixo.
- * A secção tem como nome acessível o título.
+ * A secção tem como nome acessível o título. Com `headingRef`, o título fica focável por código (tabIndex -1),
+ * para a página lhe poder dar o foco.
  *
  * @param {{
  *   title: string,
@@ -12,16 +13,25 @@ import { Link } from 'react-router-dom'
  *   linkLabel: string,
  *   linkText: string,
  *   children: import('react').ReactNode,
- * }} props `linkLabel` é o nome acessível da ligação (começa pelo texto visível `linkText`).
+ *   headingRef?: import('react').Ref<HTMLHeadingElement>,
+ * }} props `linkLabel` é o nome acessível da ligação (começa pelo texto visível `linkText`); `headingRef` é
+ *   opcional e, quando existe, torna o título focável por código.
  * @returns {JSX.Element}
  */
-export default function DashboardPanel({ title, linkTo, linkLabel, linkText, children }) {
+export default function DashboardPanel({ title, linkTo, linkLabel, linkText, children, headingRef }) {
   const titleId = useId()
 
   return (
     <section aria-labelledby={titleId} className="rounded-xl bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 id={titleId} className="text-xl font-semibold text-[#0d1f35]">{title}</h2>
+        <h2
+          id={titleId}
+          ref={headingRef}
+          tabIndex={headingRef ? -1 : undefined}
+          className="text-xl font-semibold text-[#0d1f35]"
+        >
+          {title}
+        </h2>
         <Link
           to={linkTo}
           aria-label={linkLabel}
