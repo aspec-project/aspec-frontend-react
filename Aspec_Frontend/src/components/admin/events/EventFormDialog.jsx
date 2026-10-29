@@ -187,6 +187,7 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
                   seriesSessions={form.seriesSessions}
                   geocode={form.geocode}
                   onVerifyAddress={form.verifyAddress}
+                  onConfirmLocation={form.confirmLocation}
                   disabled={submitting}
                   isEditing={form.isEditing}
                   registrationsCount={form.registrationsCount}

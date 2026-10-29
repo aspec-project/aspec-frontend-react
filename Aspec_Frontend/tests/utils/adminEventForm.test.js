@@ -16,6 +16,7 @@ import {
   getSavedGeocode,
   isSafeMeetingUrl,
   mapEventServerErrors,
+  needsLocationConfirmation,
   parseTime,
 } from '../../src/utils/adminEventForm'
 
@@ -309,6 +310,7 @@ describe('getSavedGeocode', () => {
       result: { latitude: 38.7223, longitude: -9.1533 },
       message: '',
       query: { address: 'Rua Castilho 39', locationId: 'l1' },
+      confirmed: false,
     })
   })
 
@@ -679,5 +681,106 @@ describe('formulário de uma série', () => {
       seriesEndsOn: '2099-04-03',
       deadlineDaysBefore: '3',
     })).toEqual([])
+  })
+})
+
+describe('place_id do Google Maps', () => {
+  const EXACT_PLACE_ID = 'ChIJTesteCoimbraRuaBrasil25_Aspec'
+  const APPROXIMATE_PLACE_ID = 'ChIJTestePontaDelgadaCidade_Aspec'
+  const QUERY = { address: 'Rua das Flores 42', locationId: 'l1' }
+  const google = (overrides = {}) => ({
+    result: { latitude: null, longitude: null, place_id: EXACT_PLACE_ID, approximate: false, ...overrides },
+    query: QUERY,
+  })
+
+  function expectNoLocation(payload) {
+    for (const key of ['place_id', 'latitude', 'longitude']) {
+      expect(payload).not.toHaveProperty(key)
+    }
+  }
+
+  it('envia só o place_id quando a verificação da Google corresponde à morada e à delegação atuais', () => {
+    const payload = buildEventPayload(validInPerson, google())
+
+    expect(payload.place_id).toBe(EXACT_PLACE_ID)
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
+  })
+
+  it('não envia o place_id com outra morada, outra delegação ou um place_id inválido e mantém as coordenadas do Nominatim', () => {
+    expectNoLocation(buildEventPayload(validInPerson, { ...google(), query: { ...QUERY, address: 'Rua Augusta 1' } }))
+    expectNoLocation(buildEventPayload(validInPerson, { ...google(), query: { ...QUERY, locationId: 'l2' } }))
+    expectNoLocation(buildEventPayload(validInPerson, google({ place_id: 'x y' })))
+
+    const nominatim = buildEventPayload(validInPerson, google({ place_id: null, latitude: 38.71, longitude: -9.14 }))
+    expect(nominatim).toMatchObject({ latitude: 38.71, longitude: -9.14 })
+    expect(nominatim).not.toHaveProperty('place_id')
+  })
+
+  it('num online nunca envia o place_id, a morada nem as coordenadas', () => {
+    const payload = buildEventPayload(validOnline, google())
+
+    for (const key of ['place_id', 'address', 'latitude', 'longitude']) {
+      expect(payload).not.toHaveProperty(key)
+    }
+  })
+
+  it('getSavedGeocode reconhece o place_id guardado de um presencial', () => {
+    const withPlaceId = event({ address: ' Rua X 1 ', place_id: EXACT_PLACE_ID, latitude: null, longitude: null })
+
+    expect(getSavedGeocode(withPlaceId)).toEqual({
+      status: 'saved',
+      result: { place_id: EXACT_PLACE_ID },
+      message: '',
+      query: { address: 'Rua X 1', locationId: 'l1' },
+      confirmed: false,
+    })
+    expect(getSavedGeocode(event({ place_id: 'x&key=y', latitude: null, longitude: null }))).toEqual(IDLE)
+    expect(getSavedGeocode(event({ place_id: null }))).toEqual({
+      status: 'saved',
+      result: { latitude: 38.7223, longitude: -9.1533 },
+      message: '',
+      query: { address: 'Rua Castilho 39, 1250-068 Lisboa', locationId: 'l1' },
+      confirmed: false,
+    })
+    expect(getSavedGeocode({ ...onlineEvent, place_id: EXACT_PLACE_ID })).toEqual(IDLE)
+  })
+
+  it('na edição reenvia o place_id guardado enquanto a morada não muda', () => {
+    const withPlaceId = event({ place_id: EXACT_PLACE_ID, latitude: null, longitude: null })
+    const saved = getSavedGeocode(withPlaceId)
+    const values = eventToFormValues(withPlaceId)
+
+    const payload = buildEventUpdatePayload(values, saved, '')
+    expect(payload.place_id).toBe(EXACT_PLACE_ID)
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
+
+    expectNoLocation(buildEventUpdatePayload({ ...values, address: 'Rua Nova 1' }, saved, ''))
+  })
+
+  it('needsLocationConfirmation só pede confirmação de um local aproximado por confirmar da morada atual', () => {
+    const approximate = {
+      status: 'found',
+      result: { latitude: null, longitude: null, place_id: APPROXIMATE_PLACE_ID, approximate: true },
+      message: '',
+      query: QUERY,
+      confirmed: false,
+    }
+
+    expect(needsLocationConfirmation(validInPerson, approximate)).toBe(true)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, confirmed: true })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, result: { ...approximate.result, approximate: false } })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, result: { place_id: APPROXIMATE_PLACE_ID } })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, status: 'saved' })).toBe(false)
+    expect(needsLocationConfirmation(validOnline, approximate)).toBe(false)
+    expect(needsLocationConfirmation({ ...validInPerson, address: 'Rua Augusta 1' }, approximate)).toBe(false)
+  })
+
+  it('o erro do place_id vai para o campo da morada', () => {
+    expect(mapEventServerErrors({ place_id: ['O identificador do local não é válido.'] })).toEqual({
+      fieldErrors: { address: 'O identificador do local não é válido.' },
+      unmatched: [],
+    })
   })
 })

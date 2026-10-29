@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import EditEventDialog from '../../../../src/components/admin/events/EditEventDialog'
 import { geocodeAddress, updateAdminEvent } from '../../../../src/services/adminEvents'
 
@@ -938,5 +938,128 @@ describe('EditEventDialog — sessão de uma série', () => {
     show()
 
     expect(screen.queryByText(/de uma série/)).not.toBeInTheDocument()
+  })
+})
+
+describe('EditEventDialog — mapa da Google', () => {
+  const MAP_TITLE = 'Mapa da localização do evento'
+  const CONFIRM_LOCATION = 'Confirmar localização'
+  const CONFIRM_LOCATION_FOOTER = 'Confirme a localização no mapa antes de guardar.'
+  const SAVED_PLACE_ID = 'ChIJTesteCoimbraRuaBrasil25_Aspec'
+  const NEW_PLACE_ID = 'ChIJTesteLisboaRuaNova1_Aspec'
+  const APPROXIMATE_PLACE_ID = 'ChIJTestePontaDelgadaCidade_Aspec'
+  const withPlaceId = event('e1', 'Workshop de Liderança', { place_id: SAVED_PLACE_ID, latitude: null, longitude: null })
+
+  function googleResult(overrides = {}) {
+    return {
+      latitude: null,
+      longitude: null,
+      display_name: 'R. Nova 1, Lisboa, Portugal',
+      attribution: 'Google Maps',
+      approximate: false,
+      place_id: NEW_PLACE_ID,
+      ...overrides,
+    }
+  }
+
+  function mapQuery() {
+    return new URL(screen.getByTitle(MAP_TITLE).getAttribute('src')).searchParams.get('q')
+  }
+
+  function expectNoCoordinates(payload) {
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', 'chave-falsa-418')
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('um evento com place_id mostra o local guardado no mapa e reenvia o place_id ao guardar', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup()
+    show(withPlaceId)
+
+    expect(mapQuery()).toBe(`place_id:${SAVED_PLACE_ID}`)
+    expect(screen.queryByText(/^A mostrar a zona de/)).not.toBeInTheDocument()
+    expect(screen.getByText(SAVED_HINT)).toBeInTheDocument()
+
+    await typeInto(user, field.description(), 'Nova descrição pública.')
+    await saveAndConfirm(user)
+
+    expect(lastPayload()).toMatchObject({ description: 'Nova descrição pública.', place_id: SAVED_PLACE_ID })
+    expectNoCoordinates(lastPayload())
+  })
+
+  it('mudar a morada larga o place_id guardado e a nova verificação envia o place_id novo', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    geocodeAddress.mockResolvedValue(googleResult())
+    const user = userEvent.setup()
+    const first = show(withPlaceId)
+
+    await user.type(field.address(), ' A')
+
+    expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
+
+    await saveAndConfirm(user)
+
+    expect(lastPayload()).not.toHaveProperty('place_id')
+    expectNoCoordinates(lastPayload())
+    first.unmount()
+
+    show(withPlaceId)
+    await typeInto(user, field.address(), 'Rua Nova 1, Lisboa')
+    await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
+    await screen.findByText(/^Morada encontrada:/)
+    await saveAndConfirm(user)
+
+    expect(lastPayload()).toMatchObject({ address: 'Rua Nova 1, Lisboa', place_id: NEW_PLACE_ID })
+    expectNoCoordinates(lastPayload())
+  })
+
+  it('um evento antigo só com coordenadas mostra a zona da delegação e continua a enviar as coordenadas', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup()
+    show(event('e1', 'Workshop de Liderança', { place_id: null }))
+
+    expect(mapQuery()).toBe('Lisboa, Portugal')
+    expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
+
+    await editTitle(user)
+    await saveAndConfirm(user)
+
+    expect(lastPayload()).toMatchObject({ latitude: 38.7223, longitude: -9.1533 })
+    expect(lastPayload()).not.toHaveProperty('place_id')
+  })
+
+  it('relocalizar com um resultado aproximado só deixa guardar depois de confirmar a localização', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    geocodeAddress.mockResolvedValue(googleResult({ display_name: 'Lisboa, Portugal', approximate: true, place_id: APPROXIMATE_PLACE_ID }))
+    const user = userEvent.setup()
+    show(withPlaceId)
+
+    await editTitle(user)
+    await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
+    await screen.findByText(/^Local aproximado:/)
+
+    expect(submitButton()).toBeDisabled()
+    expect(screen.getByText(CONFIRM_LOCATION_FOOTER)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: CONFIRM_LOCATION }))
+
+    expect(submitButton()).toBeEnabled()
+
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toBeInTheDocument()
+
+    await user.click(confirmButton(/^Guardar( e notificar)?$/))
+
+    expect(lastPayload()).toMatchObject({ place_id: APPROXIMATE_PLACE_ID })
+    expectNoCoordinates(lastPayload())
   })
 })

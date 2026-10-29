@@ -1,6 +1,7 @@
 import { addDays, parseIsoDate } from './calendar'
 import { formatShortDate } from './dateFormat'
 import { getSeriesSessions } from './adminEventSeries'
+import { isValidPlaceId } from './googleMapsEmbed'
 
 /**
  * Valores iniciais do formulário de evento: tudo vazio, formato presencial e repetição pontual. Os campos da
@@ -50,7 +51,14 @@ export const EVENT_FORM_MESSAGES = {
   optionsError: 'Não foi possível carregar os tipos de evento e as delegações.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao criar o evento.',
   geocodeApproximatePrefix: 'Local aproximado:',
-  geocodeApproximateHint: 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.',
+  mapZone: (name) => `A mostrar a zona de ${name}`,
+  approximateTitle: 'A localização no mapa é aproximada',
+  approximateHint: 'Confirme se o ponto apresentado corresponde ao local do evento.',
+  confirmLocationButton: 'Confirmar localização',
+  locationConfirmed: 'Localização confirmada.',
+  confirmLocation: 'Confirme a localização no mapa antes de guardar.',
+  mapUnavailable: 'Pré-visualização do mapa indisponível.',
+  mapTitle: 'Mapa da localização do evento',
   timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
   deadlineDays: 'Indique um número inteiro de dias, a partir de 1.',
   firstDeadlinePast: 'O prazo calculado para a primeira sessão já passou.',
@@ -139,6 +147,7 @@ const SERVER_FIELD_MAP = {
   address: 'address',
   latitude: 'address',
   longitude: 'address',
+  place_id: 'address',
   online_url: 'onlineUrl',
   max_attendees: 'maxAttendees',
   description: 'description',
@@ -335,14 +344,28 @@ function getSeriesErrors(values, now) {
 }
 
 /**
- * Corpo do POST construído campo a campo (só as chaves do contrato). Num presencial, as coordenadas só
- * seguem se a verificação foi feita com a morada e a delegação atuais; num online, nunca seguem a morada,
- * o local nem as coordenadas. Numa série não segue a chave `registration_deadline` (o backend proíbe-a com a
+ * Indica se a verificação da morada foi feita com a morada e a delegação atuais.
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {{query: {address: string, locationId: string}|null}|null|undefined} geocode Verificação da morada.
+ * @returns {boolean}
+ */
+function matchesCurrentAddress(values, geocode) {
+  const query = geocode?.query
+
+  return Boolean(query) && query.address === clean(values.address) && query.locationId === values.locationId
+}
+
+/**
+ * Corpo do POST construído campo a campo (só as chaves do contrato). Num presencial, a localização só segue
+ * se a verificação foi feita com a morada e a delegação atuais: só o `place_id` quando é válido, senão só as
+ * coordenadas (nunca os dois, o backend recusa-os juntos); num online, nunca seguem a morada, o local, o
+ * `place_id` nem as coordenadas. Numa série não segue a chave `registration_deadline` (o backend proíbe-a com a
  * `recurrence`) e segue a `recurrence` com as 3 chaves do contrato; num pontual a chave `recurrence` não
  * existe (o backend usa `has('recurrence')`).
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
- * @param {{result: {latitude: number, longitude: number}|null, query: {address: string, locationId: string}|null}} geocode
+ * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
  *   Resultado da verificação da morada e os dados usados no pedido.
  * @returns {object} Corpo em snake_case.
  */
@@ -365,11 +388,15 @@ export function buildEventPayload(values, geocode) {
     payload.venue_name = clean(values.venueName)
     payload.address = address
 
-    const { result, query } = geocode ?? {}
+    const result = geocode?.result
 
-    if (result && query && query.address === address && query.locationId === values.locationId) {
-      payload.latitude = result.latitude
-      payload.longitude = result.longitude
+    if (result && matchesCurrentAddress(values, geocode)) {
+      if (isValidPlaceId(result.place_id)) {
+        payload.place_id = result.place_id
+      } else if (Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
+        payload.latitude = result.latitude
+        payload.longitude = result.longitude
+      }
     }
   }
 
@@ -394,7 +421,24 @@ export function buildEventPayload(values, geocode) {
 }
 
 /**
- * Converte os erros de validação da API nos campos do formulário. As coordenadas ficam na morada e as chaves
+ * Indica se falta confirmar a localização: num presencial, a verificação da morada e da delegação atuais
+ * encontrou um local aproximado que o admin ainda não confirmou.
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {{status: string, result: {approximate?: boolean}|null, query: object|null, confirmed?: boolean}} geocode
+ *   Verificação da morada.
+ * @returns {boolean}
+ */
+export function needsLocationConfirmation(values, geocode) {
+  return !values.isOnline
+    && geocode?.status === 'found'
+    && geocode.result?.approximate === true
+    && !geocode.confirmed
+    && matchesCurrentAddress(values, geocode)
+}
+
+/**
+ * Converte os erros de validação da API nos campos do formulário. As coordenadas e o `place_id` ficam na morada e as chaves
  * sem campo (ex.: is_online) vão para a mensagem geral.
  *
  * @param {Record<string, string|string[]>|undefined} errors Erros da API (arrays ou já normalizados).
@@ -457,26 +501,32 @@ export function eventToFormValues(event) {
 }
 
 /**
- * Estado inicial da verificação da morada na edição: num presencial com morada e coordenadas, a localização
- * guardada (segue no payload enquanto a morada e a delegação não mudarem); senão, por verificar.
+ * Estado inicial da verificação da morada na edição: num presencial com morada e `place_id` válido, o
+ * `place_id` guardado; senão, com coordenadas, as coordenadas guardadas (seguem no payload enquanto a morada
+ * e a delegação não mudarem); senão, por verificar.
  *
  * @param {object} event Evento devolvido por GET /api/admin/events.
- * @returns {{status: 'saved'|'idle', result: {latitude: number, longitude: number}|null, message: string, query: {address: string, locationId: string}|null}}
+ * @returns {{status: 'saved'|'idle', result: {place_id: string}|{latitude: number, longitude: number}|null, message: string, query: {address: string, locationId: string}|null, confirmed?: boolean}}
  */
 export function getSavedGeocode(event) {
   const address = clean(event.address)
   const { latitude, longitude } = event
 
-  if (event.is_online || address === '' || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (event.is_online || address === '') {
     return { status: 'idle', result: null, message: '', query: null }
   }
 
-  return {
-    status: 'saved',
-    result: { latitude, longitude },
-    message: '',
-    query: { address, locationId: event.location?.id ?? '' },
+  const query = { address, locationId: event.location?.id ?? '' }
+
+  if (isValidPlaceId(event.place_id)) {
+    return { status: 'saved', result: { place_id: event.place_id }, message: '', query, confirmed: false }
   }
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { status: 'idle', result: null, message: '', query: null }
+  }
+
+  return { status: 'saved', result: { latitude, longitude }, message: '', query, confirmed: false }
 }
 
 /**
@@ -522,7 +572,7 @@ export function getChangedEventFields(initialValues, values) {
  * as antigas), `venue_name: null` nos online (o backend não o limpa) e a justificação só quando preenchida.
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
- * @param {{result: {latitude: number, longitude: number}|null, query: {address: string, locationId: string}|null}} geocode
+ * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
  *   Verificação da morada (guardada ou feita no modal).
  * @param {string} justification Justificação escrita pelo admin.
  * @returns {object} Corpo em snake_case.
