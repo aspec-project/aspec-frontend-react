@@ -5,9 +5,22 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminDashboardPage from '../../../src/pages/admin/AdminDashboardPage'
 import { getAdminDashboard } from '../../../src/services/adminDashboard'
+import { approveUser, rejectUser } from '../../../src/services/adminUsers'
 
 vi.mock('../../../src/services/adminDashboard', () => ({
   getAdminDashboard: vi.fn(),
+}))
+
+vi.mock('../../../src/services/adminUsers', () => ({
+  getAdminUsers: vi.fn(),
+  anonymizeUser: vi.fn(),
+  sendPaymentLink: vi.fn(),
+  approveUser: vi.fn(),
+  rejectUser: vi.fn(),
+  blockUser: vi.fn(),
+  unblockUser: vi.fn(),
+  promoteUser: vi.fn(),
+  demoteUser: vi.fn(),
 }))
 
 const TOO_MANY = 'Demasiados pedidos. Tente novamente mais tarde.'
@@ -352,5 +365,291 @@ describe('Painel do admin', () => {
     await user.click(link)
 
     await waitFor(() => expect(screen.getByText(/^Detalhe/)).toHaveTextContent(/^Detalhe \/admin\/utilizadores\/a(%20| )b$/))
+  })
+})
+
+const APPROVED = 'Utilizador aprovado. Foi enviado o email de ativação.'
+const REJECTED = 'Utilizador rejeitado com sucesso.'
+
+function withoutFilipa() {
+  return dashboard({
+    stats: { ...stats, pending_applications: { total: 2 } },
+    pending_applications: [applications[1], applications[2]],
+  })
+}
+
+function rowButtons() {
+  return within(region('Candidaturas Pendentes')).getAllByRole('button')
+}
+
+async function openRowAction(user, name) {
+  await user.click(screen.getByRole('button', { name }))
+  return screen.findByRole('dialog')
+}
+
+describe('Aprovar e recusar no painel', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T10:40:00Z'))
+    getAdminDashboard.mockResolvedValue(dashboard())
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.resetAllMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('cada candidatura tem Aprovar e Recusar com o nome da linha e nenhum atributo leva o email', async () => {
+    getAdminDashboard.mockResolvedValue(dashboard({
+      pending_applications: [
+        ...applications,
+        { ...applications[1], id: 'u5', email: 'sem.perfil@example.pt', member_profile: null },
+      ],
+    }))
+    show()
+    await waitForDashboard()
+
+    const names = ['Filipa Rodrigues', 'Tiago Mendes', 'Carla Nunes', 'Nome não indicado']
+    const rows = itemsOf('Candidaturas Pendentes')
+    expect(rows).toHaveLength(4)
+    names.forEach((name, index) => {
+      const buttons = within(rows[index]).getAllByRole('button')
+      expect(buttons).toHaveLength(2)
+      expect(buttons[0]).toHaveAccessibleName(`Aprovar ${name}`)
+      expect(buttons[0]).toHaveAttribute('title', 'Aprovar')
+      expect(buttons[1]).toHaveAccessibleName(`Recusar ${name}`)
+      expect(buttons[1]).toHaveAttribute('title', 'Recusar')
+    })
+
+    for (const element of document.querySelectorAll('[aria-label], [title]')) {
+      expect(element.getAttribute('aria-label') ?? '').not.toContain('@')
+      expect(element.getAttribute('title') ?? '').not.toContain('@')
+    }
+    expect(document.body.textContent).not.toContain('@example.pt')
+  })
+
+  it('aprovar pede confirmação com o email só no diálogo, bloqueia os botões e recarrega o painel', async () => {
+    const pending = deferred()
+    approveUser.mockImplementation(() => pending.promise)
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockResolvedValueOnce(withoutFilipa())
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+
+    expect(screen.getByRole('dialog', { name: 'Aprovar candidatura' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription(/Filipa Rodrigues \(filipa\.rodrigues@example\.pt\)/)
+    expect(region('Candidaturas Pendentes').textContent).not.toContain('filipa.rodrigues@example.pt')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    expect(within(dialog).getByRole('button', { name: 'A processar...' })).toBeDisabled()
+    for (const button of rowButtons()) {
+      expect(button).toBeDisabled()
+    }
+    expect(approveUser).toHaveBeenCalledTimes(1)
+    expect(approveUser).toHaveBeenCalledWith('u1')
+
+    await act(async () => { pending.resolve({ message: APPROVED }) })
+
+    expect(await screen.findByRole('status')).toHaveTextContent(APPROVED)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(itemsOf('Candidaturas Pendentes')).toHaveLength(2))
+
+    const rows = itemsOf('Candidaturas Pendentes')
+    expect(within(rows[0]).getByText('Tiago Mendes')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('Carla Nunes')).toBeInTheDocument()
+    expect(within(summaryItems()[1]).getByText('2')).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('filipa.rodrigues@example.pt')
+  })
+
+  it('Cancelar fecha o diálogo sem pedido e devolve o foco ao botão Aprovar', async () => {
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(approveUser).not.toHaveBeenCalled()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Aprovar Filipa Rodrigues' })).toHaveFocus()
+  })
+
+  it.each([
+    ['com justificação', 'Não cumpre os critérios.'],
+    ['sem justificação', ''],
+  ])('recusar %s envia o que foi escrito e recarrega o painel', async (_case, reason) => {
+    rejectUser.mockResolvedValue({ message: REJECTED, user: null })
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockResolvedValueOnce(withoutFilipa())
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Recusar Filipa Rodrigues')
+
+    expect(screen.getByRole('dialog', { name: 'Recusar candidatura' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription(/filipa\.rodrigues@example\.pt/)
+    expect(within(dialog).getByText(/^A conta é apagada/)).toBeInTheDocument()
+    const field = within(dialog).getByLabelText('Justificação (opcional)')
+
+    if (reason) {
+      await user.type(field, reason)
+    }
+    await user.click(within(dialog).getByRole('button', { name: 'Recusar' }))
+
+    expect(rejectUser).toHaveBeenCalledTimes(1)
+    expect(rejectUser).toHaveBeenCalledWith('u1', reason)
+    expect(await screen.findByRole('status')).toHaveTextContent(REJECTED)
+    expect(getAdminDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('enquanto o painel recarrega depois de uma ação os botões das linhas ficam desativados', async () => {
+    const reload = deferred()
+    approveUser.mockResolvedValue({ message: APPROVED })
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockImplementationOnce(() => reload.promise)
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+    await screen.findByRole('status')
+
+    expect(screen.getByRole('list', { name: 'Resumo' }).closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
+    for (const button of rowButtons()) {
+      expect(button).toBeDisabled()
+    }
+
+    await act(async () => { reload.resolve(withoutFilipa()) })
+
+    await waitFor(() => expect(itemsOf('Candidaturas Pendentes')).toHaveLength(2))
+    expect(screen.getByRole('list', { name: 'Resumo' }).closest('[aria-busy]')).toHaveAttribute('aria-busy', 'false')
+    for (const button of rowButtons()) {
+      expect(button).toBeEnabled()
+    }
+  })
+
+  it.each([
+    {
+      title: 'aprovar a primeira põe o foco na que passa a ocupar o lugar',
+      initial: applications,
+      rowButton: 'Aprovar Filipa Rodrigues',
+      confirmLabel: 'Aprovar',
+      reloaded: withoutFilipa(),
+      target: () => screen.getByRole('button', { name: 'Aprovar Tiago Mendes' }),
+    },
+    {
+      title: 'aprovar a última põe o foco na nova última',
+      initial: applications,
+      rowButton: 'Aprovar Carla Nunes',
+      confirmLabel: 'Aprovar',
+      reloaded: dashboard({ pending_applications: [applications[0], applications[1]] }),
+      target: () => screen.getByRole('button', { name: 'Aprovar Tiago Mendes' }),
+    },
+    {
+      title: 'recusar a única põe o foco no título do cartão',
+      initial: [applications[0]],
+      rowButton: 'Recusar Filipa Rodrigues',
+      confirmLabel: 'Recusar',
+      reloaded: dashboard({ stats: { ...stats, pending_applications: { total: 0 } }, pending_applications: [] }),
+      target: () => screen.getByRole('heading', { level: 2, name: 'Candidaturas Pendentes' }),
+    },
+  ])('$title', async ({ initial, rowButton, confirmLabel, reloaded, target }) => {
+    approveUser.mockResolvedValue({ message: APPROVED })
+    rejectUser.mockResolvedValue({ message: REJECTED, user: null })
+    getAdminDashboard.mockResolvedValueOnce(dashboard({ pending_applications: initial })).mockResolvedValueOnce(reloaded)
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, rowButton)
+    await user.click(within(dialog).getByRole('button', { name: confirmLabel }))
+
+    await waitFor(() => expect(target()).toHaveFocus())
+    expect(document.body).not.toHaveFocus()
+    if (reloaded.pending_applications.length === 0) {
+      expect(within(region('Candidaturas Pendentes')).getByText('Não há candidaturas pendentes.')).toBeVisible()
+    }
+  })
+
+  it.each([
+    ['409 ao aprovar', 'Aprovar', 409, 'Apenas utilizadores pendentes podem ser aprovados.'],
+    ['404 ao recusar', 'Recusar', 404, 'Recurso não encontrado.'],
+  ])('num %s mostra a mensagem da API, recarrega e foca a linha seguinte', async (_case, label, status, message) => {
+    const service = label === 'Aprovar' ? approveUser : rejectUser
+    service.mockRejectedValue(apiError(status, { success: false, message }))
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockResolvedValueOnce(withoutFilipa())
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, `${label} Filipa Rodrigues`)
+    await user.click(within(dialog).getByRole('button', { name: label }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar Tiago Mendes' })).toHaveFocus())
+  })
+
+  it.each([
+    ['429', () => apiError(429, { success: false, message: TOO_MANY }), TOO_MANY],
+    ['500 sem corpo', () => apiError(500, undefined), 'Erro do servidor (500).'],
+    ['erro de rede', () => new AxiosError('Network Error', 'ERR_NETWORK'), 'Não foi possível contactar o servidor.'],
+  ])('num %s ao aprovar mostra o erro, não recarrega e devolve o foco ao botão', async (_case, error, message) => {
+    approveUser.mockRejectedValue(error())
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(1)
+    expect(within(region('Candidaturas Pendentes')).getByText('Filipa Rodrigues')).toBeInTheDocument()
+    const approve = screen.getByRole('button', { name: 'Aprovar Filipa Rodrigues' })
+    expect(approve).toBeEnabled()
+    await waitFor(() => expect(approve).toHaveFocus())
+
+    await user.click(screen.getByRole('button', { name: 'Fechar mensagem' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('se o recarregamento falhar mantém a mensagem de sucesso e foca Tentar novamente', async () => {
+    approveUser.mockResolvedValue({ message: APPROVED })
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockRejectedValueOnce(apiError(500, undefined))
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Erro do servidor (500).')
+    expect(screen.getByRole('status')).toHaveTextContent(APPROVED)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tentar novamente' })).toHaveFocus())
+  })
+
+  it('a mensagem do resultado aparece no topo, antes dos cartões de totais', async () => {
+    approveUser.mockResolvedValue({ message: APPROVED })
+    getAdminDashboard.mockResolvedValueOnce(dashboard()).mockResolvedValueOnce(withoutFilipa())
+    const user = userEvent.setup()
+    show()
+    await waitForDashboard()
+
+    const dialog = await openRowAction(user, 'Aprovar Filipa Rodrigues')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    const message = await screen.findByRole('status')
+    expect(message).toHaveTextContent(APPROVED)
+    const summary = screen.getByRole('list', { name: 'Resumo' })
+    expect(message.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
