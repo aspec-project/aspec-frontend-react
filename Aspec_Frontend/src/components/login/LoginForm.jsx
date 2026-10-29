@@ -1,6 +1,35 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Eye, EyeOff, LogIn, AlertCircle, Clock3, MailCheck } from "lucide-react";
+import { Ban, Eye, EyeOff, LogIn, AlertCircle, Clock3, MailCheck, Send } from "lucide-react";
+
+const accountNotices = {
+  pending: {
+    title: 'A sua candidatura ainda está em análise',
+    message: 'Ainda não foi aprovada por um administrador, por isso não pode entrar. Receberá um email assim que houver uma decisão.',
+    className: 'border-[#e6d5a5] bg-[#f8f4e8] text-[#725a25]',
+    Icon: Clock3,
+  },
+  activation: {
+    title: 'A sua conta foi aprovada, mas ainda não está ativa',
+    message: 'Falta ativar a conta através do link que enviámos por email. Não o encontra? Pode pedir um novo.',
+    actionLabel: 'Reenviar email de ativação',
+    className: 'border-[#b7d1f5] bg-[#eaf3ff] text-[#204e87]',
+    Icon: MailCheck,
+  },
+  expired: {
+    title: 'A sua subscrição expirou',
+    message: 'Para voltar a aceder à área de membro, reative a subscrição. Enviamos-lhe um email com o link de reativação.',
+    actionLabel: 'Enviar email de reativação',
+    className: 'border-[#f3c479] bg-[#fff1dc] text-[#925200]',
+    Icon: Clock3,
+  },
+  blocked: {
+    title: 'A sua conta está bloqueada',
+    message: 'O acesso à área de membro foi suspenso por um administrador e não é possível entrar. Os motivos foram enviados para o email da sua conta. Se tem dúvidas, contacte a ASPEC através do email geral@aspec.pt.',
+    className: 'border-[#f6b7bd] bg-[#fee9eb] text-[#b91c1c]',
+    Icon: Ban,
+  },
+}
 
 export default function LoginForm({
   email,
@@ -21,9 +50,37 @@ export default function LoginForm({
     handleLogin();
   };
 
+  const notice = accountNotices[accountNotice]
+  const NoticeIcon = notice?.Icon ?? AlertCircle
+
   return (
     <div className="w-full max-w-md">
       <form className="space-y-5" onSubmit={onSubmit}>
+        {formError && (
+          <div
+            className={`flex items-start gap-3 rounded-2xl border p-5 text-sm ${
+              notice?.className ?? 'border-red-200 bg-red-50 text-red-700'
+            }`}
+            role="alert"
+          >
+            <NoticeIcon className="mt-0.5 shrink-0" size={22} />
+            <div>
+              <p className="font-semibold text-base">{notice?.title ?? 'Não foi possível iniciar sessão'}</p>
+              <p className="mt-1.5 leading-6">{notice?.message ?? formError}</p>
+
+              {canRequestActivationLink && (
+                <Link
+                  to="/ativacao/novo-link"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0d1f35] px-5 py-3 font-semibold text-white transition hover:bg-[#193451]"
+                >
+                  <Send size={17} aria-hidden="true" />
+                  {notice?.actionLabel ?? 'Pedir novo link de ativação'}
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="text-xs text-gray-500 block mb-1">
             Email *
@@ -69,34 +126,6 @@ export default function LoginForm({
             </button>
           </div>
         </div>
-
-        {formError && (
-          <div
-            className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${
-              accountNotice === 'pending'
-                ? 'border-amber-200 bg-amber-50 text-amber-900'
-                : accountNotice === 'activation'
-                  ? 'border-blue-200 bg-blue-50 text-blue-900'
-                  : 'border-red-200 bg-red-50 text-red-700'
-            }`}
-            role="alert"
-          >
-            {accountNotice === 'pending' ? <Clock3 className="mt-0.5 shrink-0" size={17} /> : accountNotice === 'activation' ? <MailCheck className="mt-0.5 shrink-0" size={17} /> : <AlertCircle className="mt-0.5 shrink-0" size={17} />}
-            <div>
-              <p className="font-semibold">{accountNotice === 'pending' ? 'Candidatura em análise' : accountNotice === 'activation' ? 'Ativação necessária' : 'Não foi possível iniciar sessão'}</p>
-              <p className="mt-1 text-xs leading-5">{formError}</p>
-
-              {canRequestActivationLink && (
-                <Link
-                  to="/ativacao/novo-link"
-                  className="mt-1 block font-semibold text-[#8a7043] hover:underline"
-                >
-                  Pedir novo link de ativação
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
 
         <button
           type="submit"
