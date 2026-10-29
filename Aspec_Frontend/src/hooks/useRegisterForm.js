@@ -8,6 +8,7 @@ import {
 import { getSectors, getLocations } from "../services/referenceLists";
 import {
   FIELD_STEP,
+  formatPostalCode,
   validateStepForm,
   buildPayload,
   mapServerErrors
@@ -30,7 +31,7 @@ export function useRegisterForm() {
     firstName: "", lastName: "", email: "", phone: "",
     business_name: "", sector_id: "", description: "", website_url: "",
     commercial_email: "", commercial_phone: "",
-    location_id: "", address: "",
+    location_id: "", address: "", postal_code: "", city: "",
     congregation: "", role_in_congregation: "",
     password: "", password_confirmation: "", acceptTerms: false,
   });
@@ -61,7 +62,13 @@ export function useRegisterForm() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+    const nextValue = type === "checkbox"
+      ? checked
+      : name === "postal_code"
+        ? formatPostalCode(value)
+        : value;
+
+    setFormData((prev) => ({ ...prev, [name]: nextValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
     if (submitError) setSubmitError("");
   };
