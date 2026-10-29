@@ -7,7 +7,6 @@ import { getEventRegistrants } from "../../src/services/eventRegistrants";
 import { useAuthStore } from "../../src/store/authStore";
 
 vi.mock("../../src/services/eventRegistrants", async (original) => ({ ...await original(), getEventRegistrants: vi.fn() }));
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => null }));
 const id = "019512a1-9999-7123-8123-123456789abc";
 const event = { id, name: "Encontro ASPEC", category: { name: "Encontro" }, location: { name: "Lisboa" }, max_attendees: 20, registrations_count: 12, available_spots: 8 };
 const member = { id: "membro-a", role: { name: "Member" }, account_status: { name: "Active" } };

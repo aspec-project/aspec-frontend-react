@@ -6,8 +6,6 @@ import EventDetailPage from "../../src/pages/EventDetailPage";
 import { api } from "../../src/services/api";
 import { useAuthStore } from "../../src/store/authStore";
 
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => <div aria-label="Mapa do local" /> }));
-
 // Fixtures do modelo interno preparado: não representam um contrato de séries
 // publicado pela API. Neste teste cada id corresponde explicitamente a um evento.
 const firstId = "019512a1-9999-7123-8123-123456789abc";
@@ -82,7 +80,7 @@ describe("Modalidade e seleção de sessões — fixtures de integração", () =
     show();
     await screen.findByRole("heading", { name: "Acesso à reunião online" });
     for (const text of [first.address, first.venue_name, first.location.name, first.online_url]) expect(document.body).not.toHaveTextContent(text);
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sessões" })).not.toBeInTheDocument();
     expect(screen.queryByText("Recorrente")).not.toBeInTheDocument();

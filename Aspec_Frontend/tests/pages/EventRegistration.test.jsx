@@ -7,7 +7,6 @@ import EventDetailPage from "../../src/pages/EventDetailPage";
 import { api } from "../../src/services/api";
 import { useAuthStore } from "../../src/store/authStore";
 
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => null }));
 const id = "019512a1-9999-7123-8123-123456789abc";
 const other = "019512a1-9998-7123-8123-123456789abc";
 const member = { id, role: { name: "Member" }, account_status: { name: "Active" } };
