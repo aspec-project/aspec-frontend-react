@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { MapPin } from "lucide-react";
-import { hasEventCoordinates } from "../../utils/eventLocation";
+import { getEventMapsUrl, hasEventCoordinates } from "../../utils/eventLocation";
+import EventLocationEmbed from "./EventLocationEmbed";
 
 const EventLocationMap = lazy(() => import("./EventLocationMap"));
 
@@ -8,16 +9,20 @@ export default function EventLocation({ event }) {
   if (event.is_online === true) return null;
   const address = typeof event.address === "string" ? event.address.trim() : "";
   const venue = typeof event.venue_name === "string" ? event.venue_name.trim() : "";
+  const placeId = typeof event.place_id === "string" ? event.place_id.trim() : "";
   const hasCoordinates = hasEventCoordinates(event.latitude, event.longitude);
-  if (!address && !hasCoordinates && !venue) return null;
+  if (!address && !hasCoordinates && !venue && !placeId) return null;
 
-  const query = hasCoordinates ? `${event.latitude},${event.longitude}` : address;
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  const query = hasCoordinates ? `${event.latitude},${event.longitude}` : address || venue || placeId;
+  const mapsUrl = getEventMapsUrl(query, placeId);
 
-  /* A existência de localização não determina o tipo ou a recorrência do evento. */
+  /*
+   * O identificador Google tem prioridade; o Leaflet serve os eventos sem esse campo.
+   * A existência de localização não determina o tipo ou a recorrência do evento.
+   */
   return (
     <section className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm" aria-labelledby="event-location">
-      {hasCoordinates && (
+      {placeId ? <EventLocationEmbed placeId={placeId} /> : hasCoordinates && (
         <Suspense fallback={<p role="status" className="p-6 text-sm text-gray-600">A carregar mapa...</p>}>
           <EventLocationMap latitude={event.latitude} longitude={event.longitude} />
         </Suspense>

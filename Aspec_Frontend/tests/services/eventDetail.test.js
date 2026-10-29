@@ -9,7 +9,7 @@ const event = {
   id, name: "Encontro ASPEC", description: "Descrição pública", category: { name: "Encontro", color: "#8A7043" },
   location: { name: "Lisboa" }, event_date: "2030-10-15", event_start_time: "10:00", event_end_time: "12:00",
   max_attendees: 20, registrations_count: 12, available_spots: 8, organizer_notes: "Chegar cedo.",
-  address: "", latitude: null, longitude: null,
+  address: "", latitude: null, longitude: null, place_id: "",
   registration_deadline: "2030-10-14T23:59:00+01:00",
   is_registered: false, registration_open: true,
 };
@@ -59,6 +59,14 @@ describe("Contrato do detalhe do evento", () => {
     expect(await getEventDetail(id)).toMatchObject({ latitude: null, longitude: null });
   });
 
+  it.each([
+    [" local-google-teste ", "local-google-teste"],
+    ["", ""], ["   ", ""], [undefined, ""], [null, ""], [123, ""], [{ id: "local" }, ""],
+  ])("normaliza place_id sem inventar identificadores: %j", async (place_id, expected) => {
+    api.get.mockResolvedValue({ data: { success: true, data: { ...event, place_id } } });
+    expect(await getEventDetail(id)).toHaveProperty("place_id", expected);
+  });
+
   it.each([undefined, null, "false", 0, 1])("não interpreta flags ausentes ou inválidas como booleanos: %s", async (flag) => {
     api.get.mockResolvedValue({ data: { success: true, data: { ...event, is_online: flag, is_registered: flag, registration_open: flag } } });
     expect(await getEventDetail(id)).toMatchObject({ is_online: null, is_registered: null, registration_open: null });
@@ -67,8 +75,8 @@ describe("Contrato do detalhe do evento", () => {
   it("conserva venue_name presencial e elimina dados físicos de eventos online", async () => {
     api.get.mockResolvedValueOnce({ data: { success: true, data: { ...event, is_online: false, venue_name: " Auditório " } } });
     expect(await getEventDetail(id)).toMatchObject({ is_online: false, venue_name: "Auditório", location: event.location });
-    api.get.mockResolvedValueOnce({ data: { success: true, data: { ...event, is_online: true, venue_name: "Auditório", address: "Rua", latitude: 38, longitude: -9 } } });
-    expect(await getEventDetail(id)).toMatchObject({ is_online: true, venue_name: "", location: { name: "" }, address: "", latitude: null, longitude: null });
+    api.get.mockResolvedValueOnce({ data: { success: true, data: { ...event, is_online: true, place_id: "local-google-teste", venue_name: "Auditório", address: "Rua", latitude: 38, longitude: -9 } } });
+    expect(await getEventDetail(id)).toMatchObject({ is_online: true, place_id: "", venue_name: "", location: { name: "" }, address: "", latitude: null, longitude: null });
   });
 });
 
