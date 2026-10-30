@@ -260,7 +260,7 @@ describe('EditEventDialog', () => {
   })
 
   it('abre com os dados do evento, o formato do evento, sem repetição e sem alterações', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(screen.getByRole('dialog', { name: 'Editar Evento' })).toHaveAttribute('aria-modal', 'true')
@@ -296,7 +296,7 @@ describe('EditEventDialog', () => {
 
   it('aceita horas ao minuto e uma hora antiga com segundos não conta como alteração', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
 
     expect(screen.getAllByRole('textbox')).toContain(field.start())
@@ -319,7 +319,7 @@ describe('EditEventDialog', () => {
   })
 
   it('uma hora de fim escrita sem zero fica no formato HH:MM e é validada contra a hora de início', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00' }))
 
     expect(screen.getAllByRole('textbox')).toContain(field.end())
@@ -333,7 +333,7 @@ describe('EditEventDialog', () => {
   })
 
   it('o botão só fica ativo com uma alteração real e desativa-se ao desfazê-la', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.type(field.title(), 'X')
@@ -354,7 +354,7 @@ describe('EditEventDialog', () => {
   })
 
   it('com inscritos o formulário já não tem justificação e Guardar alterações abre a confirmação sem fazer o pedido', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(within(screen.getByRole('dialog', { name: 'Editar Evento' })).queryByLabelText(/Justificação/)).not.toBeInTheDocument()
@@ -383,7 +383,7 @@ describe('EditEventDialog', () => {
 
   it('sem inscritos a confirmação mostra as alterações, diz que ninguém será notificado e grava sem justificação', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess } = show(event('e1', 'Workshop de Liderança', { registrations_count: 0 }))
 
     await editTitle(user)
@@ -409,7 +409,7 @@ describe('EditEventDialog', () => {
   })
 
   it('sem o número de inscritos a confirmação usa a frase genérica, a justificação e Guardar e notificar', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { registrations_count: undefined }))
 
     await editTitle(user)
@@ -424,7 +424,7 @@ describe('EditEventDialog', () => {
   })
 
   it('Voltar, Escape e o Fechar da confirmação voltam ao formulário sem pedido e a justificação recomeça vazia', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose } = show()
     await editTitle(user)
 
@@ -461,7 +461,7 @@ describe('EditEventDialog', () => {
   it('Guardar e notificar envia a justificação sem espaços, bloqueia a confirmação durante o pedido e faz um só pedido', async () => {
     const pending = deferred()
     updateAdminEvent.mockImplementationOnce(() => pending.promise)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose, onSuccess } = show()
 
     await editTitle(user)
@@ -493,7 +493,7 @@ describe('EditEventDialog', () => {
 
   it('sem texto na confirmação o pedido não leva justificação', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
 
     await editTitle(user)
@@ -506,7 +506,7 @@ describe('EditEventDialog', () => {
   it('mudar a morada ou a delegação larga a localização guardada e a verificação envia as novas coordenadas', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     geocodeAddress.mockResolvedValue(FOUND)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const first = show()
 
     await user.type(field.address(), ' A')
@@ -545,7 +545,7 @@ describe('EditEventDialog', () => {
 
   it('apagar as notas do organizador envia organizer_notes a null', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.clear(field.notes())
@@ -570,7 +570,7 @@ describe('EditEventDialog', () => {
 
   it('um prazo já encerrado que não muda não bloqueia, mas não se escolhe um prazo no passado', async () => {
     useFakeToday()
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { registration_deadline: CLOSED_DEADLINE }))
 
     expect(field.deadline()).toHaveTextContent('14 Jan 2020')
@@ -593,7 +593,7 @@ describe('EditEventDialog', () => {
   })
 
   it('um evento sem nome do local mostra o campo em falta em vez de sem alterações', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { venue_name: null }))
 
     expect(screen.getByText('Falta preencher: nome do local.')).toBeInTheDocument()
@@ -607,7 +607,7 @@ describe('EditEventDialog', () => {
 
   it('um evento online abre com o link e guarda sem morada nem coordenadas', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(onlineWorkshop)
 
     expect(formatButton('Online')).toHaveAttribute('aria-pressed', 'true')
@@ -635,7 +635,7 @@ describe('EditEventDialog', () => {
     updateAdminEvent
       .mockRejectedValueOnce(apiError(422, INVALID, { justification: [JUSTIFICATION_TOO_LONG] }))
       .mockResolvedValueOnce({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
     await editTitle(user)
@@ -658,7 +658,7 @@ describe('EditEventDialog', () => {
 
   it('um 422 de outros campos fecha a confirmação, assinala a capacidade e foca-a', async () => {
     updateAdminEvent.mockRejectedValueOnce(apiError(422, INVALID, { max_attendees: [BELOW_REGISTRATIONS] }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
     await editTitle(user)
@@ -674,7 +674,7 @@ describe('EditEventDialog', () => {
   })
 
   it('com a confirmação aberta, um 409 ou um 404 do evento chamam onStale', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
 
     updateAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
     const passed = show()
@@ -696,7 +696,7 @@ describe('EditEventDialog', () => {
 
   it('um 404 da morada fecha a confirmação, assinala a morada e foca-a', async () => {
     updateAdminEvent.mockRejectedValueOnce(apiError(404, ADDRESS_NOT_FOUND))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onStale } = show()
 
     await user.type(field.address(), ' A')
@@ -710,7 +710,7 @@ describe('EditEventDialog', () => {
   })
 
   it('um 503, um 500 ou uma falha de rede deixam a confirmação aberta com a mensagem e o texto, e Voltar não a passa para o formulário', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const cases = [
       [apiError(503, UNAVAILABLE), UNAVAILABLE],
       [apiError(500, 'Erro interno do servidor.'), 'Erro interno do servidor.'],
@@ -743,7 +743,7 @@ describe('EditEventDialog', () => {
   it('a confirmação lista a mudança de formato, os nomes e as datas e grava como online', async () => {
     useFakeToday()
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.click(formatButton('Online'))
@@ -781,7 +781,7 @@ describe('EditEventDialog', () => {
 
   it('passar um presencial a online pede o link e envia venue_name a null sem morada nem coordenadas', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.click(formatButton('Online'))
@@ -817,7 +817,7 @@ describe('EditEventDialog', () => {
 
   it('voltar ao formato original repõe os valores e a localização guardada', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.click(formatButton('Online'))
@@ -839,7 +839,7 @@ describe('EditEventDialog', () => {
   it('passar um online a presencial pede o local e a morada e envia sem link', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     geocodeAddress.mockResolvedValue(FOUND)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const first = show(onlineWorkshop)
 
     await user.click(formatButton('Presencial'))
@@ -871,7 +871,7 @@ describe('EditEventDialog', () => {
   })
 
   it('Cancelar, Fechar e Escape fecham sem guardar, dois cliques fazem um só pedido e um cancelamento não mostra nada', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const first = show()
 
     await user.click(screen.getByRole('button', { name: 'Cancelar' }))
@@ -918,7 +918,7 @@ describe('EditEventDialog — sessão de uma série', () => {
 
   it('mostra a nota da série sem os campos da repetição e o PUT não leva a recorrência', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(seriesWorkshop)
 
     expect(screen.getByText(SERIES_NOTE)).toBeInTheDocument()
@@ -981,7 +981,7 @@ describe('EditEventDialog — mapa da Google', () => {
 
   it('um evento com place_id mostra o local guardado no mapa e reenvia o place_id ao guardar', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(withPlaceId)
 
     expect(mapQuery()).toBe(`place_id:${SAVED_PLACE_ID}`)
@@ -998,7 +998,7 @@ describe('EditEventDialog — mapa da Google', () => {
   it('mudar a morada larga o place_id guardado e a nova verificação envia o place_id novo', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     geocodeAddress.mockResolvedValue(googleResult())
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const first = show(withPlaceId)
 
     await user.type(field.address(), ' A')
@@ -1023,7 +1023,7 @@ describe('EditEventDialog — mapa da Google', () => {
 
   it('um evento antigo só com coordenadas mostra a zona da delegação e continua a enviar as coordenadas', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { place_id: null }))
 
     expect(mapQuery()).toBe('Lisboa, Portugal')
@@ -1039,7 +1039,7 @@ describe('EditEventDialog — mapa da Google', () => {
   it('relocalizar com um resultado aproximado só deixa guardar depois de confirmar a localização', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     geocodeAddress.mockResolvedValue(googleResult({ display_name: 'Lisboa, Portugal', approximate: true, place_id: APPROXIMATE_PLACE_ID }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show(withPlaceId)
 
     await editTitle(user)
