@@ -266,7 +266,7 @@ describe('Gestão de Eventos', () => {
   })
 
   it('o separador Passados mantém os filtros, volta à página 1 e mostra a participação sem aviso', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await screen.findByRole('table')
     await waitForOptions()
@@ -295,7 +295,7 @@ describe('Gestão de Eventos', () => {
   })
 
   it('os filtros de tipo e local têm as opções da API e pedem a primeira página filtrada', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await screen.findByRole('table')
     await waitForOptions()
@@ -311,7 +311,7 @@ describe('Gestão de Eventos', () => {
 
   it('mostra o intervalo de resultados e muda de página com os mesmos filtros', async () => {
     threePages()
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(await screen.findByText('1–6 de 13 eventos')).toBeInTheDocument()
@@ -324,7 +324,7 @@ describe('Gestão de Eventos', () => {
 
   it('mudar um filtro estando na página 2 volta à página 1', async () => {
     threePages()
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await screen.findByText('1–6 de 13 eventos')
     await waitForOptions()
@@ -340,7 +340,7 @@ describe('Gestão de Eventos', () => {
 
   it('enquanto a página seguinte carrega mantém a tabela ocupada e desativa a paginação', async () => {
     threePages()
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await screen.findByText('1–6 de 13 eventos')
 
@@ -364,7 +364,7 @@ describe('Gestão de Eventos', () => {
     getAdminEvents
       .mockImplementationOnce(() => first.promise)
       .mockResolvedValueOnce(list([event('b1', 'Nova Resposta')]))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await waitForOptions()
 
@@ -381,7 +381,7 @@ describe('Gestão de Eventos', () => {
 
   it('mostra a mensagem de lista vazia de cada separador e a de sem resultados com filtros', async () => {
     getAdminEvents.mockResolvedValue(list([], { total: 0 }, { upcoming: 0, past: 0 }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(await screen.findByText('Não há eventos agendados.')).toBeInTheDocument()
@@ -399,7 +399,7 @@ describe('Gestão de Eventos', () => {
 
   it('mostra o erro da API e recupera com Tentar novamente usando os mesmos filtros', async () => {
     getAdminEvents.mockRejectedValueOnce(apiError(500, 'Erro interno.'))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Erro interno.')
@@ -414,7 +414,7 @@ describe('Gestão de Eventos', () => {
 
   it('se as opções dos filtros falharem, desativa os selects, a tabela carrega e é possível tentar de novo', async () => {
     getEventCategories.mockRejectedValueOnce(new Error('Falha de rede'))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(await screen.findByText('Não foi possível carregar as opções dos filtros.')).toBeInTheDocument()
@@ -498,7 +498,7 @@ describe('Gestão de Eventos', () => {
 
     it('a data De escolhida no calendário filtra os eventos e limita os dias da data Até', async () => {
       useFakeToday()
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
 
@@ -525,7 +525,7 @@ describe('Gestão de Eventos', () => {
 
     it('Limpar mostra o número de filtros, limpa-os mantendo o separador e devolve o foco à data De', async () => {
       useFakeToday()
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -559,7 +559,7 @@ describe('Gestão de Eventos', () => {
   })
 
   it('não há botão de ver inscritos em nenhum separador e as ações de um agendado são só exportar, editar e apagar', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await screen.findByRole('table')
 
@@ -659,7 +659,7 @@ describe('Gestão de Eventos', () => {
 
     it('nos passados o botão de exportar está ativo e não há editar nem apagar', async () => {
       getAdminEvents.mockResolvedValue(list([closed]))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
 
@@ -672,7 +672,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('abre o diálogo com o evento, o número de inscritos e o aviso do RGPD sem descarregar nada', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       const dialog = await openExportDialog(user)
@@ -685,7 +685,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('Cancelar e Escape fecham o diálogo sem descarregar e devolvem o foco ao botão', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       const dialog = await openExportDialog(user)
@@ -706,7 +706,7 @@ describe('Gestão de Eventos', () => {
     it('enquanto descarrega mostra A processar e desativa os botões do diálogo e da tabela', async () => {
       const pending = deferred()
       exportEventAttendees.mockImplementationOnce(() => pending.promise)
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       const dialog = await openExportDialog(user)
@@ -724,7 +724,7 @@ describe('Gestão de Eventos', () => {
 
     it('descarrega o CSV com o nome do backend, revoga o URL e não mostra mensagem de sucesso', async () => {
       const blob = new Blob(['Nome;Empresa'], { type: 'text/csv' })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.resolve({ blob, filename: 'presencas_2099-01-21_jantar-lisboa.csv' }))
@@ -738,7 +738,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('sem nome do backend usa o nome com a data do evento', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.resolve({ blob: new Blob(['x']), filename: null }))
@@ -748,7 +748,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('mostra a mensagem do backend quando as inscrições ainda estão abertas', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.reject(apiError(409, OPEN_MESSAGE)))
@@ -759,7 +759,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('se o evento já não existir avisa e recarrega a lista com os mesmos filtros', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.reject(apiError(404, 'Recurso não encontrado.')))
@@ -771,7 +771,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('mostra a mensagem de demasiados pedidos', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.reject(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.')))
@@ -780,7 +780,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('um pedido cancelado fecha o diálogo sem mensagem nem download', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.reject(new CanceledError()))
@@ -791,7 +791,7 @@ describe('Gestão de Eventos', () => {
 
     it('a mensagem de erro fecha-se e o botão fica desativado enquanto a lista recarrega', async () => {
       getAdminEvents.mockResolvedValue(list([closed, open, noDeadline], { total: 13, last_page: 3 }))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await downloadWith(user, () => Promise.reject(apiError(409, OPEN_MESSAGE)))
@@ -852,7 +852,7 @@ describe('Gestão de Eventos', () => {
     }
 
     it('o botão Criar Evento existe nos dois separadores e abre o modal com as opções já carregadas', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -874,7 +874,7 @@ describe('Gestão de Eventos', () => {
     it('depois de criar fecha o modal, mostra a mensagem e recarrega a lista com os mesmos filtros', async () => {
       useFakeToday()
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'n1' } })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -905,7 +905,7 @@ describe('Gestão de Eventos', () => {
       const SERIES_SUCCESS = 'Série de eventos criada com sucesso.'
       useFakeToday()
       createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: { series: { id: 's1' }, sessions: [] } })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -940,7 +940,7 @@ describe('Gestão de Eventos', () => {
     }, 15000)
 
     it('Cancelar fecha o modal sem mensagem nem novo pedido e devolve o foco ao botão', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -991,7 +991,7 @@ describe('Gestão de Eventos', () => {
 
     it('nos agendados cada linha tem o botão de editar depois do de exportar, desativado enquanto a lista recarrega', async () => {
       threePages()
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByText('1–6 de 13 eventos')
 
@@ -1020,7 +1020,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('o botão de editar abre o modal com os dados do evento e as opções já carregadas', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -1037,7 +1037,7 @@ describe('Gestão de Eventos', () => {
 
     it('depois de guardar fecha o modal, mostra a mensagem, recarrega com os mesmos filtros e devolve o foco', async () => {
       updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'e1' } })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -1066,7 +1066,7 @@ describe('Gestão de Eventos', () => {
       const empty = event('e4', 'Almoço Sem Inscritos', { registrations_count: 0 })
       getAdminEvents.mockResolvedValue(list([workshop, online, dinner, empty]))
       updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: { id: 'e4' } })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -1091,7 +1091,7 @@ describe('Gestão de Eventos', () => {
 
     it('se o evento já decorreu fecha o modal, mostra o erro e recarrega com os mesmos filtros', async () => {
       updateAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1105,7 +1105,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('Cancelar fecha o modal sem mensagem nem novo pedido e devolve o foco ao botão', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1175,7 +1175,7 @@ describe('Gestão de Eventos', () => {
 
     it('nos agendados cada linha tem o botão de apagar depois do de editar, desativado enquanto a lista recarrega', async () => {
       threePages()
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByText('1–6 de 13 eventos')
 
@@ -1207,7 +1207,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('com inscritos abre o diálogo com a justificação obrigatória e o botão de apagar desativado', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
 
@@ -1230,7 +1230,7 @@ describe('Gestão de Eventos', () => {
     it('apaga com a justificação, bloqueia tudo durante o pedido e recarrega com os mesmos filtros', async () => {
       const pending = deferred()
       deleteAdminEvent.mockImplementationOnce(() => pending.promise)
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       await waitForOptions()
@@ -1267,7 +1267,7 @@ describe('Gestão de Eventos', () => {
 
     it('sem inscritos abre uma confirmação sem campo e apaga sem justificação', async () => {
       deleteAdminEvent.mockResolvedValueOnce({ success: true, message: DELETED, data: null })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1291,7 +1291,7 @@ describe('Gestão de Eventos', () => {
 
     it('apagar uma sessão de uma série diz que só essa sessão é apagada', async () => {
       getAdminEvents.mockResolvedValue(list([event('s1', 'Grupo de Oração', { registrations_count: 0, series: { position: 3, total: 8 } })]))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
 
@@ -1302,7 +1302,7 @@ describe('Gestão de Eventos', () => {
 
     it('se o evento já decorreu fecha o diálogo, mostra o erro e recarrega com os mesmos filtros', async () => {
       deleteAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1318,7 +1318,7 @@ describe('Gestão de Eventos', () => {
 
     it('se o evento já não existir fecha o diálogo, avisa e recarrega', async () => {
       deleteAdminEvent.mockRejectedValueOnce(apiError(404, 'Recurso não encontrado.'))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1335,7 +1335,7 @@ describe('Gestão de Eventos', () => {
 
     it('sem inscritos, se entretanto houver inscrições, explica que a justificação passou a ser obrigatória e recarrega', async () => {
       deleteAdminEvent.mockRejectedValueOnce(validationError())
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1355,7 +1355,7 @@ describe('Gestão de Eventos', () => {
       deleteAdminEvent
         .mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
         .mockImplementationOnce(() => retry.promise)
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1383,7 +1383,7 @@ describe('Gestão de Eventos', () => {
 
     it('sem inscritos, com demasiados pedidos fecha o diálogo e mostra o erro sem recarregar', async () => {
       deleteAdminEvent.mockRejectedValueOnce(apiError(429, 'Demasiados pedidos. Tente novamente mais tarde.'))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1397,7 +1397,7 @@ describe('Gestão de Eventos', () => {
     })
 
     it('Voltar, Fechar e Escape fecham sem pedido nem mensagem, devolvem o foco e o campo recomeça vazio', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByRole('table')
       const callsBefore = getAdminEvents.mock.calls.length
@@ -1427,7 +1427,7 @@ describe('Gestão de Eventos', () => {
     it('dois cliques rápidos em Apagar e notificar fazem um só pedido', async () => {
       const pending = deferred()
       deleteAdminEvent.mockImplementation(() => pending.promise)
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await openWithJustification(user)
@@ -1442,7 +1442,7 @@ describe('Gestão de Eventos', () => {
 
     it('um pedido cancelado não mostra erro nem mensagem', async () => {
       deleteAdminEvent.mockRejectedValueOnce(new CanceledError())
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       await openWithJustification(user)
@@ -1474,7 +1474,7 @@ describe('Gestão de Eventos', () => {
         if (document.body.textContent.includes('Não há eventos agendados.')) emptySeen.push(true)
       })
       observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await screen.findByText('1–6 de 13 eventos')
 
