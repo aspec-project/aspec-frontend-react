@@ -37,3 +37,38 @@ export async function updateAccountPassword(
 
   return response.data.data
 }
+
+/*
+ * Obtém as preferências pessoais de emails relacionados com eventos.
+ */
+export async function getNotificationPreferences(
+  context = getSessionContext(),
+) {
+  const response = await api.get(
+    '/account/notification-preferences',
+    requestConfig(context),
+  )
+
+  requestConfig(context)
+
+  return response.data.data
+}
+
+/*
+ * O endpoint substitui o conjunto completo de preferências, por isso quem o
+ * chama deve enviar sempre notify_new_events e notify_weekly_agenda.
+ */
+export async function updateNotificationPreferences(
+  preferences,
+  context = getSessionContext(),
+) {
+  const response = await api.put(
+    '/account/notification-preferences',
+    preferences,
+    requestConfig(context),
+  )
+
+  requestConfig(context)
+
+  return response.data.data
+}
