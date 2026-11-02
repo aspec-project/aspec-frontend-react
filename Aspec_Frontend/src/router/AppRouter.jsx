@@ -21,6 +21,7 @@ import AdminLayout from '../components/layout/AdminLayout'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminEventsPage from '../pages/admin/AdminEventsPage'
+import AdminEventDetailPage from '../pages/admin/AdminEventDetailPage'
 import AdminEventCategoriesPage from '../pages/admin/AdminEventCategoriesPage'
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import HomePage from '../pages/HomePage'
@@ -152,6 +153,7 @@ function AppRouter() {
           <Route path="/admin/utilizadores" element={<PageTitle title="Utilizadores"><AdminUsersPage /></PageTitle>} />
           <Route path="/admin/utilizadores/:id" element={<PageTitle title="Detalhe do utilizador"><AdminUserDetailPage /></PageTitle>} />
           <Route path="/admin/eventos" element={<PageTitle title="Gestão de eventos"><AdminEventsPage /></PageTitle>} />
+          <Route path="/admin/eventos/:id" element={<PageTitle title="Detalhe do evento"><AdminEventDetailPage /></PageTitle>} />
           <Route path="/admin/tipos-evento" element={<PageTitle title="Tipos de evento"><AdminEventCategoriesPage /></PageTitle>} />
           <Route
             path="/admin/moderacao"

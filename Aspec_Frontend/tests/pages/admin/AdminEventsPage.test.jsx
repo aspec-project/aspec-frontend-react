@@ -580,6 +580,60 @@ describe('Gestão de Eventos', () => {
     expect(screen.queryByRole('button', { name: /Ver inscritos/ })).not.toBeInTheDocument()
   })
 
+  describe('Ver evento', () => {
+    function interactiveIn(name) {
+      return Array.from(cellOf(name, 'Ações').querySelectorAll('a, button'))
+    }
+
+    it('nos agendados o primeiro elemento das ações é o link para o detalhe, antes de exportar, editar e apagar', async () => {
+      show()
+      await screen.findByRole('table')
+
+      for (const { id, name } of items) {
+        const [view, ...rest] = interactiveIn(name)
+        expect(view).toBe(within(cellOf(name, 'Ações')).getByRole('link', { name: `Ver evento ${name}` }))
+        expect(view).toHaveAttribute('href', `/admin/eventos/${id}`)
+        expect(rest.map((element) => element.getAttribute('aria-label'))).toEqual([
+          expect.stringMatching(new RegExp(`^Exportar lista de presenças de ${name}`)),
+          `Editar ${name}`,
+          `Apagar ${name}`,
+        ])
+      }
+    })
+
+    it('nos passados o link existe sem editar nem apagar e continua ativo enquanto a lista recarrega', async () => {
+      threePages()
+      const user = userEvent.setup({ delay: null })
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+
+      const cell = within(cellOf('Página evento 1', 'Ações'))
+      expect(cell.getByRole('link', { name: 'Ver evento Página evento 1' })).toHaveAttribute('href', `/admin/eventos/${encodeURIComponent('Página0')}`)
+      expect(cell.queryByRole('button', { name: /^(Editar|Apagar) / })).not.toBeInTheDocument()
+
+      const pending = deferred()
+      getAdminEvents.mockImplementationOnce(() => pending.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+      await waitFor(() => expect(screen.getByRole('table').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true'))
+
+      const link = within(cellOf('Página evento 1', 'Ações')).getByRole('link', { name: 'Ver evento Página evento 1' })
+      expect(link).not.toHaveAttribute('aria-disabled')
+
+      await act(async () => { pending.resolve(list(sixEvents('Página'), { current_page: 2, total: 13, last_page: 3 })) })
+    })
+
+    it('a linha de um evento com cartões de oração não mostra nenhum badge de oração', async () => {
+      getAdminEvents.mockResolvedValue(list([event('e1', 'Workshop de Liderança', { prayer_cards_enabled: true, prayer_cards_count: 3 })]))
+      show()
+      await screen.findByRole('table')
+
+      expect(rowOf('Workshop de Liderança')).not.toHaveTextContent(/Oração|†/)
+    })
+  })
+
   describe('Exportar lista de presenças', () => {
     const OPEN_MESSAGE = 'As inscrições ainda estão abertas. A lista de presenças só pode ser exportada depois do prazo de inscrição.'
     const NOTE = 'Dados sensíveis (art. 9.º do RGPD): numa associação cristã, estar inscrito num evento pode revelar convicções religiosas. Use a lista só dentro da ASPEC, não a envie a terceiros (ao local do evento indique só o número de inscritos) e apague o ficheiro depois de usado.'

@@ -17,14 +17,14 @@ const ADMIN_TABS = [
 /**
  * Rotas "página inteira": sem herói nem separadores; a própria página desenha a sua banda e o contentor.
  */
-const FULL_PAGE_ROUTES = ['/admin/utilizadores/:id']
+const FULL_PAGE_ROUTES = ['/admin/utilizadores/:id', '/admin/eventos/:id']
 
 const todayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
  * Layout de todas as páginas /admin: Header, herói escuro com o título da secção, separadores
  * Dashboard · Utilizadores · Eventos · Tipos de evento · Moderação, conteúdo em fundo cinzento e Footer.
- * Nas rotas "página inteira" (ex.: detalhe de um membro) desenha só Header, conteúdo e Footer.
+ * Nas rotas "página inteira" (detalhe de um membro e página de um evento) desenha só Header, conteúdo e Footer.
  *
  * @returns {JSX.Element}
  */

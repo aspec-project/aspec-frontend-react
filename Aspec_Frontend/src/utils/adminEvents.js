@@ -134,6 +134,33 @@ export function formatSession(event) {
 }
 
 /**
+ * Texto "Sessão X de Y" de um evento de uma série, para o título da página do evento.
+ *
+ * @param {object} event Evento da API.
+ * @returns {string|null} Texto, ou null se o evento não pertencer a uma série.
+ */
+export function formatSessionLong(event) {
+  const series = getEventSeries(event)
+
+  return series ? `Sessão ${series.position} de ${series.total}` : null
+}
+
+/**
+ * Local de um evento para a página do evento: "Online" nos eventos online; senão o nome do local e o distrito
+ * juntos com " · " (só os que existirem).
+ *
+ * @param {{is_online?: boolean, venue_name?: string|null, location?: {name?: string}|null}} event Evento da API.
+ * @returns {string} Local, ou "—" se não houver nenhum dos dois.
+ */
+export function formatEventVenue(event) {
+  if (event?.is_online === true) return 'Online'
+
+  const parts = [event?.venue_name, event?.location?.name].filter((value) => typeof value === 'string' && value.trim() !== '')
+
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
+/**
  * Nota do modal de edição de uma sessão de uma série: a posição e que as alterações valem só para ela.
  *
  * @param {object} event Evento da API.

@@ -5,8 +5,10 @@ import {
   DELETE_EVENT_TEXTS,
   DELETE_JUSTIFICATION_MAX_LENGTH,
   countActiveFilters,
+  formatEventVenue,
   formatResultsRange,
   formatSession,
+  formatSessionLong,
   formatTimeRange,
   getAttendeesExportDescription,
   getAttendeesFallbackFilename,
@@ -120,6 +122,25 @@ describe('formatSession', () => {
   it('mostra Sessão X/Y só quando o evento pertence a uma série', () => {
     expect(formatSession({ series: { position: 2, total: 5 } })).toBe('Sessão 2/5')
     expect(formatSession({})).toBeNull()
+  })
+})
+
+describe('formatEventVenue', () => {
+  it('mostra Online nos eventos online, mesmo com distrito', () => {
+    expect(formatEventVenue({ is_online: true, venue_name: null, location: { id: 'l2', name: 'Porto' } })).toBe('Online')
+  })
+
+  it('junta o nome do local e o distrito e usa um travessão sem nenhum dos dois', () => {
+    expect(formatEventVenue({ is_online: false, venue_name: 'Café Majestic', location: { id: 'l2', name: 'Porto' } })).toBe('Café Majestic · Porto')
+    expect(formatEventVenue({ is_online: false, venue_name: null, location: { id: 'l2', name: 'Porto' } })).toBe('Porto')
+    expect(formatEventVenue({ is_online: false, venue_name: null, location: null })).toBe('—')
+  })
+})
+
+describe('formatSessionLong', () => {
+  it('mostra Sessão X de Y só quando há dados da série', () => {
+    expect(formatSessionLong({ series: { position: 1, total: 4 } })).toBe('Sessão 1 de 4')
+    expect(formatSessionLong({ series_id: 'x' })).toBeNull()
   })
 })
 

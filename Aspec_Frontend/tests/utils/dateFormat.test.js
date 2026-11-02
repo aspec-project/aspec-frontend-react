@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { formatDate, formatRelativeDateTime, formatShortDate, formatShortDateTime } from '../../src/utils/dateFormat'
+import { formatDate, formatDayMonthTime, formatRelativeDateTime, formatShortDate, formatShortDateTime, isIsoDateTime } from '../../src/utils/dateFormat'
 
 describe('formatDate', () => {
   it('formata datas de calendário como dd/mm/aaaa', () => {
@@ -66,6 +66,31 @@ describe('formatShortDateTime', () => {
   it('devolve texto vazio para valores inválidos ou sem hora e desvio', () => {
     for (const value of ['', null, 'abc', '2026-01-21', '2026-02-30T10:00:00Z', '2026-10-14T09:30:00']) {
       expect(formatShortDateTime(value)).toBe('')
+    }
+  })
+})
+
+describe('formatDayMonthTime', () => {
+  it('formata como dd/mm às hh:mm na hora de Lisboa, também no verão', () => {
+    expect(formatDayMonthTime('2025-02-03T08:07:00+00:00')).toBe('03/02 às 08:07')
+    expect(formatDayMonthTime('2027-06-10T18:15:00+00:00')).toBe('10/06 às 19:15')
+  })
+
+  it('devolve texto vazio para valores inválidos ou sem hora', () => {
+    for (const value of ['2025-02-03', null, 'lixo']) {
+      expect(formatDayMonthTime(value)).toBe('')
+    }
+  })
+})
+
+describe('isIsoDateTime', () => {
+  it('aceita só datas e horas ISO 8601 com desvio', () => {
+    expect(isIsoDateTime('2025-02-03T08:07:00+00:00')).toBe(true)
+    expect(isIsoDateTime('2027-06-10T19:30:00+01:00')).toBe(true)
+    expect(isIsoDateTime('2025-02-03T08:07:00Z')).toBe(true)
+
+    for (const value of ['2025-02-03', '2025-02-03T08:07:00', 'lixo', '', null, undefined, 42]) {
+      expect(isIsoDateTime(value)).toBe(false)
     }
   })
 })
