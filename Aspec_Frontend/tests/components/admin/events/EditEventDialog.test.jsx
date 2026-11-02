@@ -1063,3 +1063,196 @@ describe('EditEventDialog — mapa da Google', () => {
     expectNoCoordinates(lastPayload())
   })
 })
+
+describe('EditEventDialog — cartões de oração', () => {
+  const PRAYER_TITLE = 'Cartões de oração neste evento'
+  const NOT_SENT = 'Estas alterações não são enviadas por email aos inscritos.'
+  const LOCKED_NOTE = 'Já há cartões preenchidos neste evento: não é possível desligar os cartões nem mudar o versículo, a data ou a hora de início.'
+  const LOCK_ERROR = 'Não é possível alterar os cartões de oração, a data ou a hora depois de existirem cartões preenchidos.'
+  const withCards = event('e1', 'Workshop de Liderança', { prayer_cards_enabled: true, prayer_verse: 'Salmo 23', prayer_cards_locked: false })
+  const lockedCards = { ...withCards, prayer_cards_count: 3, prayer_cards_locked: true }
+
+  function prayerSwitch() {
+    return screen.getByRole('switch', { name: PRAYER_TITLE })
+  }
+
+  function prayerBox() {
+    return screen.getByRole('group', { name: PRAYER_TITLE })
+  }
+
+  function verse() {
+    return screen.getByRole('textbox', { name: /^Versículo da semana/ })
+  }
+
+  function editDialog() {
+    return screen.getByRole('dialog', { name: 'Editar Evento' })
+  }
+
+  function follows(first, second) {
+    return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+  }
+
+  function describedTexts(element) {
+    return describedIds(element).map((id) => document.getElementById(id)?.textContent.trim())
+  }
+
+  function expectAlert(message) {
+    expect(screen.getAllByRole('alert').some((element) => element.textContent.includes(message))).toBe(true)
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('abre com os cartões e o versículo guardados, sem alterações, e um evento sem cartões abre desligado', () => {
+    const { unmount } = show(withCards)
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'true')
+    expect(verse()).toHaveValue('Salmo 23')
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
+    expect(follows(field.capacity(), prayerBox())).toBe(true)
+    expect(follows(prayerBox(), field.description())).toBe(true)
+    unmount()
+
+    show()
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('ligar os cartões pede o versículo, lista as duas alterações, avisa que não vai email e envia a ativação', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+
+    await user.click(prayerSwitch())
+
+    expect(screen.getByText('Falta preencher: versículo da semana.')).toBeInTheDocument()
+
+    change(verse(), 'Salmo 23')
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(2)
+    expectChange(items[0], 'Cartões de oração', 'Desligados', 'Ligados')
+    expectChange(items[1], 'Versículo da semana', '(vazio)', 'Salmo 23')
+    expect(confirmDialog()).toHaveAccessibleDescription(NOT_SENT)
+    expect(headingIcon('save')).not.toBeNull()
+    expect(within(confirmDialog()).queryByRole('textbox')).not.toBeInTheDocument()
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+  })
+
+  it('mudar só o versículo lista uma linha e envia o versículo novo com a ativação', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    change(verse(), 'Salmo 91')
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(1)
+    expectChange(items[0], 'Versículo da semana', 'Salmo 23', 'Salmo 91')
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(lastPayload()).toMatchObject({ prayer_cards_enabled: true, prayer_verse: 'Salmo 91' })
+  })
+
+  it('desligar os cartões lista só a ativação e envia prayer_cards_enabled false sem o versículo', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    await user.click(prayerSwitch())
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(1)
+    expectChange(items[0], 'Cartões de oração', 'Ligados', 'Desligados')
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(lastPayload()).toHaveProperty('prayer_cards_enabled', false)
+    expect(lastPayload()).not.toHaveProperty('prayer_verse')
+  })
+
+  it('mudar só o título de um evento com cartões não envia as chaves dos cartões e avisa os inscritos', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    await editTitle(user)
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOTICE_22)
+
+    await user.click(confirmButton('Guardar e notificar'))
+
+    expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, name: 'Workshop de Liderança — nova data' })
+  })
+
+  it('com cartões preenchidos bloqueia a ativação e o versículo e mostra o 422 de bloqueio na caixa e no topo', async () => {
+    useFakeToday()
+    updateAdminEvent.mockRejectedValueOnce(apiError(422, INVALID, { prayer_verse: [LOCK_ERROR] }))
+    const user = userEvent.setup({ delay: null })
+    show(lockedCards)
+
+    expect(prayerSwitch()).toBeDisabled()
+    expect(verse()).toBeDisabled()
+    expect(screen.getByText(LOCKED_NOTE)).toBeInTheDocument()
+
+    await user.click(field.date())
+    await user.click(day('22 de janeiro de 2099'))
+    await saveAndConfirm(user)
+
+    await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
+    expect(await within(prayerBox()).findByText(LOCK_ERROR)).toBeInTheDocument()
+    expectAlert(LOCK_ERROR)
+    await waitFor(() => expect(editDialog()).toContainElement(document.activeElement))
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('se o servidor bloquear ao desligar, o erro aparece no texto da caixa, na descrição do interruptor e no topo', async () => {
+    updateAdminEvent.mockRejectedValueOnce(apiError(422, INVALID, { prayer_verse: [LOCK_ERROR] }))
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    await user.click(prayerSwitch())
+    await saveAndConfirm(user)
+
+    await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
+    expect(await within(prayerBox()).findByText(LOCK_ERROR)).toBeInTheDocument()
+    expect(describedTexts(prayerSwitch())).toContain(LOCK_ERROR)
+    expectAlert(LOCK_ERROR)
+  })
+
+  it('o aviso do email segue os campos que o backend notifica', async () => {
+    const user = userEvent.setup({ delay: null })
+    const first = show()
+
+    change(field.notes(), 'Novas notas.')
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOT_SENT)
+    expect(confirmButton('Guardar')).toBeEnabled()
+    expect(within(confirmDialog()).queryByRole('button', { name: 'Guardar e notificar' })).not.toBeInTheDocument()
+    first.unmount()
+
+    show(withCards)
+    await editTitle(user)
+    change(verse(), 'Salmo 91')
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOTICE_22)
+    expect(justificationBox()).toBeInTheDocument()
+    expect(confirmButton('Guardar e notificar')).toBeEnabled()
+    const items = changeItems()
+    expect(items).toHaveLength(2)
+    expectChange(items[0], 'Título', 'Workshop de Liderança', 'Workshop de Liderança — nova data')
+    expectChange(items[1], 'Versículo da semana', 'Salmo 23', 'Salmo 91')
+  })
+})

@@ -1605,4 +1605,128 @@ describe('CreateEventDialog — série recorrente', () => {
       await waitFor(() => expect(series.frequency()).toHaveFocus())
     }, 15000)
   })
+
+  describe('cartões de oração', () => {
+    it('uma série com os cartões ligados envia a ativação e o versículo num só pedido', async () => {
+      createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: {} })
+      const user = userEvent.setup({ delay: null })
+      show()
+      await fillValidSeries(user)
+
+      await user.click(screen.getByRole('switch', { name: 'Cartões de oração neste evento' }))
+      change(screen.getByRole('textbox', { name: /^Versículo da semana/ }), 'Salmo 23')
+      await user.click(seriesSubmitButton())
+      await user.click(confirmButton('Criar 3 sessões'))
+
+      expect(createAdminEvent).toHaveBeenCalledTimes(1)
+      expect(createAdminEvent).toHaveBeenCalledWith({ ...SERIES_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+    }, 15000)
+  })
+})
+
+describe('CreateEventDialog — cartões de oração', () => {
+  const PRAYER_TITLE = 'Cartões de oração neste evento'
+  const MISSING_VERSE = 'Indique o versículo da semana para ativar os cartões de oração.'
+
+  function prayerSwitch() {
+    return screen.getByRole('switch', { name: PRAYER_TITLE })
+  }
+
+  function prayerBox() {
+    return screen.getByRole('group', { name: PRAYER_TITLE })
+  }
+
+  function verse() {
+    return screen.getByRole('textbox', { name: /^Versículo da semana/ })
+  }
+
+  function follows(first, second) {
+    return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2099, 2, 10, 12))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('abre com os cartões desligados entre a capacidade e Sobre o evento, também em Online e em Recorrente', async () => {
+    const user = userEvent.setup({ delay: null })
+    show()
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'false')
+    expect(follows(field.capacity(), prayerBox())).toBe(true)
+    expect(follows(prayerBox(), field.description())).toBe(true)
+    expect(screen.getByText(ALL_MISSING)).toBeInTheDocument()
+
+    await user.click(formatButton('Online'))
+    expect(prayerSwitch()).toBeInTheDocument()
+
+    await user.click(formatButton('Presencial'))
+    await user.click(repetitionButton('Recorrente'))
+    expect(prayerSwitch()).toBeInTheDocument()
+  })
+
+  it('ligados pedem o versículo no rodapé e o pedido leva a ativação e o versículo sem espaços', async () => {
+    createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+    await fillValidInPerson(user)
+
+    await user.click(prayerSwitch())
+
+    expect(missingText()).toHaveTextContent('Falta preencher: versículo da semana.')
+    expect(submitButton()).toBeDisabled()
+
+    change(verse(), '  Salmo 23  ')
+    await user.click(submitButton())
+
+    expect(createAdminEvent).toHaveBeenCalledTimes(1)
+    expect(createAdminEvent).toHaveBeenCalledWith({ ...IN_PERSON_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+  }, 10000)
+
+  it('desligar guarda o versículo escrito, não o pede no rodapé e não o envia', async () => {
+    createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+    await fillValidInPerson(user)
+
+    await user.click(prayerSwitch())
+    change(verse(), 'Salmo 23')
+    await user.click(prayerSwitch())
+
+    expect(screen.queryByText(/Falta preencher/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /^Versículo da semana/ })).not.toBeInTheDocument()
+
+    await user.click(prayerSwitch())
+    expect(verse()).toHaveValue('Salmo 23')
+
+    await user.click(prayerSwitch())
+    await user.click(submitButton())
+
+    expect(createAdminEvent).toHaveBeenCalledWith(IN_PERSON_PAYLOAD)
+  }, 10000)
+
+  it('um 422 do versículo aparece debaixo do campo, foca-o e desaparece ao escrever', async () => {
+    createAdminEvent.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', { prayer_verse: [MISSING_VERSE] }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await fillValidInPerson(user)
+    await user.click(prayerSwitch())
+    change(verse(), 'Salmo 23')
+
+    await user.click(submitButton())
+
+    const error = await screen.findByText(MISSING_VERSE)
+    expect(verse()).toHaveAttribute('aria-invalid', 'true')
+    expect(describedIds(verse())).toContain(error.id)
+    await waitFor(() => expect(verse()).toHaveFocus())
+
+    change(verse(), 'Salmo 23:1')
+
+    expect(screen.queryByText(MISSING_VERSE)).not.toBeInTheDocument()
+  }, 10000)
 })
