@@ -257,7 +257,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('o tipo de evento e a delegação são listas próprias que começam em Selecione, sem essa opção na lista', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     const expected = [
@@ -295,7 +295,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('a data abre um calendário que começa em hoje e não deixa escolher dias passados', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(field.date().tagName).toBe('BUTTON')
@@ -319,7 +319,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('o calendário do prazo só deixa escolher de hoje até à véspera do evento e mantém o hint', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.click(field.deadline())
@@ -346,7 +346,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('as horas são campos de texto ao minuto e uma hora incompleta continua em falta', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     for (const [element, name] of [[field.start(), 'startTime'], [field.end(), 'endTime']]) {
@@ -382,7 +382,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('as listas abertas do tipo e da delegação têm nome próprio', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.click(field.category())
@@ -405,7 +405,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('a lista em falta encolhe ao preencher e o botão fica ativo com o formulário completo', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     await user.type(field.title(), 'Jantar')
@@ -419,7 +419,7 @@ describe('CreateEventDialog', () => {
   }, 10000)
 
   it('o formato Online troca a morada pelo link e voltar a Presencial recupera a morada', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await user.type(field.address(), 'Rua das Flores 42')
 
@@ -440,7 +440,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('mostra os erros do browser junto ao campo e desativa o envio', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -462,7 +462,7 @@ describe('CreateEventDialog', () => {
   it('cria um presencial sem verificação com o payload exato e bloqueia o modal durante o pedido', async () => {
     const pending = deferred()
     createAdminEvent.mockImplementationOnce(() => pending.promise)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose, onSuccess } = show()
     await fillValidInPerson(user)
 
@@ -486,7 +486,7 @@ describe('CreateEventDialog', () => {
 
   it('cria com horas ao minuto', async () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -499,7 +499,7 @@ describe('CreateEventDialog', () => {
 
   it('dois cliques rápidos em Criar evento fazem um só pedido', async () => {
     createAdminEvent.mockImplementation(() => new Promise(() => {}))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
     const button = submitButton()
@@ -513,7 +513,7 @@ describe('CreateEventDialog', () => {
   it('verifica a morada, mostra o resultado só como texto com a atribuição e envia as coordenadas', async () => {
     geocodeAddress.mockResolvedValue(FOUND)
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -532,7 +532,7 @@ describe('CreateEventDialog', () => {
   it('mudar a morada ou a delegação descarta a verificação e cancela o pedido pendente', async () => {
     geocodeAddress.mockResolvedValue(FOUND)
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -578,7 +578,7 @@ describe('CreateEventDialog', () => {
       approximate: true,
     })
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -609,7 +609,7 @@ describe('CreateEventDialog', () => {
     geocodeAddress
       .mockRejectedValueOnce(apiError(404, NOT_FOUND))
       .mockRejectedValueOnce(apiError(503, UNAVAILABLE))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -627,7 +627,7 @@ describe('CreateEventDialog', () => {
 
   it('Verificar no mapa só fica ativo com morada e desativa-se enquanto verifica', async () => {
     geocodeAddress.mockImplementation(() => new Promise(() => {}))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(verifyButton()).toBeDisabled()
@@ -649,7 +649,7 @@ describe('CreateEventDialog', () => {
       name: ['O campo nome é obrigatório.'],
       event_end_time: [END_TIME_ERROR],
     }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -679,7 +679,7 @@ describe('CreateEventDialog', () => {
       event_start_time: [START_ERROR],
       registration_deadline: [DEADLINE_ERROR],
     }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
 
@@ -701,7 +701,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('o Escape fecha só a lista ou o calendário aberto e um segundo Escape fecha o modal', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose } = show()
 
     await user.click(field.category())
@@ -730,7 +730,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent
       .mockRejectedValueOnce(apiError(404, NOT_FOUND))
       .mockRejectedValueOnce(apiError(503, UNAVAILABLE))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
     await fillValidInPerson(user)
 
@@ -750,7 +750,7 @@ describe('CreateEventDialog', () => {
 
   it('um erro 500 mostra a mensagem geral e um pedido cancelado não mostra nada', async () => {
     createAdminEvent.mockRejectedValueOnce(apiError(500, 'Erro interno.'))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const first = show()
     await fillValidInPerson(user)
 
@@ -773,7 +773,7 @@ describe('CreateEventDialog', () => {
   }, 10000)
 
   it('Cancelar, Fechar e Escape fecham, o clique no fundo não fecha e o Tab fica preso no modal', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose } = show()
 
     await user.click(screen.getByRole('dialog').parentElement)
@@ -800,7 +800,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('desativa as listas enquanto as opções carregam e permite tentar de novo quando falham', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { rerender, onClose, onSuccess } = show({ options: readyOptions({ categories: [], locations: [], loading: true }) })
 
     for (const combobox of [field.category(), field.location()]) {
@@ -828,7 +828,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('aplica os limites de caracteres, de capacidade e de datas', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     for (const name of ['title', 'venue', 'address']) {
@@ -848,7 +848,7 @@ describe('CreateEventDialog', () => {
   })
 
   it('com o Tab as listas, as datas e as horas vêm entre o título e o nome do local', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     expect(field.title()).toHaveFocus()
 
@@ -863,7 +863,7 @@ describe('CreateEventDialog', () => {
 
   it('cria um evento online só com o link e recusa links que não sejam http ou https', async () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await user.click(formatButton('Online'))
     await fillCommon(user)
@@ -898,7 +898,7 @@ describe('CreateEventDialog', () => {
     })
 
     it('o botão de localizar fica no campo da morada e o mapa mostra a zona da delegação escolhida', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       expect(field.address().parentElement).toContainElement(verifyButton())
@@ -915,7 +915,7 @@ describe('CreateEventDialog', () => {
     it('um resultado exato mostra o local no mapa e cria o evento só com o place_id', async () => {
       geocodeAddress.mockResolvedValue(googleResult())
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await fillValidInPerson(user)
 
@@ -935,7 +935,7 @@ describe('CreateEventDialog', () => {
     it('um resultado aproximado só deixa criar depois de confirmar a localização', async () => {
       geocodeAddress.mockResolvedValue(googleResult(GOOGLE_APPROXIMATE))
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await fillValidInPerson(user)
 
@@ -958,7 +958,7 @@ describe('CreateEventDialog', () => {
     it('mudar a morada depois de confirmar tira a caixa, volta à zona e cria sem place_id', async () => {
       geocodeAddress.mockResolvedValue(googleResult(GOOGLE_APPROXIMATE))
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await fillValidInPerson(user)
 
@@ -981,7 +981,7 @@ describe('CreateEventDialog', () => {
     it('em Online o mapa desaparece e o pedido não leva o local; voltar a Presencial recupera o local encontrado', async () => {
       geocodeAddress.mockResolvedValue(googleResult())
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await fillValidInPerson(user)
 
@@ -1011,7 +1011,7 @@ describe('CreateEventDialog', () => {
       const spies = ['error', 'warn', 'log'].map((method) => vi.spyOn(console, method).mockImplementation(() => {}))
 
       try {
-        const user = userEvent.setup()
+        const user = userEvent.setup({ delay: null })
         show()
         await fillValidInPerson(user)
 
@@ -1156,7 +1156,7 @@ describe('CreateEventDialog — série recorrente', () => {
   })
 
   it('Recorrente troca a data limite pelos campos da série, com os hints e o botão Criar série', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
 
     expect(repetitionButton('Pontual')).toHaveAttribute('aria-pressed', 'true')
@@ -1195,7 +1195,7 @@ describe('CreateEventDialog — série recorrente', () => {
   })
 
   it('o hint do mensal só aparece com Mensal', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await chooseRecurring(user)
 
@@ -1207,7 +1207,7 @@ describe('CreateEventDialog — série recorrente', () => {
   })
 
   it('voltar a Pontual recupera a data limite escolhida antes e tira o hint das notificações', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await pickDate(user, field.date(), '20 de março de 2099')
     await pickDate(user, field.deadline(), '18 de março de 2099')
@@ -1222,7 +1222,7 @@ describe('CreateEventDialog — série recorrente', () => {
   })
 
   it('o calendário da última sessão começa na 1.ª sessão, ou em hoje sem ela', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await chooseRecurring(user)
 
@@ -1244,7 +1244,7 @@ describe('CreateEventDialog — série recorrente', () => {
   })
 
   it('mostra a pré-visualização das sessões só com a série completa e sem erros', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidInPerson(user)
     await chooseRecurring(user)
@@ -1269,7 +1269,7 @@ describe('CreateEventDialog — série recorrente', () => {
   }, 15000)
 
   it('assinala o fim antes da 1.ª sessão, um prazo inválido e um prazo da 1.ª sessão já passado', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidSeries(user, { last: '27 de março de 2099' })
 
@@ -1295,7 +1295,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('Criar série abre a confirmação sem pedido e Criar 3 sessões envia a série com o payload exato', async () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
     await fillValidSeries(user)
 
@@ -1316,7 +1316,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('uma série de uma só sessão usa o singular na pré-visualização e na confirmação', async () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await fillValidSeries(user, { last: '20 de março de 2099' })
 
@@ -1334,7 +1334,7 @@ describe('CreateEventDialog — série recorrente', () => {
   it('durante o pedido a confirmação fica bloqueada e dois cliques fazem um só pedido', async () => {
     const pending = deferred()
     createAdminEvent.mockImplementation(() => pending.promise)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose } = show()
     await openConfirmation(user)
 
@@ -1351,7 +1351,7 @@ describe('CreateEventDialog — série recorrente', () => {
   }, 15000)
 
   it('Voltar e Escape fecham a confirmação sem pedido, mantêm o modal com os valores e devolvem o foco a Criar série', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onClose } = show()
     await openConfirmation(user)
 
@@ -1375,7 +1375,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('um 422 do fim da série fecha a confirmação, assinala a data de fim e foca-a', async () => {
     createAdminEvent.mockRejectedValueOnce(apiError(422, TOO_LONG, { 'recurrence.ends_on': [TOO_LONG] }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await openConfirmation(user)
 
@@ -1392,7 +1392,7 @@ describe('CreateEventDialog — série recorrente', () => {
     createAdminEvent.mockRejectedValueOnce(apiError(422, FIRST_DEADLINE_PAST, {
       'recurrence.registration_deadline_days_before': [FIRST_DEADLINE_PAST],
     }))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await openConfirmation(user)
 
@@ -1405,7 +1405,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('um 503 fecha a confirmação e mostra a mensagem geral no modal', async () => {
     createAdminEvent.mockRejectedValueOnce(apiError(503, UNAVAILABLE))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
     await openConfirmation(user)
 
@@ -1419,7 +1419,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('um 404 da morada fecha a confirmação, assinala a morada e foca-a', async () => {
     createAdminEvent.mockRejectedValueOnce(apiError(404, NOT_FOUND))
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await openConfirmation(user)
 
@@ -1433,7 +1433,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('um online recorrente envia só o link, sem morada nem data limite, com a recorrência', async () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: {} })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     show()
     await user.click(formatButton('Online'))
     await fillCommon(user)
@@ -1473,7 +1473,7 @@ describe('CreateEventDialog — série recorrente', () => {
     }
 
     it('em Recorrente agrupa a frequência, as datas, as horas e o fecho das inscrições numa caixa entre a delegação e o local', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
 
       expect(queryRecurrenceBox()).not.toBeInTheDocument()
@@ -1516,7 +1516,7 @@ describe('CreateEventDialog — série recorrente', () => {
     })
 
     it('mostra o texto de espera até a série estar completa e depois a pré-visualização dentro da caixa', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await chooseRecurring(user)
 
@@ -1547,7 +1547,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
     it('com um 422 do fim da série não mostra nem a pré-visualização nem o texto de espera', async () => {
       createAdminEvent.mockRejectedValueOnce(apiError(422, TOO_LONG, { 'recurrence.ends_on': [TOO_LONG] }))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await openConfirmation(user)
 
@@ -1560,7 +1560,7 @@ describe('CreateEventDialog — série recorrente', () => {
     }, 15000)
 
     it('a data e as horas passam entre Pontual e Recorrente', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await pickDate(user, field.date(), '20 de março de 2099')
       await typeInto(user, field.start(), '19:30')
@@ -1579,7 +1579,7 @@ describe('CreateEventDialog — série recorrente', () => {
     })
 
     it('com o pontual preenchido, Recorrente só pede a frequência, a data de fim e o fecho das inscrições', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await fillValidInPerson(user)
 
@@ -1593,7 +1593,7 @@ describe('CreateEventDialog — série recorrente', () => {
         event_date: ['A data do evento não é válida.'],
         'recurrence.frequency': ['A frequência da série selecionada é inválida.'],
       }))
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       show()
       await openConfirmation(user)
 
