@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -48,6 +49,74 @@ describe('SelectMenu', () => {
     expect(option('Workshop')).toHaveAttribute('aria-selected', 'false')
     expect(option('Formação')).toHaveAttribute('aria-selected', 'false')
     expectHighlighted('Todos os tipos')
+  })
+
+  it('na variante dos filtros permite escolher por teclado e cancelar sem alterar o valor', async () => {
+    const user = userEvent.setup()
+    const { onChange } = show({ variant: 'public-filter' })
+
+    await user.tab()
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('c1')
+    expect(combobox()).toHaveFocus()
+    expect(combobox()).toHaveAttribute('aria-expanded', 'false')
+
+    onChange.mockClear()
+    await user.keyboard('{ArrowDown}{End}{Escape}')
+    expect(onChange).not.toHaveBeenCalled()
+    expect(combobox()).toHaveAttribute('aria-expanded', 'false')
+    expect(combobox()).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+    await user.tab()
+    expect(combobox()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('nos filtros pesquisa prefixos sem acentos e percorre iniciais repetidas com o menu fechado ou aberto', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const choices = [
+      { value: '', label: 'Todos' },
+      { value: 'a', label: 'Águeda' },
+      { value: 'b', label: 'Aveiro' },
+      { value: 'c', label: 'Portalegre' },
+      { value: 'd', label: 'Porto' },
+    ]
+    function Filter() {
+      const [value, setValue] = useState('')
+      return <SelectMenu id="filtro-tipo" label="Tipo de evento" variant="public-filter" value={value} options={choices} onChange={(next) => { setValue(next); onChange(next) }} />
+    }
+    render(<Filter />)
+    await user.tab()
+    await user.keyboard('a')
+    expect(combobox()).toHaveTextContent(choices[1].label)
+    await user.keyboard('a')
+    expect(combobox()).toHaveTextContent('Aveiro')
+    expect(combobox()).toHaveAttribute('aria-expanded', 'false')
+
+    await user.keyboard('{ArrowDown}porto')
+    expectHighlighted('Porto')
+    expect(combobox()).toHaveTextContent('Aveiro')
+    onChange.mockClear()
+    await user.keyboard('{Escape}')
+    expect(onChange).not.toHaveBeenCalled()
+    expect(combobox()).toHaveTextContent('Aveiro')
+
+    await user.keyboard('{ArrowDown}porto{Enter}')
+    expect(onChange).toHaveBeenCalledWith('d')
+    expect(combobox()).toHaveTextContent('Porto')
+    expect(combobox()).toHaveFocus()
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      await user.keyboard('a')
+      expect(combobox()).toHaveTextContent(choices[1].label)
+      now.mockReturnValue(2000)
+      await user.keyboard('v')
+      expect(combobox()).toHaveTextContent(choices[1].label)
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('com um valor escolhido mostra o nome dessa opção', () => {

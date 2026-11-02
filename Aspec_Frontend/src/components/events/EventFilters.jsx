@@ -1,7 +1,7 @@
-const selectClassName = "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:opacity-60";
-const buttonClassName = "rounded text-sm font-medium text-[#0d1f35] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]";
+import SelectMenu from '../ui/SelectMenu'
+import { PublicFilterSearch, publicFilterLabelClass, publicFilterButtonClass, publicFilterClearClass } from '../ui/PublicFilterControls'
 
-const searchButtonClassName = "rounded-lg bg-[#0d1f35] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50";
+const buttonClassName = 'rounded text-sm font-medium text-[#0d1f35] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary'
 
 export default function EventFilters({
   categoryId,
@@ -20,32 +20,30 @@ export default function EventFilters({
     <form onSubmit={onSearch} aria-label="Filtros de eventos" className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="grid gap-4 md:grid-cols-4">
         <div className="min-w-0 md:col-span-2">
-          <label htmlFor="event-search" className="mb-1.5 block text-sm font-medium text-gray-700">Pesquisar eventos</label>
-          <input
+          <label htmlFor="event-search" className={publicFilterLabelClass}>Pesquisar eventos</label>
+          <PublicFilterSearch
             id="event-search"
-            type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Pesquisar eventos..."
             disabled={!searchEnabled}
             aria-describedby={!searchEnabled ? "event-search-unavailable" : undefined}
-            className={selectClassName}
           />
           {!searchEnabled && <p id="event-search-unavailable" className="mt-2 text-sm text-gray-600">Pesquisa indisponível de momento.</p>}
         </div>
         <div className="min-w-0">
-          <label htmlFor="event-category" className="mb-1.5 block text-sm font-medium text-gray-700">Categoria</label>
-          <select
+          <label id="event-category-label" htmlFor="event-category" className={publicFilterLabelClass}>Categoria</label>
+          <SelectMenu
             id="event-category"
             value={categoryId}
-            onChange={(event) => onCategoryChange(event.target.value)}
+            onChange={onCategoryChange}
             disabled={categories.loading || Boolean(categories.error)}
-            aria-describedby={categories.error ? "event-category-error" : categories.loading ? "event-category-status" : undefined}
-            className={selectClassName}
-          >
-            <option value="">Todas as categorias</option>
-            {categories.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+            describedBy={categories.error ? "event-category-error" : categories.loading ? "event-category-status" : undefined}
+            label="Categoria"
+            labelId="event-category-label"
+            variant="public-filter"
+            options={[{ value: '', label: 'Todas as categorias' }, ...categories.items.map((item) => ({ value: String(item.id), label: item.name }))]}
+          />
           {categories.loading && <p id="event-category-status" role="status" className="mt-2 text-sm text-gray-600">A carregar categorias...</p>}
           {categories.error && (
             <div className="mt-3 space-y-2 text-sm">
@@ -55,18 +53,18 @@ export default function EventFilters({
           )}
         </div>
         <div className="min-w-0">
-          <label htmlFor="event-location" className="mb-1.5 block text-sm font-medium text-gray-700">Distrito</label>
-          <select
+          <label id="event-location-label" htmlFor="event-location" className={publicFilterLabelClass}>Distrito</label>
+          <SelectMenu
             id="event-location"
             value={locationId}
-            onChange={(event) => onLocationChange(event.target.value)}
+            onChange={onLocationChange}
             disabled={locations.loading || Boolean(locations.error)}
-            aria-describedby={locations.error ? "event-location-error" : locations.loading ? "event-location-status" : undefined}
-            className={selectClassName}
-          >
-            <option value="">Todos os distritos</option>
-            {locations.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+            describedBy={locations.error ? "event-location-error" : locations.loading ? "event-location-status" : undefined}
+            label="Distrito"
+            labelId="event-location-label"
+            variant="public-filter"
+            options={[{ value: '', label: 'Todos os distritos' }, ...locations.items.map((item) => ({ value: String(item.id), label: item.name }))]}
+          />
           {locations.loading && <p id="event-location-status" role="status" className="mt-2 text-sm text-gray-600">A carregar distritos...</p>}
           {locations.error && (
             <div className="mt-3 space-y-2 text-sm">
@@ -77,8 +75,8 @@ export default function EventFilters({
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-end gap-4">
-        <button type="submit" className={searchButtonClassName}>Pesquisar</button>
-        <button type="button" onClick={onClear} className={buttonClassName}>Limpar filtros</button>
+        <button type="submit" className={publicFilterButtonClass}>Pesquisar</button>
+        <button type="button" onClick={onClear} className={publicFilterClearClass}>Limpar filtros</button>
       </div>
     </form>
   );
