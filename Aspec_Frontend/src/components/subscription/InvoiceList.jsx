@@ -30,6 +30,46 @@ function getInvoiceLabel(invoice) {
   return invoice.number ? `Fatura ${invoice.number}` : 'Fatura emitida'
 }
 
+/*
+ * As datas do período vêm da API sem hora (YYYY-MM-DD). Criá-las em UTC
+ * evita que um fuso horário faça a interface mostrar o dia anterior.
+ */
+function parseDateOnly(value) {
+  if (typeof value !== 'string') return null
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return date
+}
+
+function getInvoicePeriod(invoice) {
+  const start = parseDateOnly(invoice.period_start)
+  const end = parseDateOnly(invoice.period_end)
+
+  if (!start || !end || start > end) return null
+
+  const formatter = new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'UTC',
+  })
+
+  return `Período: ${formatter.format(start)} – ${formatter.format(end)}`
+}
+
 function getDownloadFilename(invoice) {
   const reference = String(invoice.number ?? invoice.id)
   const safeReference = reference
@@ -170,7 +210,7 @@ export default function InvoiceList() {
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
       <h2 className="text-base font-semibold text-[#0d1f35]">Faturas</h2>
       <p className="mb-4 mt-1 text-xs text-gray-500">
-        Documentos de cada cobrança mensal.
+        Documentos de cada cobrança.
       </p>
 
       {downloadError && (
@@ -203,11 +243,17 @@ export default function InvoiceList() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b border-gray-50 last:border-0">
-                  <td className="py-1.5 text-[#0d1f35]">
-                    {getInvoiceLabel(invoice)}
-                  </td>
+              {invoices.map((invoice) => {
+                const period = getInvoicePeriod(invoice)
+
+                return (
+                  <tr key={invoice.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-1.5 text-[#0d1f35]">
+                      <p>{getInvoiceLabel(invoice)}</p>
+                      {period && (
+                        <p className="mt-0.5 text-xs text-gray-500">{period}</p>
+                      )}
+                    </td>
                   <td className="py-1.5">
                     <div className="-mr-2 flex justify-end">
                       {invoice.pdf_available ? (
@@ -228,8 +274,9 @@ export default function InvoiceList() {
                       )}
                     </div>
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
