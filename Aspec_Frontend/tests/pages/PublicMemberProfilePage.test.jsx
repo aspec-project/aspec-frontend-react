@@ -32,10 +32,12 @@ const portfolioForNavigation = [
 const response = (config, data = profile) => ({ data: { success: true, message: 'Perfil', data }, config, status: 200, statusText: '', headers: {} })
 const active = { id, role: { name: 'Member' }, account_status: { name: 'Active' } }
 const fullAddress = 'Morada privada, 1000-100 Cidade privada'
+const embedKey = 'test-maps-embed-key'
 const expectPrivateLocationHidden = () => {
   for (const value of ['Morada privada', '1000-100', 'Cidade privada']) expect(document.body).not.toHaveTextContent(value)
   expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+  expect(document.querySelector('iframe')).toBeNull()
 }
 const show = (memberId = id) => render(<MemoryRouter initialEntries={[`/membros/${memberId}`]}><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
 function fail(config, status) { return Promise.reject(new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config), status })) }
@@ -43,11 +45,12 @@ function fail(config, status) { return Promise.reject(new AxiosError('Erro', Axi
 describe('Perfil público de membro', () => {
   let original
   beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', embedKey)
     original = api.defaults.adapter
     useAuthStore.setState({ user: null, status: 'idle' })
     api.defaults.adapter = (config) => Promise.resolve(response(config))
   })
-  afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
+  afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
   it('aceita o horário da API em português e mostra segunda-feira aberta no perfil', async () => {
     show()
@@ -128,6 +131,18 @@ describe('Perfil público de membro', () => {
     expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
     expect(screen.getByText(fullAddress)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
+    const map = screen.getByTitle('Mapa da localização do membro')
+    const embedUrl = new URL(map.src)
+    expect(embedUrl.origin + embedUrl.pathname).toBe('https://www.google.com/maps/embed/v1/place')
+    expect(embedUrl.searchParams.get('q')).toBe(fullAddress)
+    expect(embedUrl.searchParams.get('key')).toBe(embedKey)
+    expect(embedUrl.searchParams.get('language')).toBe('pt-PT')
+    expect(embedUrl.searchParams.get('region')).toBe('PT')
+    expect(map).toHaveAttribute('loading', 'lazy')
+    expect(map).toHaveAttribute('referrerpolicy', 'strict-origin-when-cross-origin')
+    expect(map).toHaveAttribute('allowfullscreen')
+    expect(map).toHaveClass('h-full', 'w-full', 'border-0')
+    expect(map.parentElement).toHaveClass('h-[200px]', 'overflow-hidden', 'rounded-lg')
     for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', '999111222', 'Contacto antigo']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('href', 'https://social.test/')
@@ -396,8 +411,22 @@ describe('Perfil público de membro', () => {
     expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
-    expect(document.querySelector('iframe')).toBeNull()
+    const embedUrl = new URL(screen.getByTitle('Mapa da localização do membro').src)
+    expect(embedUrl.searchParams.get('q')).toBe(fullAddress)
+    expect(embedUrl.searchParams.get('key')).toBe(embedKey)
+    expect([...embedUrl.searchParams.keys()]).toEqual(['key', 'q', 'language', 'region'])
+    expect(embedUrl.hash).toBe('')
     expect(screen.queryByRole('img', { name: /mapa/i })).not.toBeInTheDocument()
+  })
+
+  it.each([undefined, '', '   '])('mantém a morada e o link sem mapa vazio quando falta a chave: %s', async (key) => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', key)
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    await screen.findByText(fullAddress)
+    expect(screen.getByRole('status')).toHaveTextContent('O mapa está indisponível. Pode abrir a localização no Google Maps.')
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
   })
 
   it.each([undefined, null, '', '   '])('não mostra cartão de mapa quando todas as partes estão vazias: %s', async (address) => {
@@ -407,6 +436,7 @@ describe('Perfil público de membro', () => {
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+    expect(document.querySelector('iframe')).toBeNull()
   })
 
   it.each([
@@ -428,7 +458,8 @@ describe('Perfil público de membro', () => {
     show()
     const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
     const card = link.closest('section')
-    expect(card.querySelector('p').textContent).toBe(expected)
+    expect(within(card).getByText(expected)).toBeInTheDocument()
+    expect(new URL(within(card).getByTitle('Mapa da localização do membro').src).searchParams.get('q')).toBe(expected)
     expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(expected)}`)
   })
 
