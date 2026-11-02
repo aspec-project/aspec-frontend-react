@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError } from 'axios'
 import { api, normalizeError } from '../../src/services/api'
-import { createAdminEvent, deleteAdminEvent, exportEventAttendees, geocodeAddress, getAdminEvents, updateAdminEvent } from '../../src/services/adminEvents'
+import {
+  createAdminEvent,
+  deleteAdminEvent,
+  distributePrayerCards,
+  exportEventAttendees,
+  geocodeAddress,
+  getAdminEvent,
+  getAdminEvents,
+  getPrayerCardsStatus,
+  updateAdminEvent,
+} from '../../src/services/adminEvents'
 
 const payload = {
   items: [{ id: 'e1', name: 'Jantar — Lisboa' }],
@@ -219,5 +229,181 @@ describe('deleteAdminEvent', () => {
     vi.spyOn(api, 'delete').mockRejectedValue(error)
 
     await expect(deleteAdminEvent('e1', 'Motivo')).rejects.toBe(error)
+  })
+})
+
+const EVENT_FORMAT_ERROR = 'A resposta do evento tem um formato inesperado.'
+const PRAYER_CARDS_FORMAT_ERROR = 'A resposta dos cartões de oração tem um formato inesperado.'
+
+function apiEvent(overrides = {}) {
+  return {
+    id: 'ev-1',
+    name: 'Pequeno-Almoço de Oração e Negócios — Porto',
+    category: { id: 'c1', name: 'Pequeno-Almoço', color: '#2E7D32' },
+    location: { id: 'l2', name: 'Porto' },
+    event_date: '2025-02-03',
+    event_start_time: '08:00',
+    event_end_time: '09:30',
+    venue_name: 'Café Majestic',
+    is_online: false,
+    max_attendees: 25,
+    registration_deadline: '2025-02-01T23:59:00+00:00',
+    registrations_count: 18,
+    prayer_cards_enabled: true,
+    prayer_cards_count: 6,
+    series_id: null,
+    address: 'Rua de Santa Catarina 112, 4000-442 Porto',
+    online_url: null,
+    organizer_notes: 'Entrada pela porta lateral.',
+    prayer_verse: 'Levai as cargas uns dos outros (Gálatas 6:2)',
+    place_id: 'ChIJexemplo123',
+    latitude: 41.1469,
+    longitude: -8.6063,
+    ...overrides,
+  }
+}
+
+function apiStatus(overrides = {}) {
+  return {
+    enabled: true,
+    prayer_verse: 'Levai as cargas uns dos outros (Gálatas 6:2)',
+    window: { status: 'open', opens_at: '2025-02-03T08:00:00+00:00', closes_at: '2025-02-03T23:59:59+00:00' },
+    registrations_count: 18,
+    cards_count: 2,
+    distributed_count: 0,
+    unpaired_count: 0,
+    distributed_at: null,
+    participants: [
+      { name: 'Rui Magalhães', business_name: 'Magalhães Engenharia', submitted_at: '2025-02-03T08:07:00+00:00', email: 'rui@example.pt' },
+      { name: null, business_name: null, submitted_at: '2025-02-03T08:15:00+00:00' },
+    ],
+    ...overrides,
+  }
+}
+
+const readStatus = {
+  window: { status: 'open', opens_at: '2025-02-03T08:00:00+00:00', closes_at: '2025-02-03T23:59:59+00:00' },
+  registrations_count: 18,
+  cards_count: 2,
+  distributed_at: null,
+  participants: [
+    { name: 'Rui Magalhães', business_name: 'Magalhães Engenharia', submitted_at: '2025-02-03T08:07:00+00:00' },
+    { name: null, business_name: null, submitted_at: '2025-02-03T08:15:00+00:00' },
+  ],
+}
+
+function ok(data, message = 'ok') {
+  return { data: { success: true, message, data } }
+}
+
+describe('getAdminEvent', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('pede o evento com o signal e devolve só os campos que a página mostra', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(ok(apiEvent({ series: { position: 1, total: 4 } })))
+    const signal = new AbortController().signal
+
+    const result = await getAdminEvent('ev-1', signal)
+
+    expect(get).toHaveBeenCalledWith('/admin/events/ev-1', { signal })
+    expect(result).toMatchObject({
+      id: 'ev-1',
+      name: 'Pequeno-Almoço de Oração e Negócios — Porto',
+      category: { id: 'c1', name: 'Pequeno-Almoço' },
+      location: { id: 'l2', name: 'Porto' },
+      event_date: '2025-02-03',
+      event_start_time: '08:00',
+      event_end_time: '09:30',
+      venue_name: 'Café Majestic',
+      is_online: false,
+      max_attendees: 25,
+      registration_deadline: '2025-02-01T23:59:00+00:00',
+      registrations_count: 18,
+      prayer_cards_enabled: true,
+      series: { position: 1, total: 4 },
+    })
+    for (const field of ['address', 'online_url', 'organizer_notes', 'prayer_verse', 'place_id', 'latitude', 'longitude']) {
+      expect(result).not.toHaveProperty(field)
+    }
+  })
+
+  it('codifica o id no URL', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(ok(apiEvent()))
+
+    await getAdminEvent('a/b')
+
+    expect(get.mock.calls[0][0]).toBe('/admin/events/a%2Fb')
+  })
+
+  it('rejeita uma resposta fora do formato', async () => {
+    const withoutPrayerCardsFlag = apiEvent()
+    delete withoutPrayerCardsFlag.prayer_cards_enabled
+    const invalid = [apiEvent({ name: '' }), apiEvent({ registrations_count: '18' }), withoutPrayerCardsFlag]
+
+    for (const data of invalid) {
+      vi.spyOn(api, 'get').mockResolvedValueOnce(ok(data))
+
+      await expect(getAdminEvent('ev-1')).rejects.toThrow(EVENT_FORMAT_ERROR)
+    }
+  })
+})
+
+describe('getPrayerCardsStatus', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('pede o estado com o signal e devolve só a lista branca, sem versículo, contagens extra nem campos a mais dos participantes', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(ok(apiStatus(), 'Estado dos cartões de oração obtido com sucesso.'))
+    const signal = new AbortController().signal
+
+    const result = await getPrayerCardsStatus('ev-1', signal)
+
+    expect(get).toHaveBeenCalledWith('/admin/events/ev-1/prayer-cards', { signal })
+    expect(result).toEqual(readStatus)
+  })
+
+  it('rejeita uma resposta fora do formato', async () => {
+    const window = apiStatus().window
+    const invalid = [
+      apiStatus({ window: { ...window, status: 'aberto' } }),
+      apiStatus({ window: { ...window, opens_at: '2025-02-03' } }),
+      apiStatus({ cards_count: -1 }),
+      apiStatus({ participants: {} }),
+    ]
+
+    for (const data of invalid) {
+      vi.spyOn(api, 'get').mockResolvedValueOnce(ok(data))
+
+      await expect(getPrayerCardsStatus('ev-1')).rejects.toThrow(PRAYER_CARDS_FORMAT_ERROR)
+    }
+  })
+})
+
+describe('distributePrayerCards', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('faz o POST sem corpo e devolve a mensagem e o estado lido', async () => {
+    const distributed = apiStatus({ window: { ...apiStatus().window, status: 'closed' }, distributed_at: '2025-02-03T12:05:00+00:00' })
+    const post = vi.spyOn(api, 'post').mockResolvedValue(ok(distributed, 'Cartões de oração distribuídos.'))
+
+    const result = await distributePrayerCards('ev-1')
+
+    expect(post.mock.calls).toEqual([['/admin/events/ev-1/prayer-cards/distribute']])
+    expect(result).toEqual({
+      message: 'Cartões de oração distribuídos.',
+      status: { ...readStatus, window: { ...readStatus.window, status: 'closed' }, distributed_at: '2025-02-03T12:05:00+00:00' },
+    })
+  })
+
+  it('com o estado fora do formato devolve status null sem rejeitar', async () => {
+    vi.spyOn(api, 'post').mockResolvedValue(ok({ enabled: true }, 'Cartões de oração distribuídos.'))
+
+    await expect(distributePrayerCards('ev-1')).resolves.toEqual({ message: 'Cartões de oração distribuídos.', status: null })
+  })
+
+  it('relança o erro do pedido tal como está', async () => {
+    const error = blobError(409, { success: false, message: 'Os cartões deste evento já foram distribuídos.', data: null })
+    vi.spyOn(api, 'post').mockRejectedValue(error)
+
+    await expect(distributePrayerCards('ev-1')).rejects.toBe(error)
   })
 })

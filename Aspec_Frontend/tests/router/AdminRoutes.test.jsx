@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
 import { getAdminDashboard } from '../../src/services/adminDashboard'
 import { getAdminEventCategories } from '../../src/services/adminEventCategories'
-import { getAdminEvents } from '../../src/services/adminEvents'
+import { getAdminEvent, getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
 import { useAuthStore } from '../../src/store/authStore'
@@ -29,6 +29,9 @@ vi.mock('../../src/services/events', () => ({
 }))
 vi.mock('../../src/services/adminEvents', () => ({
   getAdminEvents: vi.fn(),
+  getAdminEvent: vi.fn(),
+  getPrayerCardsStatus: vi.fn(),
+  distributePrayerCards: vi.fn(),
   exportEventAttendees: vi.fn(),
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
@@ -68,6 +71,22 @@ const maria = {
     social_links: [],
     portfolio: [],
   },
+}
+
+const adminEvent = {
+  id: 'ev-1',
+  name: 'Pequeno-Almoço de Oração e Negócios — Porto',
+  category: { id: 'c1', name: 'Pequeno-Almoço', color: '#2E7D32' },
+  location: { id: 'l2', name: 'Porto' },
+  event_date: '2099-02-03',
+  event_start_time: '08:00',
+  event_end_time: '09:30',
+  venue_name: 'Café Majestic',
+  is_online: false,
+  max_attendees: 25,
+  registration_deadline: '2099-02-01T23:59:00+00:00',
+  registrations_count: 18,
+  prayer_cards_enabled: false,
 }
 
 const emptyList = {
@@ -217,5 +236,44 @@ describe('Rotas de administração', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Gestão de Utilizadores' })).toBeInTheDocument()
     await waitFor(() => expect(getAdminUsers).toHaveBeenCalledWith(expect.objectContaining({ subscriptionState: 'pending' }), expect.any(AbortSignal)))
+  })
+
+  it('um admin abre o detalhe de um evento em página inteira e um membro não chega lá', async () => {
+    getAdminEvent.mockResolvedValue(adminEvent)
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    const { unmount } = show('/admin/eventos/ev-1')
+
+    expect(await screen.findByRole('heading', { level: 1, name: adminEvent.name })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Voltar aos eventos' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Secções da administração' })).not.toBeInTheDocument()
+    unmount()
+
+    vi.clearAllMocks()
+    useAuthStore.setState({ user: { id: 'member-1', email: 'membro@aspec.pt', role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos/ev-1')
+
+    await waitFor(() => expect(getEvents).toHaveBeenCalled())
+    expect(screen.queryByRole('heading', { name: adminEvent.name })).not.toBeInTheDocument()
+    expect(getAdminEvent).not.toHaveBeenCalled()
+  })
+
+  it('um admin vai da lista de eventos para o detalhe pelo link Ver evento', async () => {
+    getAdminEvents.mockResolvedValue({
+      items: [adminEvent],
+      pagination: { current_page: 1, per_page: 6, total: 1, last_page: 1 },
+      counts: { upcoming: 1, past: 0 },
+    })
+    getAdminEvent.mockResolvedValue(adminEvent)
+    const user = userEvent.setup({ delay: null })
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos')
+
+    await user.click(await screen.findByRole('link', { name: `Ver evento ${adminEvent.name}` }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: adminEvent.name })).toBeInTheDocument()
+    expect(getAdminEvent.mock.calls[0][0]).toBe('ev-1')
   })
 })
