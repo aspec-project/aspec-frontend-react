@@ -1,6 +1,6 @@
 import { CircleCheck, CircleX } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { DASHBOARD_TEXTS } from '../../../utils/adminDashboard'
+import { DASHBOARD_ROW_CLASS, DASHBOARD_TEXTS } from '../../../utils/adminDashboard'
 import { USER_ACTION_LABELS } from '../../../utils/adminUsers'
 import { formatRelativeDateTime } from '../../../utils/dateFormat'
 
@@ -22,9 +22,11 @@ function getBusinessLine(profile) {
 }
 
 /**
- * Lista das candidaturas pendentes do painel, pela ordem da API: inicial, nome (ligação ao detalhe do
- * utilizador), "negócio · setor", data relativa em Lisboa e os botões redondos Aprovar (✓) e Recusar (✗).
- * O nome acessível dos botões é a ação + o nome mostrado na linha; o email nunca é mostrado.
+ * Lista das candidaturas pendentes do painel, pela ordem da API: inicial, nome, "negócio · setor", data
+ * relativa em Lisboa e os botões redondos Aprovar (✓) e Recusar (✗). A ligação do nome cobre a linha inteira
+ * (pseudo-elemento ::after), por isso carregar em qualquer ponto da linha abre o detalhe do utilizador; os
+ * botões ficam por cima dessa camada e são irmãos da ligação, nunca filhos. O nome acessível da ligação é só o
+ * nome; o dos botões é a ação + o nome mostrado na linha; o email nunca é mostrado.
  *
  * @param {{
  *   applications: {id: string, created_at: string, member_profile: object|null}[],
@@ -44,23 +46,23 @@ export default function PendingApplicationsList({ applications, onAction, action
         const businessLine = getBusinessLine(application.member_profile)
 
         return (
-          <li key={application.id} className="flex items-center gap-3 py-4">
+          <li key={application.id} className={`relative ${DASHBOARD_ROW_CLASS} hover:bg-gray-50`}>
             <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0d1f35] text-sm font-semibold text-white">
               {hasName ? name.trim().charAt(0).toUpperCase() : '?'}
             </span>
             <div className="min-w-0 flex-1">
               <Link
                 to={`/admin/utilizadores/${encodeURIComponent(application.id)}`}
-                className="block truncate font-medium text-[#0d1f35] hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]"
+                className="block truncate font-medium text-[#0d1f35] after:absolute after:inset-0 after:rounded-lg hover:underline focus-visible:underline focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-[#315a79]"
               >
                 {displayName}
               </Link>
               {businessLine && <p className="truncate text-sm text-gray-500">{businessLine}</p>}
-              <p className="text-xs text-gray-400">
+              <p className="truncate text-xs text-gray-400">
                 <time dateTime={application.created_at}>{formatRelativeDateTime(application.created_at)}</time>
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="relative z-10 flex shrink-0 items-center gap-2">
               {ROW_ACTIONS.map(({ action, Icon, className }) => (
                 <button
                   key={action}
