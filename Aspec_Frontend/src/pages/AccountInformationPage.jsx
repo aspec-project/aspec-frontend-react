@@ -1,12 +1,17 @@
-import { useRef, useState } from 'react'
-import { KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Bell, CalendarDays, Check, KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import ChangePasswordDialog from '../components/account/ChangePasswordDialog'
+import FeedbackBanner from '../components/ui/FeedbackBanner'
 import InternationalPhoneInput from '../components/ui/InternationalPhoneInput'
 import { normalizeError } from '../services/api'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { updateMemberProfile } from '../services/memberProfile'
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '../services/account'
 import {
   normalizePhone,
   validateEmail,
@@ -29,6 +34,49 @@ function FieldError({ message }) {
   )
 }
 
+function NotificationPreferenceToggle({
+  id,
+  title,
+  description,
+  icon: Icon,
+  checked,
+  disabled,
+  onChange,
+}) {
+  return (
+    <div className="flex items-center justify-between gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex min-w-0 items-start gap-3">
+        <Icon className="mt-0.5 shrink-0 text-[#9b7b45]" size={20} aria-hidden="true" />
+        <div>
+          <h3 className="text-sm font-semibold text-[#0d1f35]">{title}</h3>
+          <p id={`${id}-description`} className="mt-1 text-sm leading-5 text-slate-600">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-describedby={`${id}-description`}
+        aria-label={`${checked ? 'Desativar' : 'Ativar'} ${title.toLowerCase()}`}
+        disabled={disabled}
+        onClick={onChange}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-wait disabled:opacity-60 ${checked ? 'bg-[#315a79]' : 'bg-slate-300'}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute left-1 top-1 flex size-5 items-center justify-center rounded-full border shadow-sm transition-all ${checked ? 'translate-x-5 border-white bg-white text-[#315a79]' : 'translate-x-0 border-slate-300 bg-white text-slate-500'}`}
+        >
+          {checked ? <Check size={12} strokeWidth={3} /> : <X size={11} strokeWidth={2.5} />}
+        </span>
+      </button>
+    </div>
+  )
+}
+
 /*
  * Página da aba “Informações de conta”.
  *
@@ -39,6 +87,7 @@ export default function AccountInformationPage() {
   const { profile, reloadProfile } = useOutletContext()
   const getRequestContext = useSessionRequest()
   const personalSavingRef = useRef(false)
+  const notificationSavingRef = useRef(false)
 
   const [savedEmail, setSavedEmail] = useState(profile.email ?? '')
   const [personalData, setPersonalData] = useState({
@@ -51,6 +100,54 @@ export default function AccountInformationPage() {
   const [personalStatus, setPersonalStatus] = useState(null)
   const [personalErrors, setPersonalErrors] = useState({})
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    notify_new_events: true,
+    notify_weekly_agenda: true,
+  })
+  const [areNotificationPreferencesLoading, setAreNotificationPreferencesLoading] = useState(true)
+  const [isSavingNotificationPreferences, setIsSavingNotificationPreferences] = useState(false)
+  const [notificationPreferencesStatus, setNotificationPreferencesStatus] = useState(null)
+
+  useEffect(() => {
+    const context = getRequestContext()
+
+    if (!context) {
+      return undefined
+    }
+
+    async function loadNotificationPreferences() {
+      try {
+        const preferences = await getNotificationPreferences(context)
+
+        if (!isSessionCurrent(context)) {
+          return
+        }
+
+        setNotificationPreferences({
+          notify_new_events: Boolean(preferences.notify_new_events),
+          notify_weekly_agenda: Boolean(preferences.notify_weekly_agenda),
+        })
+      } catch (error) {
+        if (!isSessionCurrent(context)) {
+          return
+        }
+
+        const normalisedError = normalizeError(error)
+        setNotificationPreferencesStatus({
+          type: 'error',
+          message: normalisedError.message ?? 'Não foi possível carregar as preferências de comunicação.',
+        })
+      } finally {
+        if (isSessionCurrent(context)) {
+          setAreNotificationPreferencesLoading(false)
+        }
+      }
+    }
+
+    void loadNotificationPreferences()
+
+    return undefined
+  }, [getRequestContext])
 
   function handlePersonalChange(event) {
     const { name, value } = event.target
@@ -180,6 +277,59 @@ export default function AccountInformationPage() {
     setPersonalErrors({})
     setPersonalStatus(null)
     setIsEditingPersonalData(false)
+  }
+
+  async function handleNotificationPreferenceChange(preference) {
+    const context = getRequestContext()
+
+    if (!context || notificationSavingRef.current || areNotificationPreferencesLoading) {
+      return
+    }
+
+    const previousPreferences = notificationPreferences
+    const nextPreferences = {
+      ...previousPreferences,
+      [preference]: !previousPreferences[preference],
+    }
+
+    notificationSavingRef.current = true
+    setNotificationPreferences(nextPreferences)
+    setIsSavingNotificationPreferences(true)
+    setNotificationPreferencesStatus(null)
+
+    try {
+      const savedPreferences = await updateNotificationPreferences(nextPreferences, context)
+
+      if (!isSessionCurrent(context)) {
+        return
+      }
+
+      setNotificationPreferences({
+        notify_new_events: Boolean(savedPreferences.notify_new_events),
+        notify_weekly_agenda: Boolean(savedPreferences.notify_weekly_agenda),
+      })
+      setNotificationPreferencesStatus({
+        type: 'success',
+        message: 'Preferências de comunicação atualizadas.',
+      })
+    } catch (error) {
+      if (!isSessionCurrent(context)) {
+        return
+      }
+
+      const normalisedError = normalizeError(error)
+      setNotificationPreferences(previousPreferences)
+      setNotificationPreferencesStatus({
+        type: 'error',
+        message: normalisedError.message ?? 'Não foi possível guardar as preferências de comunicação.',
+      })
+    } finally {
+      notificationSavingRef.current = false
+
+      if (isSessionCurrent(context)) {
+        setIsSavingNotificationPreferences(false)
+      }
+    }
   }
 
   const inputClassName =
@@ -378,19 +528,53 @@ export default function AccountInformationPage() {
         </button>
       </section>
 
-      {/*
-       * O Figma prevê preferências de comunicação, mas a API ainda não
-       * expõe campos nem endpoint para guardar essa escolha.
-       */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="text-xl font-semibold text-[#0d1f35]">
-          Preferências de comunicação
-        </h2>
+        <div className="flex items-center gap-3">
+          <Bell className="text-[#9b7b45]" size={22} aria-hidden="true" />
+          <div>
+            <h2 className="text-xl font-semibold text-[#0d1f35]">
+              Preferências de comunicação
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Escolhe os emails relacionados com eventos que pretendes receber.
+            </p>
+          </div>
+        </div>
 
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          Esta área ficará disponível quando o backend disponibilizar as
-          preferências de emails e notificações da conta.
-        </p>
+        <div className="mt-7 space-y-4">
+          <NotificationPreferenceToggle
+            id="notify-new-events"
+            title="Novos eventos"
+            description="Recebe um email quando for anunciado um novo evento ASPEC."
+            icon={Bell}
+            checked={notificationPreferences.notify_new_events}
+            disabled={areNotificationPreferencesLoading || isSavingNotificationPreferences}
+            onChange={() => void handleNotificationPreferenceChange('notify_new_events')}
+          />
+          <NotificationPreferenceToggle
+            id="notify-weekly-agenda"
+            title="Agenda semanal"
+            description="Recebe semanalmente uma agenda com os próximos eventos ASPEC."
+            icon={CalendarDays}
+            checked={notificationPreferences.notify_weekly_agenda}
+            disabled={areNotificationPreferencesLoading || isSavingNotificationPreferences}
+            onChange={() => void handleNotificationPreferenceChange('notify_weekly_agenda')}
+          />
+        </div>
+
+        {areNotificationPreferencesLoading && (
+          <p className="mt-4 text-sm text-slate-500">A carregar preferências...</p>
+        )}
+
+        {notificationPreferencesStatus && (
+          <div className="mt-5">
+            <FeedbackBanner
+              type={notificationPreferencesStatus.type}
+              message={notificationPreferencesStatus.message}
+              onClose={() => setNotificationPreferencesStatus(null)}
+            />
+          </div>
+        )}
       </section>
 
       {isPasswordDialogOpen && (
