@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Link2, Lock, MapPin } from 'lucide-react'
+import { Globe, Link2, Lock, Mail, MapPin, Phone } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
 import { groupBusinessHours } from '../../utils/businessHours'
@@ -103,7 +103,7 @@ function Contacts({ member, allowContacts, showLockedContacts }) {
   }
   const contacts = allowContacts ? member.members_only : null
   if (!contacts) return null
-  const fields = [['Telefone comercial', contacts.commercial_phone], ['Email comercial', contacts.commercial_email]]
+  const fields = [['Telefone comercial', contacts.commercial_phone, Phone], ['Email comercial', contacts.commercial_email, Mail]]
   const visibleFields = fields.filter(([, value]) => value?.trim())
   const socialLinks = contacts.social_links.filter((item) => item.url)
   return (
@@ -124,10 +124,13 @@ function Contacts({ member, allowContacts, showLockedContacts }) {
       {visibleFields.length === 0 && !contacts.website_url && socialLinks.length === 0 && <p className="mt-4 text-sm text-gray-600">Contactos não disponíveis.</p>}
       {visibleFields.length > 0 && (
         <dl className="mt-4 space-y-4">
-          {visibleFields.map(([label, value]) => (
+          {visibleFields.map(([label, value, Icon]) => (
             <div key={label}>
-              <dt className="text-sm font-medium">{label}</dt>
-              <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{value}</dd>
+              <dt className="flex items-start gap-3 text-sm font-medium">
+                <Icon size={16} className="mt-0.5 shrink-0 text-[#8a7043]" aria-hidden="true" />
+                {label}
+              </dt>
+              <dd className="ml-7 mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{value}</dd>
             </div>
           ))}
         </dl>
