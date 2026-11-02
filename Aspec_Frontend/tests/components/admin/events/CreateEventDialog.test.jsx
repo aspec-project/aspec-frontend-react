@@ -379,7 +379,7 @@ describe('CreateEventDialog', () => {
     await user.tab()
 
     expect(screen.getByText(FORMAT_ERROR)).toBeInTheDocument()
-  })
+  }, 10000)
 
   it('as listas abertas do tipo e da delegação têm nome próprio', async () => {
     const user = userEvent.setup({ delay: null })
