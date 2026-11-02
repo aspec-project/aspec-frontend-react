@@ -28,8 +28,8 @@ export default function MemberReviews({ memberId, allowReview = false }) {
       .then((data) => {
         if (!controller.signal.aborted) setResult({ ...snapshot, status: 'success', data })
       })
-      .catch((error) => {
-        if (!controller.signal.aborted) setResult({ ...snapshot, status: error?.response?.status === 404 ? 'empty' : 'error' })
+      .catch(() => {
+        if (!controller.signal.aborted) setResult({ ...snapshot, status: 'error' })
       })
     return () => controller.abort()
   }, [memberId, user, sessionStatus, page, retry])
@@ -49,7 +49,7 @@ export default function MemberReviews({ memberId, allowReview = false }) {
         <button type="button" className={`${buttonClass} mt-4`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button>
       </div>
     )
-  } else if (current.status === 'empty' || data.items.length === 0) {
+  } else if (data.items.length === 0) {
     content = <p className="mt-4 text-sm text-gray-600">Ainda não existem avaliações.</p>
   } else {
     content = (
@@ -58,11 +58,11 @@ export default function MemberReviews({ memberId, allowReview = false }) {
           <li key={review.id} className="py-5 first:pt-0 last:pb-0">
             <div className="flex items-start gap-3">
               <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#8a7043]/15 font-medium text-[#8a7043]">
-                {review.reviewer.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('pt-PT')}
+                {review.reviewer.business_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('pt-PT')}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="break-words text-sm font-medium text-[#0d1f35]">{review.reviewer.name}</p>
+                  <p className="break-words text-sm font-medium text-[#0d1f35]">{review.reviewer.business_name}</p>
                   <time className="text-xs text-gray-500" dateTime={review.created_at}>{new Date(review.created_at).toLocaleDateString('pt-PT')}</time>
                 </div>
                 <p className="mt-1 flex items-center gap-2 text-sm" aria-label={`${review.rating} de 5 estrelas`}><RatingStars rating={review.rating} size={13} /><span>{review.rating} / 5</span></p>
