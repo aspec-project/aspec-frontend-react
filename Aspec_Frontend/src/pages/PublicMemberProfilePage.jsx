@@ -13,7 +13,7 @@ export default function PublicMemberProfilePage() {
   const showLockedContacts = !user && ['idle', 'error'].includes(sessionStatus)
   const allowContacts = sessionStatus === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
   const allowReview = allowContacts && user?.role?.name === 'Member'
-  const allowComments = sessionStatus === 'authenticated' && !!user?.id && ['Member', 'Admin'].includes(user?.role?.name)
+  const allowComments = allowContacts && !!user?.id
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
 

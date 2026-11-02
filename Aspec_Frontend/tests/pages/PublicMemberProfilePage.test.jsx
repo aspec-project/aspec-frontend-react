@@ -66,8 +66,8 @@ describe('Perfil público de membro', () => {
     ['membro ainda a confirmar', active, 'loading', false],
     ['logout em curso', active, 'logging-out', false],
     ['membro ativo', active, 'authenticated', true],
-    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', true],
-    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', true],
+    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', false],
+    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', false],
     ['identidade sem ID', { role: { name: 'Member' } }, 'authenticated', false],
   ])('mantém a classificação pública e restringe a lista de comentários: %s', async (_, user, status, visible) => {
     useAuthStore.setState({ user, status })
@@ -115,9 +115,7 @@ describe('Perfil público de membro', () => {
     expect(screen.getByText('Terça a Domingo')).toBeInTheDocument()
     expect(screen.getAllByText('Encerrado')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
-    if (status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name)) {
-      expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
-    } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
     expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
   })

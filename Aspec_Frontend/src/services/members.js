@@ -164,8 +164,8 @@ export async function getMemberReviews(id, page = 1, signal) {
     new Set(items.map((item) => item?.id)).size !== items.length ||
     !items.every((item) => item && isMemberProfileId(item.id) && Number.isInteger(item.rating) && item.rating >= 1 && item.rating <= 5 &&
       nullableText(item.comment) && validReviewDate(item.created_at) &&
-      isMemberProfileId(item.reviewer?.id) && typeof item.reviewer.name === 'string' && item.reviewer.name.trim() !== '' &&
-      (item.reviewer.business_name === undefined || nullableText(item.reviewer.business_name)))) {
+      (item.reviewer?.id === null || isMemberProfileId(item.reviewer?.id)) &&
+      typeof item.reviewer?.business_name === 'string' && item.reviewer.business_name.trim() !== '')) {
     throw new Error('A resposta das avaliações tem um formato inesperado.')
   }
   /*
@@ -176,7 +176,7 @@ export async function getMemberReviews(id, page = 1, signal) {
     average_rating: data.average_rating, reviews_count: data.reviews_count,
     items: items.map((item) => ({
       id: item.id, rating: item.rating, comment: item.comment, created_at: item.created_at,
-      reviewer: { id: item.reviewer.id, name: item.reviewer.name, business_name: item.reviewer.business_name },
+      reviewer: { id: item.reviewer.id, business_name: item.reviewer.business_name },
     })),
     pagination: { current_page: pagination.current_page, per_page: pagination.per_page, total: pagination.total, last_page: pagination.last_page },
   }
