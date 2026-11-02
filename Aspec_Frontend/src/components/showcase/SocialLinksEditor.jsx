@@ -76,7 +76,8 @@ function SocialLinksEditor({ socialLinks, onChange, footer = null }) {
 
                 <input
                   id={inputId}
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={link.url}
                   onChange={(event) => handleChange(link.name, event.target.value)}
                   placeholder={getLinkPlaceholder(link.name)}

@@ -49,13 +49,13 @@ export default function AboutSection() {
               <h2 className="text-3xl font-bold mb-6" style={{ color: "#0d1f35" }}>
                 Sobre a ASPEC
               </h2>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 A <strong>ASPEC — Associação de Profissionais, Empreendedores e Empresários Cristãos de Portugal</strong> é uma rede nacional que reúne pessoas de fé comprometidas com a excelência nas suas áreas profissionais.
               </p>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 Fundada com o propósito de unir cristãos no mundo dos negócios, a ASPEC está presente em <strong>18 delegações</strong> por todo o país, reunindo mais de <strong>320 membros ativos</strong> em sectores tão diversos como a tecnologia, saúde, direito, construção e comércio.
               </p>
-              <p className="text-gray-600 leading-relaxed">
+              <p className="text-gray-600 leading-relaxed text-justify">
                 Mais do que uma associação profissional, somos uma <strong>comunidade de confiança</strong> — um espaço onde a fé e o trabalho caminham lado a lado.
               </p>
             </div>
@@ -121,13 +121,13 @@ export default function AboutSection() {
               <h2 className="text-3xl font-bold mb-6" style={{ color: "#0d1f35" }}>
                 Porque existimos
               </h2>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 <strong>Comunicar</strong> aquilo que nos satisfaz na Vida, em encontros de <strong>convívio</strong> e partilha de <strong>experiências</strong> pessoais.
               </p>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 <strong>Construir</strong> uma rede de contactos e <strong>agilizar oportunidades</strong> entre os cristãos, através de uma base de dados online a que chamamos de <strong>"Parceiros de Confiança"</strong>.
               </p>
-              <p className="text-gray-600 leading-relaxed">
+              <p className="text-gray-600 leading-relaxed text-justify">
                 <strong>Mostrar o Caminho</strong> para uma <strong>Vida com Propósito e Significado</strong>, através de um relacionamento pessoal com Jesus Cristo.
               </p>
             </div>
@@ -149,7 +149,7 @@ export default function AboutSection() {
                   >
                     {v.title}
                   </div>
-                  <div className="text-xs text-gray-500 leading-relaxed">
+                  <div className="text-xs text-gray-500 leading-relaxed text-justify">
                     {v.desc}
                   </div>
                 </div>
@@ -173,13 +173,13 @@ export default function AboutSection() {
               <h2 className="text-3xl font-bold mb-6" style={{ color: "#0d1f35" }}>
                 O que nos move
               </h2>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 A missão da ASPEC é <strong>ser um espaço de encontro</strong> para profissionais e empresários cristãos que desejam integrar os seus valores de fé na vida profissional e empresarial.
               </p>
-              <p className="text-gray-600 leading-relaxed mb-4">
+              <p className="text-gray-600 leading-relaxed text-justify mb-4">
                 Promovemos a <strong>excelência com integridade</strong>, a colaboração assente na <strong>confiança mútua</strong> e o crescimento sustentado por princípios cristãos — na certeza de que a fé e o trabalho não são mundos separados.
               </p>
-              <p className="text-gray-600 leading-relaxed">
+              <p className="text-gray-600 leading-relaxed text-justify">
                 Queremos que cada membro encontre na ASPEC uma <strong>rede de suporte genuíno</strong>: para crescer, para colaborar e para impactar positivamente a sociedade portuguesa.
               </p>
             </div>
@@ -221,7 +221,7 @@ export default function AboutSection() {
                     >
                       {item.title}
                     </div>
-                    <div className="text-xs text-gray-500 leading-relaxed">
+                    <div className="text-xs text-gray-500 leading-relaxed text-justify">
                       {item.desc}
                     </div>
                   </div>

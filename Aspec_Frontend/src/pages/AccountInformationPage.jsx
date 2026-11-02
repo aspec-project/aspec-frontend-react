@@ -1,10 +1,17 @@
-import { useRef, useState } from 'react'
-import { KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Bell, CalendarDays, Check, KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
+import { useOutletContext } from 'react-router-dom'
+import ChangePasswordDialog from '../components/account/ChangePasswordDialog'
+import FeedbackBanner from '../components/ui/FeedbackBanner'
+import InternationalPhoneInput from '../components/ui/InternationalPhoneInput'
 import { normalizeError } from '../services/api'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { updateMemberProfile } from '../services/memberProfile'
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '../services/account'
 import {
   normalizePhone,
   validateEmail,
@@ -27,6 +34,49 @@ function FieldError({ message }) {
   )
 }
 
+function NotificationPreferenceToggle({
+  id,
+  title,
+  description,
+  icon: Icon,
+  checked,
+  disabled,
+  onChange,
+}) {
+  return (
+    <div className="flex items-center justify-between gap-5 rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <div className="flex min-w-0 items-start gap-3">
+        <Icon className="mt-0.5 shrink-0 text-[#9b7b45]" size={20} aria-hidden="true" />
+        <div>
+          <h3 className="text-sm font-semibold text-[#0d1f35]">{title}</h3>
+          <p id={`${id}-description`} className="mt-1 text-sm leading-5 text-slate-600">
+            {description}
+          </p>
+        </div>
+      </div>
+
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-describedby={`${id}-description`}
+        aria-label={`${checked ? 'Desativar' : 'Ativar'} ${title.toLowerCase()}`}
+        disabled={disabled}
+        onClick={onChange}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-wait disabled:opacity-60 ${checked ? 'bg-[#315a79]' : 'bg-slate-300'}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute left-1 top-1 flex size-5 items-center justify-center rounded-full border shadow-sm transition-all ${checked ? 'translate-x-5 border-white bg-white text-[#315a79]' : 'translate-x-0 border-slate-300 bg-white text-slate-500'}`}
+        >
+          {checked ? <Check size={12} strokeWidth={3} /> : <X size={11} strokeWidth={2.5} />}
+        </span>
+      </button>
+    </div>
+  )
+}
+
 /*
  * Página da aba “Informações de conta”.
  *
@@ -37,6 +87,7 @@ export default function AccountInformationPage() {
   const { profile, reloadProfile } = useOutletContext()
   const getRequestContext = useSessionRequest()
   const personalSavingRef = useRef(false)
+  const notificationSavingRef = useRef(false)
 
   const [savedEmail, setSavedEmail] = useState(profile.email ?? '')
   const [personalData, setPersonalData] = useState({
@@ -48,6 +99,55 @@ export default function AccountInformationPage() {
   const [isSavingPersonalData, setIsSavingPersonalData] = useState(false)
   const [personalStatus, setPersonalStatus] = useState(null)
   const [personalErrors, setPersonalErrors] = useState({})
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    notify_new_events: true,
+    notify_weekly_agenda: true,
+  })
+  const [areNotificationPreferencesLoading, setAreNotificationPreferencesLoading] = useState(true)
+  const [isSavingNotificationPreferences, setIsSavingNotificationPreferences] = useState(false)
+  const [notificationPreferencesStatus, setNotificationPreferencesStatus] = useState(null)
+
+  useEffect(() => {
+    const context = getRequestContext()
+
+    if (!context) {
+      return undefined
+    }
+
+    async function loadNotificationPreferences() {
+      try {
+        const preferences = await getNotificationPreferences(context)
+
+        if (!isSessionCurrent(context)) {
+          return
+        }
+
+        setNotificationPreferences({
+          notify_new_events: Boolean(preferences.notify_new_events),
+          notify_weekly_agenda: Boolean(preferences.notify_weekly_agenda),
+        })
+      } catch (error) {
+        if (!isSessionCurrent(context)) {
+          return
+        }
+
+        const normalisedError = normalizeError(error)
+        setNotificationPreferencesStatus({
+          type: 'error',
+          message: normalisedError.message ?? 'Não foi possível carregar as preferências de comunicação.',
+        })
+      } finally {
+        if (isSessionCurrent(context)) {
+          setAreNotificationPreferencesLoading(false)
+        }
+      }
+    }
+
+    void loadNotificationPreferences()
+
+    return undefined
+  }, [getRequestContext])
 
   function handlePersonalChange(event) {
     const { name, value } = event.target
@@ -106,10 +206,6 @@ export default function AccountInformationPage() {
 
     if (Object.keys(clientErrors).length > 0) {
       setPersonalErrors(clientErrors)
-      setPersonalStatus({
-        type: 'error',
-        message: 'Corrige os campos assinalados antes de guardar.',
-      })
       return
     }
 
@@ -122,13 +218,8 @@ export default function AccountInformationPage() {
       const emailChanged =
         personalData.email.trim() !== savedEmail.trim()
 
-        /*
-        * A morada é obrigatória no PUT do perfil. Mantemo-la inalterada
-        * enquanto atualizamos apenas os dados pessoais da conta.
-        */
         const payload = {
-        address: profile.address ?? '',
-        phone: normalizePhone(personalData.phone),
+          phone: normalizePhone(personalData.phone),
         }
 
       if (emailChanged) {
@@ -188,6 +279,59 @@ export default function AccountInformationPage() {
     setIsEditingPersonalData(false)
   }
 
+  async function handleNotificationPreferenceChange(preference) {
+    const context = getRequestContext()
+
+    if (!context || notificationSavingRef.current || areNotificationPreferencesLoading) {
+      return
+    }
+
+    const previousPreferences = notificationPreferences
+    const nextPreferences = {
+      ...previousPreferences,
+      [preference]: !previousPreferences[preference],
+    }
+
+    notificationSavingRef.current = true
+    setNotificationPreferences(nextPreferences)
+    setIsSavingNotificationPreferences(true)
+    setNotificationPreferencesStatus(null)
+
+    try {
+      const savedPreferences = await updateNotificationPreferences(nextPreferences, context)
+
+      if (!isSessionCurrent(context)) {
+        return
+      }
+
+      setNotificationPreferences({
+        notify_new_events: Boolean(savedPreferences.notify_new_events),
+        notify_weekly_agenda: Boolean(savedPreferences.notify_weekly_agenda),
+      })
+      setNotificationPreferencesStatus({
+        type: 'success',
+        message: 'Preferências de comunicação atualizadas.',
+      })
+    } catch (error) {
+      if (!isSessionCurrent(context)) {
+        return
+      }
+
+      const normalisedError = normalizeError(error)
+      setNotificationPreferences(previousPreferences)
+      setNotificationPreferencesStatus({
+        type: 'error',
+        message: normalisedError.message ?? 'Não foi possível guardar as preferências de comunicação.',
+      })
+    } finally {
+      notificationSavingRef.current = false
+
+      if (isSessionCurrent(context)) {
+        setIsSavingNotificationPreferences(false)
+      }
+    }
+  }
+
   const inputClassName =
     'mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#9b7b45] focus:ring-2 focus:ring-[#9b7b45]/20'
 
@@ -199,7 +343,7 @@ export default function AccountInformationPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <h1 className="text-3xl font-bold text-[#0d1f35]">
+            <h1 className="text-2xl font-semibold text-[#0d1f35]">
               Informações de conta
             </h1>
 
@@ -216,7 +360,7 @@ export default function AccountInformationPage() {
               className="inline-flex w-fit items-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:bg-slate-200"
             >
               <Pencil size={16} aria-hidden="true" />
-              Editar
+              Alterar dados
             </button>
           )}
         </div>
@@ -244,7 +388,16 @@ export default function AccountInformationPage() {
             </div>
           </dl>
         ) : (
-          <form className="mt-7 max-w-2xl space-y-5" onSubmit={handlePersonalSubmit}>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <form role="dialog" aria-modal="true" aria-labelledby="personal-data-dialog-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8" onSubmit={handlePersonalSubmit}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="personal-data-dialog-title" className="text-xl font-semibold text-[#0d1f35]">Alterar dados pessoais</h2>
+                <p className="mt-2 text-sm text-slate-600">O email pessoal e o telefone nunca são apresentados no perfil comercial.</p>
+              </div>
+              <button type="button" onClick={handleCancelPersonalEdit} disabled={isSavingPersonalData} className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 disabled:opacity-60" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
+            </div>
+            <div className="mt-6 space-y-5">
             <div>
               <label
                 htmlFor="email"
@@ -274,16 +427,12 @@ export default function AccountInformationPage() {
                 Telefone pessoal
               </label>
 
-              <input
+              <InternationalPhoneInput
                 id="phone"
                 name="phone"
-                type="tel"
-                maxLength={40}
                 value={personalData.phone}
                 onChange={handlePersonalChange}
-                autoComplete="tel"
-                placeholder="+351 912 345 678 ou +44 7911 123456"
-                className={inputClassName}
+                className={inputClassName.replace('mt-2 ', '')}
               />
 
               <FieldError message={personalErrors.phone} />
@@ -329,7 +478,8 @@ export default function AccountInformationPage() {
               </p>
             )}
 
-            <div className="flex flex-wrap gap-3">
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
                 onClick={handleCancelPersonalEdit}
@@ -350,6 +500,7 @@ export default function AccountInformationPage() {
               </button>
             </div>
           </form>
+          </div>
         )}
       </section>
 
@@ -357,7 +508,7 @@ export default function AccountInformationPage() {
         <div className="flex items-center gap-3">
           <KeyRound className="text-[#9b7b45]" size={22} aria-hidden="true" />
           <div>
-            <h2 className="text-2xl font-bold text-[#0d1f35]">
+            <h2 className="text-xl font-semibold text-[#0d1f35]">
               Alterar palavra-passe
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -367,29 +518,68 @@ export default function AccountInformationPage() {
           </div>
         </div>
 
-        <Link
-          to="/perfil/conta/password"
+        <button
+          type="button"
+          onClick={() => setIsPasswordDialogOpen(true)}
           className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#0d1f35] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#193451]"
         >
           <KeyRound size={17} aria-hidden="true" />
           Alterar palavra-passe
-        </Link>
+        </button>
       </section>
 
-      {/*
-       * O Figma prevê preferências de comunicação, mas a API ainda não
-       * expõe campos nem endpoint para guardar essa escolha.
-       */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h2 className="text-2xl font-bold text-[#0d1f35]">
-          Preferências de comunicação
-        </h2>
+        <div className="flex items-center gap-3">
+          <Bell className="text-[#9b7b45]" size={22} aria-hidden="true" />
+          <div>
+            <h2 className="text-xl font-semibold text-[#0d1f35]">
+              Preferências de comunicação
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Escolhe os emails relacionados com eventos que pretendes receber.
+            </p>
+          </div>
+        </div>
 
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          Esta área ficará disponível quando o backend disponibilizar as
-          preferências de emails e notificações da conta.
-        </p>
+        <div className="mt-7 space-y-4">
+          <NotificationPreferenceToggle
+            id="notify-new-events"
+            title="Novos eventos"
+            description="Recebe um email quando for anunciado um novo evento ASPEC."
+            icon={Bell}
+            checked={notificationPreferences.notify_new_events}
+            disabled={areNotificationPreferencesLoading || isSavingNotificationPreferences}
+            onChange={() => void handleNotificationPreferenceChange('notify_new_events')}
+          />
+          <NotificationPreferenceToggle
+            id="notify-weekly-agenda"
+            title="Agenda semanal"
+            description="Recebe semanalmente uma agenda com os próximos eventos ASPEC."
+            icon={CalendarDays}
+            checked={notificationPreferences.notify_weekly_agenda}
+            disabled={areNotificationPreferencesLoading || isSavingNotificationPreferences}
+            onChange={() => void handleNotificationPreferenceChange('notify_weekly_agenda')}
+          />
+        </div>
+
+        {areNotificationPreferencesLoading && (
+          <p className="mt-4 text-sm text-slate-500">A carregar preferências...</p>
+        )}
+
+        {notificationPreferencesStatus && (
+          <div className="mt-5">
+            <FeedbackBanner
+              type={notificationPreferencesStatus.type}
+              message={notificationPreferencesStatus.message}
+              onClose={() => setNotificationPreferencesStatus(null)}
+            />
+          </div>
+        )}
       </section>
+
+      {isPasswordDialogOpen && (
+        <ChangePasswordDialog onClose={() => setIsPasswordDialogOpen(false)} />
+      )}
     </div>
   )
 }

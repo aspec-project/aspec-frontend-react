@@ -6,14 +6,18 @@ import {
   eventToFormValues,
   formatMissingFields,
   getCapacityHint,
+  getChangeNotice,
   getChangedEventFields,
-  getEditNotice,
+  getDeadlineMax,
+  getEventChangeSummary,
   getEventFormErrors,
   getLisbonNow,
   getMissingEventFields,
   getSavedGeocode,
   isSafeMeetingUrl,
   mapEventServerErrors,
+  needsLocationConfirmation,
+  parseTime,
 } from '../../src/utils/adminEventForm'
 
 const NOW = new Date('2030-06-10T10:00:00Z')
@@ -306,6 +310,7 @@ describe('getSavedGeocode', () => {
       result: { latitude: 38.7223, longitude: -9.1533 },
       message: '',
       query: { address: 'Rua Castilho 39', locationId: 'l1' },
+      confirmed: false,
     })
   })
 
@@ -443,13 +448,7 @@ describe('buildEventUpdatePayload', () => {
 })
 
 describe('textos da edição', () => {
-  it('o aviso do email e o hint da capacidade dependem do número de inscritos', () => {
-    expect(getEditNotice(22)).toBe('Os 22 inscritos vão receber um email a avisar que o evento foi alterado.')
-    expect(getEditNotice(1)).toBe('O inscrito vai receber um email a avisar que o evento foi alterado.')
-    for (const count of [0, null, -1, 2.5]) {
-      expect(getEditNotice(count)).toBe('')
-    }
-
+  it('o hint da capacidade depende do número de inscritos', () => {
     expect(getCapacityHint(22)).toBe('Já há 22 inscritos: a capacidade não pode ser inferior.')
     expect(getCapacityHint(1)).toBe('Já há 1 inscrito: a capacidade não pode ser inferior.')
     expect(getCapacityHint(0)).toBe('')
@@ -457,5 +456,331 @@ describe('textos da edição', () => {
 
   it('o erro da justificação vai para o campo da justificação', () => {
     expect(mapEventServerErrors({ justification: ['J'] })).toEqual({ fieldErrors: { justification: 'J' }, unmatched: [] })
+  })
+})
+
+describe('parseTime', () => {
+  it('aceita H:MM, HH:MM, HMM e HHMM entre 00:00 e 23:59 e devolve HH:MM', () => {
+    expect(parseTime('17:39')).toBe('17:39')
+    expect(parseTime('9:05')).toBe('09:05')
+    expect(parseTime('930')).toBe('09:30')
+    expect(parseTime('1739')).toBe('17:39')
+    expect(parseTime('00:00')).toBe('00:00')
+    expect(parseTime('23:59')).toBe('23:59')
+  })
+
+  it('devolve null para horas fora dos limites, incompletas, vazias ou que não são texto', () => {
+    for (const text of ['24:00', '17:60', '17:3', '17', '', 'ab:cd', null]) {
+      expect(parseTime(text)).toBeNull()
+    }
+  })
+})
+
+describe('getDeadlineMax', () => {
+  it('o último dia do prazo é a véspera do evento e sem data do evento não há máximo', () => {
+    expect(getDeadlineMax('')).toBeUndefined()
+    expect(getDeadlineMax('2099-03-20')).toBe('2099-03-19')
+    expect(getDeadlineMax('2099-03-01')).toBe('2099-02-28')
+    expect(getDeadlineMax('2100-01-01')).toBe('2099-12-31')
+  })
+})
+
+describe('getChangeNotice', () => {
+  const TAIL = ' a avisar que o evento foi alterado.'
+
+  it('com inscritos diz a quantos chega o email, com a contagem à parte para ficar a negrito', () => {
+    expect(getChangeNotice(22)).toEqual({ lead: 'Será enviado um email aos ', emphasis: '22 inscritos', tail: TAIL, notify: true })
+    expect(getChangeNotice(1)).toEqual({ lead: 'Será enviado um email ao ', emphasis: '1 inscrito', tail: TAIL, notify: true })
+  })
+
+  it('com o número desconhecido usa a frase genérica e continua a notificar', () => {
+    for (const count of [null, '3']) {
+      expect(getChangeNotice(count)).toEqual({ lead: 'Será enviado um email aos ', emphasis: 'inscritos', tail: TAIL, notify: true })
+    }
+  })
+
+  it('sem inscritos diz que ninguém será notificado', () => {
+    expect(getChangeNotice(0)).toEqual({
+      lead: 'Não há inscritos, por isso ninguém será notificado.',
+      emphasis: '',
+      tail: '',
+      notify: false,
+    })
+  })
+})
+
+describe('getEventChangeSummary', () => {
+  const NAMES = {
+    categoryId: { c1: 'Workshop', c2: 'Formação', c3: 'Jantar' },
+    locationId: { l1: 'Lisboa', l2: 'Porto' },
+  }
+
+  it('lista as alterações pela ordem do formulário com nomes, datas curtas, capacidade normalizada e textos numa linha', () => {
+    const description = `${'A'.repeat(39)}
+${'B'.repeat(80)}`
+    const values = {
+      ...EDIT_VALUES,
+      name: 'Workshop de Liderança — nova data',
+      categoryId: 'c3',
+      eventDate: '2099-01-22',
+      startTime: '17:39',
+      maxAttendees: '040',
+      description,
+    }
+
+    expect(description).toHaveLength(120)
+    expect(getEventChangeSummary(EDIT_VALUES, values, NAMES)).toEqual([
+      { field: 'name', label: 'Título', before: 'Workshop de Liderança', after: 'Workshop de Liderança — nova data' },
+      { field: 'categoryId', label: 'Tipo de evento', before: 'Workshop', after: 'Jantar' },
+      { field: 'eventDate', label: 'Data', before: '21 Jan 2099', after: '22 Jan 2099' },
+      { field: 'startTime', label: 'Hora de início', before: '08:00', after: '17:39' },
+      { field: 'maxAttendees', label: 'Capacidade máxima', before: '30', after: '40' },
+      { field: 'description', label: 'Sobre o evento', before: 'Descrição pública.', after: `${'A'.repeat(39)} ${'B'.repeat(40)}…` },
+    ])
+  })
+
+  it('um valor vazio aparece como (vazio)', () => {
+    expect(getEventChangeSummary({ ...EDIT_VALUES, organizerNotes: '' }, { ...EDIT_VALUES, organizerNotes: 'Novas' }, NAMES)).toEqual([
+      { field: 'organizerNotes', label: 'Notas do organizador', before: '(vazio)', after: 'Novas' },
+    ])
+  })
+
+  it('mudar para online mostra o formato e o link, sem o local nem a morada', () => {
+    const values = { ...EDIT_VALUES, isOnline: true, onlineUrl: 'https://meet.example.pt/nova' }
+
+    expect(getEventChangeSummary(EDIT_VALUES, values, NAMES)).toEqual([
+      { field: 'isOnline', label: 'Formato', before: 'Presencial', after: 'Online' },
+      { field: 'onlineUrl', label: 'Link do evento online', before: '(vazio)', after: 'https://meet.example.pt/nova' },
+    ])
+  })
+
+  it('um id sem nome conhecido aparece como travessão e sem alterações devolve uma lista vazia', () => {
+    expect(getEventChangeSummary(EDIT_VALUES, { ...EDIT_VALUES, categoryId: 'c9' }, NAMES)).toEqual([
+      { field: 'categoryId', label: 'Tipo de evento', before: 'Workshop', after: '—' },
+    ])
+    expect(getEventChangeSummary(EDIT_VALUES, { ...EDIT_VALUES }, NAMES)).toEqual([])
+  })
+})
+
+describe('formulário de uma série', () => {
+  const SERIES_NOW = new Date('2099-03-10T12:00:00Z')
+  const DAYS_ERROR = 'Indique um número inteiro de dias, a partir de 1.'
+  const FIRST_DEADLINE_PAST = 'O prazo calculado para a primeira sessão já passou.'
+  const END_BEFORE_START = 'A data de fim tem de ser igual ou posterior à data de início.'
+  const TOO_LONG = 'Uma série não pode exceder 52 sessões.'
+  const SERIES_KEYS = ['frequency', 'seriesEndsOn', 'deadlineDaysBefore']
+
+  const series = {
+    ...validInPerson,
+    isRecurring: true,
+    eventDate: '2099-03-20',
+    frequency: 'weekly',
+    seriesEndsOn: '2099-04-03',
+    deadlineDaysBefore: '3',
+  }
+
+  const SERIES_PAYLOAD = {
+    category_id: 'c3',
+    location_id: 'l1',
+    name: 'Jantar de Networking Lisboa',
+    event_date: '2099-03-20',
+    event_start_time: '19:30',
+    event_end_time: '21:30',
+    is_online: false,
+    venue_name: 'Restaurante Estrela do Norte',
+    address: 'Rua das Flores 42',
+    max_attendees: 40,
+    description: 'Encontro mensal de networking entre membros.',
+    recurrence: { frequency: 'weekly', ends_on: '2099-04-03', registration_deadline_days_before: 3 },
+  }
+
+  it('uma série válida não tem erros', () => {
+    expect(getEventFormErrors(series, SERIES_NOW)).toEqual({})
+  })
+
+  it('o prazo em dias tem de ser um inteiro a partir de 1', () => {
+    for (const deadlineDaysBefore of ['0', '1.5', 'abc']) {
+      expect(getEventFormErrors({ ...series, deadlineDaysBefore }, SERIES_NOW).deadlineDaysBefore).toBe(DAYS_ERROR)
+    }
+  })
+
+  it('o prazo calculado para a primeira sessão tem de ser futuro', () => {
+    expect(getEventFormErrors({ ...series, eventDate: '2099-03-12', deadlineDaysBefore: '3' }, SERIES_NOW).deadlineDaysBefore)
+      .toBe(FIRST_DEADLINE_PAST)
+    expect(getEventFormErrors({ ...series, eventDate: '2099-03-12', deadlineDaysBefore: '1' }, SERIES_NOW))
+      .not.toHaveProperty('deadlineDaysBefore')
+  })
+
+  it('aceita uma só sessão, recusa o fim antes da primeira sessão e mais de 52 sessões', () => {
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-03-20' }, SERIES_NOW)).not.toHaveProperty('seriesEndsOn')
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-03-19' }, SERIES_NOW).seriesEndsOn).toBe(END_BEFORE_START)
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2100-03-20' }, SERIES_NOW).seriesEndsOn).toBe(TOO_LONG)
+    expect(getEventFormErrors({ ...series, seriesEndsOn: '2099-04-03' }, SERIES_NOW)).not.toHaveProperty('seriesEndsOn')
+  })
+
+  it('numa série as regras da data limite de inscrição não se aplicam', () => {
+    expect(getEventFormErrors({ ...series, registrationDeadline: '2000-01-01' }, SERIES_NOW)).not.toHaveProperty('registrationDeadline')
+  })
+
+  it('num pontual os campos da série não são validados', () => {
+    const single = { ...series, isRecurring: false, seriesEndsOn: '2099-03-19', deadlineDaysBefore: '0' }
+    const errors = getEventFormErrors(single, SERIES_NOW)
+
+    for (const key of SERIES_KEYS) {
+      expect(errors).not.toHaveProperty(key)
+    }
+  })
+
+  it('os campos em falta de uma série trocam a data limite pelos campos da série, pela ordem do formulário', () => {
+    expect(getMissingEventFields({ ...EMPTY_EVENT_FORM, isRecurring: true })).toEqual([
+      'título', 'tipo de evento', 'delegação', 'frequência', 'datas de início e fim', 'hora de início', 'hora de fim',
+      'fecho das inscrições (dias antes)', 'nome do local', 'morada', 'capacidade máxima', 'descrição',
+    ])
+  })
+
+  it('só com uma das datas da série em falta mostra só essa', () => {
+    const recurring = { ...EMPTY_EVENT_FORM, isRecurring: true }
+
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).toContain('data de fim')
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).not.toContain('datas de início e fim')
+    expect(getMissingEventFields({ ...recurring, eventDate: '2099-03-20' })).not.toContain('data de início')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).toContain('data de início')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).not.toContain('datas de início e fim')
+    expect(getMissingEventFields({ ...recurring, seriesEndsOn: '2099-04-03' })).not.toContain('data de fim')
+  })
+
+  it('o corpo de uma série leva a recorrência com o número de dias e não leva a data limite', () => {
+    const payload = buildEventPayload({ ...series, deadlineDaysBefore: ' 3 ', registrationDeadline: '2000-01-01' }, NO_GEOCODE)
+
+    expect(payload).toEqual(SERIES_PAYLOAD)
+    expect(payload).not.toHaveProperty('registration_deadline')
+  })
+
+  it('o corpo de um pontual e o da edição nunca levam a recorrência', () => {
+    expect('recurrence' in buildEventPayload({ ...series, isRecurring: false }, NO_GEOCODE)).toBe(false)
+    expect(buildEventUpdatePayload(EDIT_VALUES, SAVED_GEOCODE, '')).not.toHaveProperty('recurrence')
+  })
+
+  it('os erros da recorrência vão para os campos da série', () => {
+    expect(mapEventServerErrors({
+      'recurrence.frequency': ['x'],
+      'recurrence.ends_on': ['y'],
+      'recurrence.registration_deadline_days_before': ['z'],
+    })).toEqual({
+      fieldErrors: { frequency: 'x', seriesEndsOn: 'y', deadlineDaysBefore: 'z' },
+      unmatched: [],
+    })
+    expect(mapEventServerErrors({ recurrence: ['w'] })).toEqual({ fieldErrors: { frequency: 'w' }, unmatched: [] })
+  })
+
+  it('os campos da série não contam como alterações', () => {
+    expect(getChangedEventFields(EDIT_VALUES, {
+      ...EDIT_VALUES,
+      isRecurring: true,
+      frequency: 'weekly',
+      seriesEndsOn: '2099-04-03',
+      deadlineDaysBefore: '3',
+    })).toEqual([])
+  })
+})
+
+describe('place_id do Google Maps', () => {
+  const EXACT_PLACE_ID = 'ChIJTesteCoimbraRuaBrasil25_Aspec'
+  const APPROXIMATE_PLACE_ID = 'ChIJTestePontaDelgadaCidade_Aspec'
+  const QUERY = { address: 'Rua das Flores 42', locationId: 'l1' }
+  const google = (overrides = {}) => ({
+    result: { latitude: null, longitude: null, place_id: EXACT_PLACE_ID, approximate: false, ...overrides },
+    query: QUERY,
+  })
+
+  function expectNoLocation(payload) {
+    for (const key of ['place_id', 'latitude', 'longitude']) {
+      expect(payload).not.toHaveProperty(key)
+    }
+  }
+
+  it('envia só o place_id quando a verificação da Google corresponde à morada e à delegação atuais', () => {
+    const payload = buildEventPayload(validInPerson, google())
+
+    expect(payload.place_id).toBe(EXACT_PLACE_ID)
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
+  })
+
+  it('não envia o place_id com outra morada, outra delegação ou um place_id inválido e mantém as coordenadas do Nominatim', () => {
+    expectNoLocation(buildEventPayload(validInPerson, { ...google(), query: { ...QUERY, address: 'Rua Augusta 1' } }))
+    expectNoLocation(buildEventPayload(validInPerson, { ...google(), query: { ...QUERY, locationId: 'l2' } }))
+    expectNoLocation(buildEventPayload(validInPerson, google({ place_id: 'x y' })))
+
+    const nominatim = buildEventPayload(validInPerson, google({ place_id: null, latitude: 38.71, longitude: -9.14 }))
+    expect(nominatim).toMatchObject({ latitude: 38.71, longitude: -9.14 })
+    expect(nominatim).not.toHaveProperty('place_id')
+  })
+
+  it('num online nunca envia o place_id, a morada nem as coordenadas', () => {
+    const payload = buildEventPayload(validOnline, google())
+
+    for (const key of ['place_id', 'address', 'latitude', 'longitude']) {
+      expect(payload).not.toHaveProperty(key)
+    }
+  })
+
+  it('getSavedGeocode reconhece o place_id guardado de um presencial', () => {
+    const withPlaceId = event({ address: ' Rua X 1 ', place_id: EXACT_PLACE_ID, latitude: null, longitude: null })
+
+    expect(getSavedGeocode(withPlaceId)).toEqual({
+      status: 'saved',
+      result: { place_id: EXACT_PLACE_ID },
+      message: '',
+      query: { address: 'Rua X 1', locationId: 'l1' },
+      confirmed: false,
+    })
+    expect(getSavedGeocode(event({ place_id: 'x&key=y', latitude: null, longitude: null }))).toEqual(IDLE)
+    expect(getSavedGeocode(event({ place_id: null }))).toEqual({
+      status: 'saved',
+      result: { latitude: 38.7223, longitude: -9.1533 },
+      message: '',
+      query: { address: 'Rua Castilho 39, 1250-068 Lisboa', locationId: 'l1' },
+      confirmed: false,
+    })
+    expect(getSavedGeocode({ ...onlineEvent, place_id: EXACT_PLACE_ID })).toEqual(IDLE)
+  })
+
+  it('na edição reenvia o place_id guardado enquanto a morada não muda', () => {
+    const withPlaceId = event({ place_id: EXACT_PLACE_ID, latitude: null, longitude: null })
+    const saved = getSavedGeocode(withPlaceId)
+    const values = eventToFormValues(withPlaceId)
+
+    const payload = buildEventUpdatePayload(values, saved, '')
+    expect(payload.place_id).toBe(EXACT_PLACE_ID)
+    expect(payload).not.toHaveProperty('latitude')
+    expect(payload).not.toHaveProperty('longitude')
+
+    expectNoLocation(buildEventUpdatePayload({ ...values, address: 'Rua Nova 1' }, saved, ''))
+  })
+
+  it('needsLocationConfirmation só pede confirmação de um local aproximado por confirmar da morada atual', () => {
+    const approximate = {
+      status: 'found',
+      result: { latitude: null, longitude: null, place_id: APPROXIMATE_PLACE_ID, approximate: true },
+      message: '',
+      query: QUERY,
+      confirmed: false,
+    }
+
+    expect(needsLocationConfirmation(validInPerson, approximate)).toBe(true)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, confirmed: true })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, result: { ...approximate.result, approximate: false } })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, result: { place_id: APPROXIMATE_PLACE_ID } })).toBe(false)
+    expect(needsLocationConfirmation(validInPerson, { ...approximate, status: 'saved' })).toBe(false)
+    expect(needsLocationConfirmation(validOnline, approximate)).toBe(false)
+    expect(needsLocationConfirmation({ ...validInPerson, address: 'Rua Augusta 1' }, approximate)).toBe(false)
+  })
+
+  it('o erro do place_id vai para o campo da morada', () => {
+    expect(mapEventServerErrors({ place_id: ['O identificador do local não é válido.'] })).toEqual({
+      fieldErrors: { address: 'O identificador do local não é válido.' },
+      unmatched: [],
+    })
   })
 })

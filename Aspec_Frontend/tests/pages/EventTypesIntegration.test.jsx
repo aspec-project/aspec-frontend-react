@@ -6,8 +6,6 @@ import EventDetailPage from "../../src/pages/EventDetailPage";
 import { api } from "../../src/services/api";
 import { useAuthStore } from "../../src/store/authStore";
 
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => <div aria-label="Mapa do local" /> }));
-
 // Fixtures do modelo interno preparado: não representam um contrato de séries
 // publicado pela API. Neste teste cada id corresponde explicitamente a um evento.
 const firstId = "019512a1-9999-7123-8123-123456789abc";
@@ -82,10 +80,40 @@ describe("Modalidade e seleção de sessões — fixtures de integração", () =
     show();
     await screen.findByRole("heading", { name: "Acesso à reunião online" });
     for (const text of [first.address, first.venue_name, first.location.name, first.online_url]) expect(document.body).not.toHaveTextContent(text);
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sessões" })).not.toBeInTheDocument();
     expect(screen.queryByText("Recorrente")).not.toBeInTheDocument();
+  });
+
+  it.each(["Member", "Admin"])("disponibiliza o link recebido da API ao %s Active inscrito após o prazo", async (role) => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(first.registration_deadline) + 1);
+    useAuthStore.setState({ user: { ...member, role: { name: role } } });
+    api.defaults.adapter = async (config) => {
+      requests.push(config);
+      return response(config, { ...first, is_registered: true });
+    };
+    show();
+    expect(await screen.findByRole("link", { name: "Entrar na reunião" })).toHaveAttribute("href", first.online_url);
+    expect(screen.getByRole("button", { name: "Copiar" })).toBeInTheDocument();
+    expect(requests.map((config) => [config.method, config.url])).toEqual([["get", `/events/${firstId}`]]);
+  });
+
+  it.each([
+    ["Member", "Active", true, -100], ["Admin", "Active", true, -100],
+    ["Member", "Active", true, 0], ["Admin", "Active", true, 0],
+    ["Member", "Active", false, 1], ["Admin", "Active", false, 1],
+    ["Member", "Inactive", true, 1], ["Admin", "Inactive", true, 1],
+    ["Candidate", "Active", true, 1],
+  ])("omite o URL recebido da API para %s/%s, inscrito=%s, diferença para o prazo=%s ms", async (role, accountStatus, registered, offset) => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(first.registration_deadline) + offset);
+    useAuthStore.setState({ user: { ...member, role: { name: role }, account_status: { name: accountStatus } } });
+    api.defaults.adapter = async (config) => response(config, { ...first, is_registered: registered });
+    show();
+    await screen.findByRole("heading", { name: "Acesso à reunião online" });
+    expect(document.body.innerHTML).not.toContain(first.online_url);
+    expect(screen.queryByRole("link", { name: "Entrar na reunião" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copiar" })).not.toBeInTheDocument();
   });
 
   it("preserva o estado reconciliado da primeira inscrição ao selecionar outra sessão", async () => {
@@ -108,7 +136,13 @@ describe("Modalidade e seleção de sessões — fixtures de integração", () =
     expect(requests.filter((config) => config.method === "post")).toHaveLength(1);
   });
 
-  it("retira o URL autorizado antes de carregar os dados de outro membro", async () => {
+  it.each([
+    ["identidade para membro inscrito", () => ({ user: { ...member, id: "outro-membro" } }), true, true],
+    ["identidade para membro não inscrito", () => ({ user: { ...member, id: "outro-membro" } }), false, false],
+    ["papel", () => ({ user: { ...member, role: { name: "Admin" } } }), true, true],
+    ["estado", () => ({ user: { ...member, account_status: { name: "Inactive" } } }), false, true],
+    ["geração", () => ({ sessionGeneration: useAuthStore.getState().sessionGeneration + 1 }), true, true],
+  ])("retira o URL anterior ao mudar %s e aguarda nova resposta da API", async (_context, change, allowed, nextRegistered) => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse(first.registration_deadline) + 1);
     let resolve;
     let pending;
@@ -116,11 +150,18 @@ describe("Modalidade e seleção de sessões — fixtures de integração", () =
     show();
     await screen.findByRole("link", { name: "Entrar na reunião" });
     api.defaults.adapter = (config) => new Promise((done) => { resolve = done; pending = config; });
-    act(() => useAuthStore.setState({ user: { ...member, id: "outro-membro" } }));
+    act(() => useAuthStore.setState(change()));
     expect(document.body.innerHTML).not.toContain(first.online_url);
+    expect(screen.queryByRole("link", { name: "Entrar na reunião" })).not.toBeInTheDocument();
     await waitFor(() => expect(resolve).toBeTypeOf("function"));
-    await act(async () => resolve(response(pending, { ...first, is_registered: false })));
+    const nextUrl = "https://meet.example.test/nova-sessao";
+    await act(async () => resolve(response(pending, { ...first, is_registered: nextRegistered, online_url: nextUrl })));
     await screen.findByRole("heading", { name: first.name });
     expect(document.body.innerHTML).not.toContain(first.online_url);
+    if (allowed) expect(screen.getByRole("link", { name: "Entrar na reunião" })).toHaveAttribute("href", nextUrl);
+    else {
+      expect(document.body.innerHTML).not.toContain(nextUrl);
+      expect(screen.queryByRole("link", { name: "Entrar na reunião" })).not.toBeInTheDocument();
+    }
   });
 });

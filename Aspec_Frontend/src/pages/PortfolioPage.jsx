@@ -177,7 +177,7 @@ export default function PortfolioPage() {
   return (
     <section>
       <div className="border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-bold text-[#0d1f35]">
+          <h1 className="text-2xl font-semibold text-[#0d1f35]">
           Portefólio de Imagens
         </h1>
 

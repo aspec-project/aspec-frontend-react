@@ -354,7 +354,7 @@ export default function MemberRegistrationsPage() {
           />
 
           <div>
-            <h1 className="text-3xl font-bold text-[#0d1f35]">
+        <h1 className="text-2xl font-semibold text-[#0d1f35]">
               As Minhas Inscrições
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">

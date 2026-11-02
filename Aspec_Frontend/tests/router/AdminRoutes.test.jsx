@@ -1,7 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
+import { getAdminDashboard } from '../../src/services/adminDashboard'
 import { getAdminEventCategories } from '../../src/services/adminEventCategories'
 import { getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
@@ -20,6 +22,7 @@ vi.mock('../../src/services/adminUsers', () => ({
   anonymizeUser: vi.fn(),
   sendPaymentLink: vi.fn(),
 }))
+vi.mock('../../src/services/adminDashboard', () => ({ getAdminDashboard: vi.fn() }))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
   getEventsErrorMessage: vi.fn(() => 'Erro'),
@@ -87,6 +90,16 @@ describe('Rotas de administração', () => {
       counts: { upcoming: 0, past: 0 },
     })
     getAdminEventCategories.mockResolvedValue([])
+    getAdminDashboard.mockResolvedValue({
+      stats: {
+        active_members: { total: 0, new_this_month: 0 },
+        pending_applications: { total: 0 },
+        events: { this_month: 0, this_week: 0 },
+        reviews: { flagged: 0, new_this_week: 0 },
+      },
+      pending_applications: [],
+      recent_reviews: [],
+    })
   })
   afterEach(() => {
     vi.clearAllMocks()
@@ -172,5 +185,37 @@ describe('Rotas de administração', () => {
     await waitFor(() => expect(getEvents).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Tipos de Evento' })).not.toBeInTheDocument()
     expect(getAdminEventCategories).not.toHaveBeenCalled()
+  })
+
+  it('um admin vê o painel dentro do layout de administração e um membro não chega lá', async () => {
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    const { unmount } = show('/admin')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Área de Administração' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Candidaturas Pendentes' })).toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalled()
+    unmount()
+
+    vi.clearAllMocks()
+    useAuthStore.setState({ user: { id: 'member-1', email: 'membro@aspec.pt', role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin')
+
+    await waitFor(() => expect(getEvents).toHaveBeenCalled())
+    expect(screen.queryByRole('heading', { name: 'Candidaturas Pendentes' })).not.toBeInTheDocument()
+    expect(getAdminDashboard).not.toHaveBeenCalled()
+  })
+
+  it('um admin vai do painel para a lista de utilizadores já filtrada nas pendentes', async () => {
+    const user = userEvent.setup()
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin')
+
+    await user.click(await screen.findByRole('link', { name: 'Ver todas as candidaturas pendentes' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Gestão de Utilizadores' })).toBeInTheDocument()
+    await waitFor(() => expect(getAdminUsers).toHaveBeenCalledWith(expect.objectContaining({ subscriptionState: 'pending' }), expect.any(AbortSignal)))
   })
 })

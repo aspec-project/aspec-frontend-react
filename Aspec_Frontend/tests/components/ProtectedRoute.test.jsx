@@ -43,7 +43,10 @@ describe('Rotas Member Active', () => {
 })
 
 describe('Destino após login válido', () => {
-  it.each(['Member', 'Admin'])('envia %s Active diretamente para /', async (role) => {
+  it.each([
+    ['Member', 'Destino do membro'],
+    ['Admin', 'Destino de administração'],
+  ])('envia %s Active para o respetivo destino', async (role, destination) => {
     const loginOriginal = useAuthStore.getState().login
     const login = vi.fn(async () => {
       useAuthStore.setState({ user: { ...member, role: { name: role } }, status: 'authenticated' })
@@ -54,8 +57,8 @@ describe('Destino após login válido', () => {
       {children}
       <Routes>
         <Route path="/login" element={<p>Login</p>} />
-        <Route path="/" element={<p>Destino inicial</p>} />
-        <Route path="/dashboard" element={<p>Destino antigo</p>} />
+        <Route path="/perfil" element={<p>Destino do membro</p>} />
+        <Route path="/admin" element={<p>Destino de administração</p>} />
       </Routes>
     </MemoryRouter>
     try {
@@ -66,8 +69,7 @@ describe('Destino após login válido', () => {
       })
       await act(async () => result.current.handleLogin())
       expect(login).toHaveBeenCalledWith('teste@example.test', 'password-de-teste')
-      expect(screen.getByText('Destino inicial')).toBeInTheDocument()
-      expect(screen.queryByText('Destino antigo')).not.toBeInTheDocument()
+      expect(screen.getByText(destination)).toBeInTheDocument()
     } finally {
       useAuthStore.setState({ login: loginOriginal })
       useAuthStore.getState().clearSession()

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { formatDate, formatShortDate, formatShortDateTime } from '../../src/utils/dateFormat'
+import { formatDate, formatRelativeDateTime, formatShortDate, formatShortDateTime } from '../../src/utils/dateFormat'
 
 describe('formatDate', () => {
   it('formata datas de calendário como dd/mm/aaaa', () => {
@@ -70,6 +70,33 @@ describe('formatShortDateTime', () => {
   })
 })
 
+const OCT_29 = new Date('2026-10-29T10:40:00Z')
+
+describe('formatRelativeDateTime', () => {
+  it('mostra Hoje e Ontem com a hora de Lisboa e a data curta nos outros dias', () => {
+    expect(formatRelativeDateTime('2026-10-29T10:32:00+00:00', OCT_29)).toBe('Hoje, 10:32')
+    expect(formatRelativeDateTime('2026-10-28T14:15:00+00:00', OCT_29)).toBe('Ontem, 14:15')
+    expect(formatRelativeDateTime('2026-10-28T09:40:00+00:00', OCT_29)).toBe('Ontem, 09:40')
+    expect(formatRelativeDateTime('2026-10-27T23:59:00+00:00', OCT_29)).toBe('27 Out 2026, 23:59')
+  })
+
+  it('conta os dias no calendário de Lisboa no verão, quando Lisboa e UTC estão em dias diferentes', () => {
+    const now = new Date('2026-07-31T23:30:00Z')
+
+    expect(formatRelativeDateTime('2026-07-31T23:10:00Z', now)).toBe('Hoje, 00:10')
+    expect(formatRelativeDateTime('2026-07-31T22:50:00Z', now)).toBe('Ontem, 23:50')
+    expect(formatRelativeDateTime('2026-07-30T22:59:00Z', now)).toBe('30 Jul 2026, 23:59')
+    expect(formatRelativeDateTime('2026-08-01T00:30:00+01:00', now)).toBe('Hoje, 00:30')
+  })
+
+  it('reconhece ontem na mudança de ano, de mês e nos dias da mudança de hora', () => {
+    expect(formatRelativeDateTime('2026-12-31T18:00:00Z', new Date('2027-01-01T10:00:00Z'))).toBe('Ontem, 18:00')
+    expect(formatRelativeDateTime('2026-02-28T20:00:00Z', new Date('2026-03-01T09:00:00Z'))).toBe('Ontem, 20:00')
+    expect(formatRelativeDateTime('2026-10-25T00:30:00Z', new Date('2026-10-26T08:00:00Z'))).toBe('Ontem, 01:30')
+    expect(formatRelativeDateTime('2026-03-29T00:30:00Z', new Date('2026-03-30T08:00:00Z'))).toBe('Ontem, 00:30')
+  })
+})
+
 describe('fuso do computador', () => {
   const originalTz = process.env.TZ
 
@@ -89,5 +116,21 @@ describe('fuso do computador', () => {
     expect(formatShortDateTime('2099-01-19T23:59:00+00:00')).toBe('19 Jan 2099, 23:59')
     expect(formatShortDate('2026-07-14T23:30:00+00:00')).toBe('15 Jul 2026')
     expect(formatDate('2026-01-21')).toBe('21/01/2026')
+  })
+
+  it('formatRelativeDateTime dá o mesmo resultado noutro fuso e devolve texto vazio para valores inválidos', () => {
+    process.env.TZ = 'America/New_York'
+    expect(new Date(0).getTimezoneOffset()).toBe(300)
+
+    expect(formatRelativeDateTime('2026-10-29T10:32:00+00:00', OCT_29)).toBe('Hoje, 10:32')
+    expect(formatRelativeDateTime('2026-10-28T14:15:00+00:00', OCT_29)).toBe('Ontem, 14:15')
+    expect(formatRelativeDateTime('2026-10-28T09:40:00+00:00', OCT_29)).toBe('Ontem, 09:40')
+    expect(formatRelativeDateTime('2026-10-27T23:59:00+00:00', OCT_29)).toBe('27 Out 2026, 23:59')
+    expect(formatRelativeDateTime('2026-10-29T10:45:00Z', OCT_29)).toBe('Hoje, 10:45')
+    expect(formatRelativeDateTime('2026-10-30T09:00:00Z', OCT_29)).toBe('30 Out 2026, 09:00')
+
+    for (const value of ['', null, undefined, 123, 'abc', '2026-10-29', '2026-02-30T10:00:00Z']) {
+      expect(formatRelativeDateTime(value, OCT_29)).toBe('')
+    }
   })
 })

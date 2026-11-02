@@ -104,8 +104,8 @@ export function getDateRangeError(dateFrom, dateTo) {
 }
 
 /**
- * Posição do evento na sua série recorrente. É o único sítio que conhece a forma do campo, que ainda é um
- * pressuposto até o backend das séries existir: `series: { position, total }` no item da lista.
+ * Posição do evento na sua série recorrente. É o único sítio que conhece a forma do campo: `series:
+ * { position, total }` no item da lista, a forma pedida ao backend na ASPEC-263.
  *
  * @param {{series?: {position?: unknown, total?: unknown}|null}} event Evento da API.
  * @returns {{position: number, total: number}|null} Null se o evento não pertencer a uma série válida.
@@ -131,6 +131,18 @@ export function formatSession(event) {
   const series = getEventSeries(event)
 
   return series ? `Sessão ${series.position}/${series.total}` : null
+}
+
+/**
+ * Nota do modal de edição de uma sessão de uma série: a posição e que as alterações valem só para ela.
+ *
+ * @param {object} event Evento da API.
+ * @returns {string} Nota, ou "" se o evento não pertencer a uma série.
+ */
+export function getSeriesEditNote(event) {
+  const series = getEventSeries(event)
+
+  return series ? `Sessão ${series.position}/${series.total} de uma série. As alterações aplicam-se só a esta sessão.` : ''
 }
 
 /**
@@ -258,12 +270,26 @@ export function needsDeleteJustification(event) {
 }
 
 /**
- * Descrição do diálogo de apagar: evento, data e o que acontece aos inscritos.
+ * Descrição do diálogo de apagar: evento, data e o que acontece aos inscritos. Numa sessão de uma série
+ * acrescenta que só essa sessão é apagada.
+ *
+ * @param {{name?: string, event_date?: string, registrations_count?: unknown, series?: object|null}} event Evento da lista.
+ * @returns {string}
+ */
+export function getDeleteEventDescription(event) {
+  const series = getEventSeries(event)
+  const seriesNote = series ? ` Só esta sessão (${series.position}/${series.total}) é apagada; as outras sessões da série mantêm-se.` : ''
+
+  return `${getDeleteRegistrantsDescription(event)}${seriesNote}`
+}
+
+/**
+ * Parte da descrição de apagar sobre o evento, a data e os inscritos.
  *
  * @param {{name?: string, event_date?: string, registrations_count?: unknown}} event Evento da lista.
  * @returns {string}
  */
-export function getDeleteEventDescription(event) {
+function getDeleteRegistrantsDescription(event) {
   const intro = `Vai apagar «${event.name}» (${formatShortDate(event.event_date) || '—'}).`
   const count = event.registrations_count
 

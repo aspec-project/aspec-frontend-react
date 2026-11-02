@@ -2,10 +2,23 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
-const ACTIVATION_LINK_MESSAGES = [
-  'A sua conta foi aprovada. Ative-a através do link enviado por email.',
+const PENDING_ACCOUNT_MESSAGE = 'A sua conta está pendente de aprovação pelo administrador.'
+const APPROVED_ACCOUNT_MESSAGE = 'A sua conta foi aprovada. Ative-a através do link enviado por email.'
+const EXPIRED_SUBSCRIPTION_MESSAGES = [
   'A sua conta está inativa por falta de pagamento. Use o link de reativação enviado por email.',
+  'A sua subscrição terminou. Use o link de reativação enviado por email para reativar a conta.',
 ]
+/* Atualmente, esta é a resposta devolvida pelo backend para Inactive/blocked. */
+const BLOCKED_ACCOUNT_MESSAGE = 'A sua conta não está ativa.'
+
+function getAccountNotice(status, message) {
+  if (status !== 403) return 'error'
+  if (message === PENDING_ACCOUNT_MESSAGE) return 'pending'
+  if (message === APPROVED_ACCOUNT_MESSAGE) return 'activation'
+  if (EXPIRED_SUBSCRIPTION_MESSAGES.includes(message)) return 'expired'
+  if (message === BLOCKED_ACCOUNT_MESSAGE) return 'blocked'
+  return 'error'
+}
 
 export function useLoginForm() {
   const [email, setEmail] = useState("");
@@ -13,6 +26,7 @@ export function useLoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState("");
   const [canRequestActivationLink, setCanRequestActivationLink] = useState(false);
+  const [accountNotice, setAccountNotice] = useState(null)
 
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -25,6 +39,7 @@ export function useLoginForm() {
     if (submitting) return;
     setFormError("");
     setCanRequestActivationLink(false);
+    setAccountNotice(null)
 
     if (!email.trim() || !password) {
       setFormError("Preencha o email e a password.");
@@ -34,18 +49,17 @@ export function useLoginForm() {
     const result = await login(email.trim(), password);
     if (result.cancelled) return;
     if (result.success) {
-      navigate("/", { replace: true });
+      const authenticatedUser = useAuthStore.getState().user
+      const isMember = authenticatedUser?.role?.name === 'Member'
+      const isAdmin = authenticatedUser?.role?.name === 'Admin'
+      navigate(isMember ? '/perfil' : isAdmin ? '/admin' : '/', { replace: true });
     } else {
-      /*
-      * Apenas os estados Approved e Inactive por falta de pagamento
-      * permitem pedir um novo link pela página pública.
-      */
-      const canRequestLink =
-        result.error.status === 403 &&
-        ACTIVATION_LINK_MESSAGES.includes(result.error.message);
+      const notice = getAccountNotice(result.error.status, result.error.message)
+      const canRequestLink = ['activation', 'expired'].includes(notice)
 
       setFormError(result.error.message);
       setCanRequestActivationLink(canRequestLink);
+      setAccountNotice(notice)
     }
   };
 
@@ -62,6 +76,7 @@ export function useLoginForm() {
     submitting,
     formError,
     canRequestActivationLink,
+    accountNotice,
     handleLogin,
     goToRegister,
     goToHome,

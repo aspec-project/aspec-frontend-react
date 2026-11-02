@@ -1,6 +1,15 @@
-/** Valores iniciais do formulário de evento: tudo vazio, formato presencial. */
+import { addDays, parseIsoDate } from './calendar'
+import { formatShortDate } from './dateFormat'
+import { getSeriesSessions } from './adminEventSeries'
+import { isValidPlaceId } from './googleMapsEmbed'
+
+/**
+ * Valores iniciais do formulário de evento: tudo vazio, formato presencial e repetição pontual. Os campos da
+ * série (`frequency`, `seriesEndsOn`, `deadlineDaysBefore`) só se usam na criação de uma série.
+ */
 export const EMPTY_EVENT_FORM = {
   isOnline: false,
+  isRecurring: false,
   name: '',
   categoryId: '',
   locationId: '',
@@ -14,6 +23,9 @@ export const EMPTY_EVENT_FORM = {
   maxAttendees: '',
   description: '',
   organizerNotes: '',
+  frequency: '',
+  seriesEndsOn: '',
+  deadlineDaysBefore: '',
 }
 
 /** Limites dos campos, iguais aos do EventInstanceRequest do backend. */
@@ -36,11 +48,22 @@ export const EVENT_FORM_MESSAGES = {
   deadlineAfterStart: 'O prazo de inscrição tem de ser anterior ou igual ao início do evento.',
   maxAttendees: 'A capacidade máxima tem de ser um número inteiro entre 1 e 100000.',
   onlineUrl: 'Indique um link válido que comece por http:// ou https://.',
-  fixErrors: 'Corrija os campos assinalados.',
   optionsError: 'Não foi possível carregar os tipos de evento e as delegações.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao criar o evento.',
   geocodeApproximatePrefix: 'Local aproximado:',
-  geocodeApproximateHint: 'Confirme se é o local certo. Se não for, corrija a morada (sem andar, lote ou loja) e verifique outra vez.',
+  mapZone: (name) => `A mostrar a zona de ${name}`,
+  approximateTitle: 'A localização no mapa é aproximada',
+  approximateHint: 'Confirme se o ponto apresentado corresponde ao local do evento.',
+  confirmLocationButton: 'Confirmar localização',
+  locationConfirmed: 'Localização confirmada.',
+  confirmLocation: 'Confirme a localização no mapa antes de guardar.',
+  mapUnavailable: 'Pré-visualização do mapa indisponível.',
+  mapTitle: 'Mapa da localização do evento',
+  timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
+  deadlineDays: 'Indique um número inteiro de dias, a partir de 1.',
+  firstDeadlinePast: 'O prazo calculado para a primeira sessão já passou.',
+  seriesEndBeforeStart: 'A data de fim tem de ser igual ou posterior à data de início.',
+  seriesTooLong: 'Uma série não pode exceder 52 sessões.',
 }
 
 /** Textos próprios do modal de edição de evento. */
@@ -51,8 +74,11 @@ export const EVENT_EDIT_TEXTS = {
   addressNotFound: 'Não foi possível encontrar esta morada no mapa. Verifique a morada e tente novamente.',
   geocodeHint: 'Se não verificar, a morada é localizada automaticamente ao guardar as alterações.',
   geocodeSaved: 'Mantém-se a localização guardada do evento enquanto não mudar a morada nem a delegação.',
-  justificationLabel: 'Justificação da alteração',
-  justificationHint: 'Opcional. Segue no email aos inscritos: explique o que mudou (ex.: nova hora ou novo local).',
+  confirmTitle: 'Confirmar alterações?',
+  confirmNotify: 'Guardar e notificar',
+  confirmSave: 'Guardar',
+  confirmCancel: 'Voltar',
+  justificationPlaceholder: 'Se quiser, explique o motivo da alteração.',
 }
 
 /** Atribuição obrigatória dos dados do OpenStreetMap (licença ODbL). */
@@ -63,9 +89,12 @@ export const EVENT_FIELD_ORDER = [
   'name',
   'categoryId',
   'locationId',
+  'frequency',
   'eventDate',
+  'seriesEndsOn',
   'startTime',
   'endTime',
+  'deadlineDaysBefore',
   'registrationDeadline',
   'venueName',
   'address',
@@ -76,14 +105,29 @@ export const EVENT_FIELD_ORDER = [
   'justification',
 ]
 
+/** Nomes das datas de uma série na lista "Falta preencher" (as duas em falta juntam-se numa só entrada). */
+const SERIES_START_LABEL = 'data de início'
+const SERIES_END_LABEL = 'data de fim'
+
+/** Campos que só existem na criação de uma série (não contam como alterações na edição). */
+const SERIES_FIELDS = ['isRecurring', 'frequency', 'seriesEndsOn', 'deadlineDaysBefore']
+
+/**
+ * Campos obrigatórios pela ordem do formulário. `format` e `repetition` limitam o campo a um formato
+ * (presencial/online) ou a uma repetição (pontual/recorrente).
+ */
 const REQUIRED_FIELDS = [
   { name: 'name', label: 'título' },
   { name: 'categoryId', label: 'tipo de evento' },
   { name: 'locationId', label: 'delegação' },
-  { name: 'eventDate', label: 'data' },
+  { name: 'frequency', label: 'frequência', repetition: 'recurring' },
+  { name: 'eventDate', label: 'data', repetition: 'single' },
+  { name: 'eventDate', label: SERIES_START_LABEL, repetition: 'recurring' },
+  { name: 'seriesEndsOn', label: SERIES_END_LABEL, repetition: 'recurring' },
   { name: 'startTime', label: 'hora de início' },
   { name: 'endTime', label: 'hora de fim' },
-  { name: 'registrationDeadline', label: 'data limite de inscrição' },
+  { name: 'deadlineDaysBefore', label: 'fecho das inscrições (dias antes)', repetition: 'recurring' },
+  { name: 'registrationDeadline', label: 'data limite de inscrição', repetition: 'single' },
   { name: 'venueName', label: 'nome do local', format: 'inPerson' },
   { name: 'address', label: 'morada', format: 'inPerson' },
   { name: 'onlineUrl', label: 'link do evento', format: 'online' },
@@ -103,11 +147,16 @@ const SERVER_FIELD_MAP = {
   address: 'address',
   latitude: 'address',
   longitude: 'address',
+  place_id: 'address',
   online_url: 'onlineUrl',
   max_attendees: 'maxAttendees',
   description: 'description',
   organizer_notes: 'organizerNotes',
   justification: 'justification',
+  'recurrence.frequency': 'frequency',
+  'recurrence.ends_on': 'seriesEndsOn',
+  'recurrence.registration_deadline_days_before': 'deadlineDaysBefore',
+  recurrence: 'frequency',
 }
 
 /** Hora a que o backend fecha as inscrições no dia do prazo (hora de Lisboa). */
@@ -146,18 +195,27 @@ export function getLisbonNow(now = new Date()) {
 }
 
 /**
- * Campos obrigatórios por preencher, pela ordem do formulário. Os do local dependem do formato.
+ * Campos obrigatórios por preencher, pela ordem do formulário. Os do local dependem do formato; a data
+ * limite de inscrição (pontual) e os campos da série (recorrente) dependem da repetição. Numa série, com a
+ * data de início e a de fim em falta, as duas aparecem juntas como "datas de início e fim".
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @returns {string[]} Nomes dos campos em falta (em minúsculas).
  */
 export function getMissingEventFields(values) {
   const format = values.isOnline ? 'online' : 'inPerson'
-
-  return REQUIRED_FIELDS
+  const repetition = values.isRecurring ? 'recurring' : 'single'
+  const labels = REQUIRED_FIELDS
     .filter((field) => !field.format || field.format === format)
+    .filter((field) => !field.repetition || field.repetition === repetition)
     .filter((field) => clean(values[field.name]) === '')
     .map((field) => field.label)
+
+  if (!labels.includes(SERIES_START_LABEL) || !labels.includes(SERIES_END_LABEL)) return labels
+
+  return labels
+    .filter((label) => label !== SERIES_END_LABEL)
+    .map((label) => (label === SERIES_START_LABEL ? 'datas de início e fim' : label))
 }
 
 /**
@@ -196,6 +254,10 @@ export function isSafeMeetingUrl(value) {
  * Na edição (3.º parâmetro), as regras "data no passado" e "prazo no passado" só se aplicam aos campos que
  * mudaram em relação aos valores iniciais, e a capacidade não pode ficar abaixo do número de inscritos.
  *
+ * Numa série (`isRecurring`), as regras da data limite de inscrição não se aplicam (o campo não é enviado) e
+ * validam-se o prazo em dias (inteiro ≥ 1 e prazo da 1.ª sessão no futuro) e a data da última sessão (não
+ * antes da 1.ª sessão e no máximo 52 sessões).
+ *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @param {Date} [now] Momento atual.
  * @param {{initialValues?: typeof EMPTY_EVENT_FORM|null, registrationsCount?: number|null}} [edit] Dados da
@@ -217,7 +279,9 @@ export function getEventFormErrors(values, now = new Date(), { initialValues = n
     errors.endTime = EVENT_FORM_MESSAGES.endTime
   }
 
-  if (registrationDeadline) {
+  if (values.isRecurring) {
+    Object.assign(errors, getSeriesErrors(values, `${today.date} ${today.time}`))
+  } else if (registrationDeadline) {
     const deadline = `${registrationDeadline} ${DEADLINE_TIME}`
 
     if (checkPastDeadline && deadline <= `${today.date} ${today.time}`) {
@@ -249,12 +313,59 @@ export function getEventFormErrors(values, now = new Date(), { initialValues = n
 }
 
 /**
- * Corpo do POST construído campo a campo (só as chaves do contrato). Num presencial, as coordenadas só
- * seguem se a verificação foi feita com a morada e a delegação atuais; num online, nunca seguem a morada,
- * o local nem as coordenadas.
+ * Erros dos campos de uma série. Cada regra só é avaliada quando os campos dela estão preenchidos.
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
- * @param {{result: {latitude: number, longitude: number}|null, query: {address: string, locationId: string}|null}} geocode
+ * @param {string} now Data e hora atuais em Lisboa (`AAAA-MM-DD HH:MM`).
+ * @returns {Record<string, string>} Mensagem de erro por campo.
+ */
+function getSeriesErrors(values, now) {
+  const errors = {}
+  const { eventDate, seriesEndsOn, frequency } = values
+  const days = clean(values.deadlineDaysBefore)
+
+  if (days !== '') {
+    if (!/^\d+$/.test(days) || Number(days) < 1) {
+      errors.deadlineDaysBefore = EVENT_FORM_MESSAGES.deadlineDays
+    } else if (parseIsoDate(eventDate) && `${addDays(eventDate, -Number(days))} ${DEADLINE_TIME}` <= now) {
+      errors.deadlineDaysBefore = EVENT_FORM_MESSAGES.firstDeadlinePast
+    }
+  }
+
+  if (eventDate && seriesEndsOn) {
+    if (seriesEndsOn < eventDate) {
+      errors.seriesEndsOn = EVENT_FORM_MESSAGES.seriesEndBeforeStart
+    } else if (frequency && getSeriesSessions(eventDate, seriesEndsOn, frequency).tooMany) {
+      errors.seriesEndsOn = EVENT_FORM_MESSAGES.seriesTooLong
+    }
+  }
+
+  return errors
+}
+
+/**
+ * Indica se a verificação da morada foi feita com a morada e a delegação atuais.
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {{query: {address: string, locationId: string}|null}|null|undefined} geocode Verificação da morada.
+ * @returns {boolean}
+ */
+function matchesCurrentAddress(values, geocode) {
+  const query = geocode?.query
+
+  return Boolean(query) && query.address === clean(values.address) && query.locationId === values.locationId
+}
+
+/**
+ * Corpo do POST construído campo a campo (só as chaves do contrato). Num presencial, a localização só segue
+ * se a verificação foi feita com a morada e a delegação atuais: só o `place_id` quando é válido, senão só as
+ * coordenadas (nunca os dois, o backend recusa-os juntos); num online, nunca seguem a morada, o local, o
+ * `place_id` nem as coordenadas. Numa série não segue a chave `registration_deadline` (o backend proíbe-a com a
+ * `recurrence`) e segue a `recurrence` com as 3 chaves do contrato; num pontual a chave `recurrence` não
+ * existe (o backend usa `has('recurrence')`).
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
  *   Resultado da verificação da morada e os dados usados no pedido.
  * @returns {object} Corpo em snake_case.
  */
@@ -266,7 +377,7 @@ export function buildEventPayload(values, geocode) {
     event_date: values.eventDate,
     event_start_time: values.startTime,
     event_end_time: values.endTime,
-    registration_deadline: values.registrationDeadline,
+    ...(values.isRecurring ? {} : { registration_deadline: values.registrationDeadline }),
     is_online: values.isOnline,
   }
 
@@ -277,11 +388,15 @@ export function buildEventPayload(values, geocode) {
     payload.venue_name = clean(values.venueName)
     payload.address = address
 
-    const { result, query } = geocode ?? {}
+    const result = geocode?.result
 
-    if (result && query && query.address === address && query.locationId === values.locationId) {
-      payload.latitude = result.latitude
-      payload.longitude = result.longitude
+    if (result && matchesCurrentAddress(values, geocode)) {
+      if (isValidPlaceId(result.place_id)) {
+        payload.place_id = result.place_id
+      } else if (Number.isFinite(result.latitude) && Number.isFinite(result.longitude)) {
+        payload.latitude = result.latitude
+        payload.longitude = result.longitude
+      }
     }
   }
 
@@ -294,11 +409,36 @@ export function buildEventPayload(values, geocode) {
     payload.organizer_notes = notes
   }
 
+  if (values.isRecurring) {
+    payload.recurrence = {
+      frequency: values.frequency,
+      ends_on: values.seriesEndsOn,
+      registration_deadline_days_before: Number(clean(values.deadlineDaysBefore)),
+    }
+  }
+
   return payload
 }
 
 /**
- * Converte os erros de validação da API nos campos do formulário. As coordenadas ficam na morada e as chaves
+ * Indica se falta confirmar a localização: num presencial, a verificação da morada e da delegação atuais
+ * encontrou um local aproximado que o admin ainda não confirmou.
+ *
+ * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
+ * @param {{status: string, result: {approximate?: boolean}|null, query: object|null, confirmed?: boolean}} geocode
+ *   Verificação da morada.
+ * @returns {boolean}
+ */
+export function needsLocationConfirmation(values, geocode) {
+  return !values.isOnline
+    && geocode?.status === 'found'
+    && geocode.result?.approximate === true
+    && !geocode.confirmed
+    && matchesCurrentAddress(values, geocode)
+}
+
+/**
+ * Converte os erros de validação da API nos campos do formulário. As coordenadas e o `place_id` ficam na morada e as chaves
  * sem campo (ex.: is_online) vão para a mensagem geral.
  *
  * @param {Record<string, string|string[]>|undefined} errors Erros da API (arrays ou já normalizados).
@@ -361,26 +501,32 @@ export function eventToFormValues(event) {
 }
 
 /**
- * Estado inicial da verificação da morada na edição: num presencial com morada e coordenadas, a localização
- * guardada (segue no payload enquanto a morada e a delegação não mudarem); senão, por verificar.
+ * Estado inicial da verificação da morada na edição: num presencial com morada e `place_id` válido, o
+ * `place_id` guardado; senão, com coordenadas, as coordenadas guardadas (seguem no payload enquanto a morada
+ * e a delegação não mudarem); senão, por verificar.
  *
  * @param {object} event Evento devolvido por GET /api/admin/events.
- * @returns {{status: 'saved'|'idle', result: {latitude: number, longitude: number}|null, message: string, query: {address: string, locationId: string}|null}}
+ * @returns {{status: 'saved'|'idle', result: {place_id: string}|{latitude: number, longitude: number}|null, message: string, query: {address: string, locationId: string}|null, confirmed?: boolean}}
  */
 export function getSavedGeocode(event) {
   const address = clean(event.address)
   const { latitude, longitude } = event
 
-  if (event.is_online || address === '' || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (event.is_online || address === '') {
     return { status: 'idle', result: null, message: '', query: null }
   }
 
-  return {
-    status: 'saved',
-    result: { latitude, longitude },
-    message: '',
-    query: { address, locationId: event.location?.id ?? '' },
+  const query = { address, locationId: event.location?.id ?? '' }
+
+  if (isValidPlaceId(event.place_id)) {
+    return { status: 'saved', result: { place_id: event.place_id }, message: '', query, confirmed: false }
   }
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { status: 'idle', result: null, message: '', query: null }
+  }
+
+  return { status: 'saved', result: { latitude, longitude }, message: '', query, confirmed: false }
 }
 
 /**
@@ -399,7 +545,8 @@ function comparable(name, value) {
 
 /**
  * Campos que mudaram em relação aos valores iniciais. Mudar o formato conta como alteração e só se comparam
- * os campos de local do formato atual. A justificação não conta (não é um dado do evento).
+ * os campos de local do formato atual. A justificação não conta (não é um dado do evento), nem os campos da
+ * série (só existem na criação).
  *
  * @param {typeof EMPTY_EVENT_FORM} initialValues Valores iniciais do evento.
  * @param {typeof EMPTY_EVENT_FORM} values Valores atuais do formulário.
@@ -410,7 +557,7 @@ export function getChangedEventFields(initialValues, values) {
   const changed = Boolean(initialValues.isOnline) !== Boolean(values.isOnline) ? ['isOnline'] : []
 
   for (const name of EVENT_FIELD_ORDER) {
-    if (name === 'justification' || hidden.includes(name)) continue
+    if (name === 'justification' || SERIES_FIELDS.includes(name) || hidden.includes(name)) continue
 
     if (comparable(name, initialValues[name]) !== comparable(name, values[name])) {
       changed.push(name)
@@ -425,7 +572,7 @@ export function getChangedEventFields(initialValues, values) {
  * as antigas), `venue_name: null` nos online (o backend não o limpa) e a justificação só quando preenchida.
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
- * @param {{result: {latitude: number, longitude: number}|null, query: {address: string, locationId: string}|null}} geocode
+ * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
  *   Verificação da morada (guardada ou feita no modal).
  * @param {string} justification Justificação escrita pelo admin.
  * @returns {object} Corpo em snake_case.
@@ -447,20 +594,6 @@ export function buildEventUpdatePayload(values, geocode, justification) {
 }
 
 /**
- * Aviso de que os inscritos vão receber um email com a alteração.
- *
- * @param {unknown} count Número de inscritos.
- * @returns {string} Frase ou "" quando não há inscritos.
- */
-export function getEditNotice(count) {
-  if (!Number.isInteger(count) || count < 1) return ''
-
-  return count === 1
-    ? 'O inscrito vai receber um email a avisar que o evento foi alterado.'
-    : `Os ${count} inscritos vão receber um email a avisar que o evento foi alterado.`
-}
-
-/**
  * Hint da capacidade na edição com o número de inscritos.
  *
  * @param {unknown} count Número de inscritos.
@@ -470,4 +603,123 @@ export function getCapacityHint(count) {
   if (!Number.isInteger(count) || count < 1) return ''
 
   return `Já há ${count} ${count === 1 ? 'inscrito' : 'inscritos'}: a capacidade não pode ser inferior.`
+}
+
+/**
+ * Lê uma hora escrita pelo admin. Aceita H:MM, HH:MM, HMM e HHMM entre 00:00 e 23:59.
+ *
+ * @param {unknown} text Texto escrito.
+ * @returns {string|null} Hora `HH:MM` ou null quando não é uma hora válida.
+ */
+export function parseTime(text) {
+  if (typeof text !== 'string') return null
+
+  const match = /^(\d{1,2}):?(\d{2})$/.exec(text)
+
+  if (!match) return null
+
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+
+  if (hours > 23 || minutes > 59) return null
+
+  return `${String(hours).padStart(2, '0')}:${match[2]}`
+}
+
+/**
+ * Último dia que se pode escolher para o prazo de inscrição: a véspera do evento, porque o prazo fecha às
+ * 23:59 e tem de ser anterior ou igual ao início do evento.
+ *
+ * @param {string} eventDate Data do evento (AAAA-MM-DD ou '').
+ * @returns {string|undefined} Data AAAA-MM-DD ou undefined sem data do evento.
+ */
+export function getDeadlineMax(eventDate) {
+  return parseIsoDate(eventDate) ? addDays(eventDate, -1) : undefined
+}
+
+/** Labels dos campos na lista de alterações da confirmação. */
+const CHANGE_LABELS = {
+  isOnline: 'Formato',
+  name: 'Título',
+  categoryId: 'Tipo de evento',
+  locationId: 'Delegação',
+  eventDate: 'Data',
+  startTime: 'Hora de início',
+  endTime: 'Hora de fim',
+  registrationDeadline: 'Data limite de inscrição',
+  venueName: 'Nome do local',
+  address: 'Morada',
+  onlineUrl: 'Link do evento online',
+  maxAttendees: 'Capacidade máxima',
+  description: 'Sobre o evento',
+  organizerNotes: 'Notas do organizador',
+}
+
+/** Número máximo de caracteres de um texto na lista de alterações (antes das reticências). */
+const CHANGE_TEXT_LIMIT = 80
+
+/**
+ * Valor de um campo como aparece na lista de alterações: nomes em vez de ids, datas curtas, capacidade sem
+ * zeros à esquerda e textos numa só linha, cortados aos 80 caracteres.
+ *
+ * @param {string} name Nome do campo.
+ * @param {unknown} value Valor do campo.
+ * @param {{categoryId?: Record<string, string>, locationId?: Record<string, string>}} names Nomes por id.
+ * @returns {string}
+ */
+function changeValue(name, value, names) {
+  if (name === 'isOnline') return value ? 'Online' : 'Presencial'
+
+  const text = clean(typeof value === 'string' ? value.replace(/\s+/g, ' ') : value)
+
+  if (text === '') return '(vazio)'
+
+  if (name === 'categoryId' || name === 'locationId') return names?.[name]?.[text] ?? '—'
+
+  if (name === 'eventDate' || name === 'registrationDeadline') return formatShortDate(text) || text
+
+  if (name === 'maxAttendees') return comparable(name, text)
+
+  return text.length > CHANGE_TEXT_LIMIT ? `${text.slice(0, CHANGE_TEXT_LIMIT)}…` : text
+}
+
+/**
+ * Lista das alterações para o diálogo de confirmação, com a mesma deteção que ativa "Guardar alterações".
+ *
+ * @param {typeof EMPTY_EVENT_FORM} initialValues Valores iniciais do evento.
+ * @param {typeof EMPTY_EVENT_FORM} values Valores atuais do formulário.
+ * @param {{categoryId?: Record<string, string>, locationId?: Record<string, string>}} names Nomes dos tipos de
+ *   evento e das delegações por id.
+ * @returns {{field: string, label: string, before: string, after: string}[]} Pela ordem de getChangedEventFields.
+ */
+export function getEventChangeSummary(initialValues, values, names) {
+  return getChangedEventFields(initialValues, values).map((field) => ({
+    field,
+    label: CHANGE_LABELS[field],
+    before: changeValue(field, initialValues[field], names),
+    after: changeValue(field, values[field], names),
+  }))
+}
+
+/**
+ * Frase da confirmação sobre o email aos inscritos, partida para a contagem poder ficar a negrito.
+ *
+ * @param {unknown} count Número de inscritos (null quando é desconhecido).
+ * @returns {{lead: string, emphasis: string, tail: string, notify: boolean}} notify indica se vai um email
+ *   (e se faz sentido pedir a justificação).
+ */
+export function getChangeNotice(count) {
+  if (count === 0) {
+    return { lead: 'Não há inscritos, por isso ninguém será notificado.', emphasis: '', tail: '', notify: false }
+  }
+
+  const tail = ' a avisar que o evento foi alterado.'
+
+  if (count === 1) {
+    return { lead: 'Será enviado um email ao ', emphasis: '1 inscrito', tail, notify: true }
+  }
+
+  const known = Number.isInteger(count) && count > 1
+
+  return { lead: 'Será enviado um email aos ', emphasis: known ? `${count} inscritos` : 'inscritos', tail, notify: true }
 }

@@ -159,3 +159,98 @@ describe('SelectMenu', () => {
     expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 })
+
+describe('SelectMenu num formulário', () => {
+  const requiredOptions = [
+    { value: 'c1', label: 'Workshop' },
+    { value: 'c2', label: 'Formação' },
+    { value: 'c3', label: 'Jantar' },
+  ]
+
+  it('com placeholder e sem valor mostra o placeholder, que não é uma opção da lista', async () => {
+    const user = userEvent.setup()
+    const { onChange } = show({ options: requiredOptions, placeholder: 'Selecione o tipo de evento' })
+
+    expect(combobox()).toHaveTextContent('Selecione o tipo de evento')
+
+    await user.click(combobox())
+
+    expect(screen.getAllByRole('option').map((item) => item.textContent.trim())).toEqual(['Workshop', 'Formação', 'Jantar'])
+    expect(screen.queryByRole('option', { name: 'Selecione o tipo de evento' })).not.toBeInTheDocument()
+    for (const item of screen.getAllByRole('option')) {
+      expect(item).toHaveAttribute('aria-selected', 'false')
+    }
+
+    await user.click(option('Jantar'))
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('c3')
+  })
+
+  it('com labelId usa a label de fora e aplica name, invalid, describedBy e required', () => {
+    render(
+      <>
+        <label id="x-label" htmlFor="x">Tipo de evento</label>
+        <SelectMenu
+          id="x"
+          label="Tipo de evento"
+          labelId="x-label"
+          name="categoryId"
+          invalid
+          describedBy="e1"
+          required
+          value=""
+          options={requiredOptions}
+          placeholder="Selecione o tipo de evento"
+          onChange={vi.fn()}
+        />
+      </>,
+    )
+
+    expect(screen.getAllByText('Tipo de evento')).toHaveLength(1)
+    expect(combobox()).toHaveAttribute('aria-labelledby', 'x-label')
+    expect(combobox()).toHaveAttribute('name', 'categoryId')
+    expect(combobox()).toHaveAttribute('aria-invalid', 'true')
+    expect(combobox()).toHaveAttribute('aria-describedby', 'e1')
+    expect(combobox()).toHaveAttribute('aria-required', 'true')
+  })
+
+  it('sem as props do formulário não tem estes atributos e desenha a sua label', () => {
+    show()
+
+    expect(combobox()).not.toHaveAttribute('name')
+    expect(combobox()).not.toHaveAttribute('aria-invalid')
+    expect(combobox()).not.toHaveAttribute('aria-describedby')
+    expect(combobox()).not.toHaveAttribute('aria-required')
+    const ownLabel = document.getElementById(combobox().getAttribute('aria-labelledby'))
+    expect(ownLabel).toHaveTextContent('Tipo de evento')
+  })
+
+  it('com labelId a lista aberta tem nome próprio e a label continua a nomear só o botão', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <label id="x-label" htmlFor="x">Tipo de evento</label>
+        <SelectMenu id="x" label="Tipo de evento" labelId="x-label" value="" options={requiredOptions} placeholder="Selecione o tipo de evento" onChange={vi.fn()} />
+      </>,
+    )
+
+    await user.click(combobox())
+
+    const listbox = screen.getByRole('listbox', { name: 'Opções de Tipo de evento' })
+    expect(listbox).not.toHaveAttribute('aria-labelledby')
+    const labelled = screen.getAllByLabelText(/^Tipo de evento\s*\*?$/)
+    expect(labelled).toHaveLength(1)
+    expect(labelled[0]).toBe(combobox())
+  })
+
+  it('sem labelId a lista continua com o nome da label e sem aria-label', async () => {
+    const user = userEvent.setup()
+    show()
+
+    await user.click(combobox())
+
+    const listbox = screen.getByRole('listbox', { name: 'Tipo de evento' })
+    expect(listbox).not.toHaveAttribute('aria-label')
+  })
+})

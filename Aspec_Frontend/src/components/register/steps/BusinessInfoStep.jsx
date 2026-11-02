@@ -1,4 +1,5 @@
 import Field from "../../ui/Field";
+import InternationalPhoneInput from '../../ui/InternationalPhoneInput'
 
 export default function BusinessInfoStep({
   bind,
@@ -61,11 +62,10 @@ export default function BusinessInfoStep({
           </Field>
 
           <Field label="Telefone comercial *" error={errors.commercial_phone}>
-            <input
-              type="tel"
+            <InternationalPhoneInput
+              id="commercial_phone"
               {...bind("commercial_phone")}
-              maxLength={40}
-              placeholder="+351 912 345 678"
+              placeholder="912 345 678"
               className={inputCls}
             />
           </Field>
@@ -82,12 +82,12 @@ export default function BusinessInfoStep({
         />
       </Field>
 
-      <Field label="Website (opcional)" error={errors.website_url}>
+      <Field label="Website" error={errors.website_url}>
         <input
           type="url"
           {...bind("website_url")}
           maxLength={255}
-          placeholder="https://www.meusite.pt"
+          placeholder="www.meusite.pt"
           className={inputCls}
         />
       </Field>

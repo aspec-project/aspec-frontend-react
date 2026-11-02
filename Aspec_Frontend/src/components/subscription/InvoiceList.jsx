@@ -6,67 +6,30 @@ import {
   getInvoices,
 } from '../../services/subscription'
 
+const PER_PAGE = 5
+
 const initialPagination = {
   current_page: 1,
-  per_page: 10,
+  per_page: PER_PAGE,
   total: 0,
   last_page: 1,
 }
 
-/*
- * O backend expõe apenas estes dois estados ao membro. Os estados internos
- * de emissão não são apresentados, porque não requerem nenhuma ação deste.
- */
-const invoiceStatuses = {
-  issued: {
-    label: 'Emitida',
-    className: 'bg-emerald-50 text-emerald-800',
-  },
-  processing: {
-    label: 'Em emissão',
-    className: 'bg-amber-50 text-amber-800',
-  },
-}
+/* Mostra o mês da cobrança como no protótipo, usando sempre a data da API. */
+function getInvoiceLabel(invoice) {
+  const date = new Date(invoice.issued_at ?? invoice.paid_at)
 
-/*
- * Converte uma data ISO devolvida pela API para o formato português.
- */
-function formatDate(dateValue) {
-  if (!dateValue) {
-    return '—'
+  if (!Number.isNaN(date.getTime())) {
+    const month = new Intl.DateTimeFormat('pt-PT', { month: 'long' }).format(
+      date,
+    )
+
+    return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`
   }
 
-  const date = new Date(dateValue)
-
-  if (Number.isNaN(date.getTime())) {
-    return '—'
-  }
-
-  return new Intl.DateTimeFormat('pt-PT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date)
+  return invoice.number ? `Fatura ${invoice.number}` : 'Fatura emitida'
 }
 
-/*
- * Formata o valor da fatura com a moeda configurada no backend.
- */
-function formatAmount(amount, currency) {
-  if (typeof amount !== 'number' || !currency) {
-    return '—'
-  }
-
-  return new Intl.NumberFormat('pt-PT', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(amount)
-}
-
-/*
- * Cria um nome seguro e legível para o ficheiro descarregado. Se a fatura
- * ainda não tiver número, usamos o seu identificador como alternativa.
- */
 function getDownloadFilename(invoice) {
   const reference = String(invoice.number ?? invoice.id)
   const safeReference = reference
@@ -76,11 +39,16 @@ function getDownloadFilename(invoice) {
   return `fatura-${safeReference || 'documento'}.pdf`
 }
 
+function getPageNumbers(currentPage, lastPage) {
+  const start = Math.max(1, Math.min(currentPage - 2, lastPage - 4))
+  const end = Math.min(lastPage, start + 4)
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+}
+
 /*
- * Lista paginada das faturas pertencentes ao membro autenticado.
- *
- * Cada pedido é sempre feito através da API autenticada, pelo que esta
- * componente nunca recebe nem apresenta faturas de outro utilizador.
+ * Cartão de faturas da área de subscrição. Carrega cinco documentos por
+ * página, exatamente como a paginação apresentada no protótipo.
  */
 export default function InvoiceList() {
   const [invoices, setInvoices] = useState([])
@@ -90,74 +58,48 @@ export default function InvoiceList() {
   const [downloadError, setDownloadError] = useState('')
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null)
 
-  /*
-   * Obtém uma página da lista e guarda os metadados devolvidos pelo backend
-   * para que os controlos anterior/seguinte reflitam o estado real.
-   */
   const loadInvoices = useCallback(async (page = 1) => {
     setIsLoading(true)
     setLoadError('')
 
     try {
-      const invoiceData = await getInvoices(page)
+      const invoiceData = await getInvoices(page, PER_PAGE)
 
       setInvoices(invoiceData.items ?? [])
       setPagination(invoiceData.pagination ?? initialPagination)
     } catch (error) {
-      const normalisedError = normalizeError(error)
-
-      setLoadError(normalisedError.message)
+      setLoadError(normalizeError(error).message)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  /*
-   * Carrega a primeira página quando a área de subscrição é aberta.
-   *
-   * O estado só é atualizado depois de a API responder. O controlo isCurrent
-   * evita atualizar a componente se o membro sair desta página durante o pedido.
-   */
   useEffect(() => {
     let isCurrent = true
 
     async function loadInitialInvoices() {
       try {
-        const invoiceData = await getInvoices()
+        const invoiceData = await getInvoices(1, PER_PAGE)
 
-        if (!isCurrent) {
-          return
-        }
+        if (!isCurrent) return
 
         setInvoices(invoiceData.items ?? [])
         setPagination(invoiceData.pagination ?? initialPagination)
         setLoadError('')
       } catch (error) {
-        if (!isCurrent) {
-          return
-        }
-
-        const normalisedError = normalizeError(error)
-
-        setLoadError(normalisedError.message)
+        if (isCurrent) setLoadError(normalizeError(error).message)
       } finally {
-        if (isCurrent) {
-          setIsLoading(false)
-        }
+        if (isCurrent) setIsLoading(false)
       }
     }
 
-    loadInitialInvoices()
+    void loadInitialInvoices()
 
     return () => {
       isCurrent = false
     }
   }, [])
 
-  /*
-   * Pede o PDF à API e inicia o download apenas no browser. A URL temporária
-   * é libertada logo a seguir para não manter dados da fatura em memória.
-   */
   async function handleDownload(invoice) {
     setDownloadingInvoiceId(invoice.id)
     setDownloadError('')
@@ -174,26 +116,28 @@ export default function InvoiceList() {
       link.remove()
       URL.revokeObjectURL(downloadUrl)
     } catch (error) {
-      const normalisedError = normalizeError(error)
-
-      setDownloadError(normalisedError.message)
+      setDownloadError(normalizeError(error).message)
     } finally {
       setDownloadingInvoiceId(null)
     }
   }
 
   function handlePageChange(page) {
-    if (page < 1 || page > pagination.last_page || page === pagination.current_page) {
+    if (
+      page < 1 ||
+      page > pagination.last_page ||
+      page === pagination.current_page
+    ) {
       return
     }
 
-    loadInvoices(page)
+    void loadInvoices(page)
   }
 
   if (isLoading) {
     return (
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-[#0d1f35]">Faturas</h2>
+      <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
+        <h2 className="text-base font-semibold text-[#0d1f35]">Faturas</h2>
         <p className="mt-3 text-sm text-slate-600">A carregar faturas...</p>
       </section>
     )
@@ -201,16 +145,15 @@ export default function InvoiceList() {
 
   if (loadError) {
     return (
-      <section className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-6">
-        <h2 className="text-xl font-semibold text-red-950">
+      <section className="rounded-xl border border-red-200 bg-red-50 p-6 lg:col-span-2" role="alert">
+        <h2 className="text-base font-semibold text-red-950">
           Não foi possível carregar as faturas
         </h2>
-        <p className="mt-3 text-sm text-red-800">{loadError}</p>
-
+        <p className="mt-2 text-sm text-red-800">{loadError}</p>
         <button
           type="button"
-          onClick={() => loadInvoices()}
-          className="mt-5 rounded-lg bg-[#0d1f35] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#193451]"
+          onClick={() => void loadInvoices()}
+          className="mt-5 rounded-xl bg-[#0d1f35] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#193451]"
         >
           Tentar novamente
         </button>
@@ -218,150 +161,126 @@ export default function InvoiceList() {
     )
   }
 
-  return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-[#0d1f35]">Faturas</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Consulta e descarrega as faturas emitidas para a tua subscrição.
-          </p>
-        </div>
+  const firstItem = invoices.length
+    ? (pagination.current_page - 1) * pagination.per_page + 1
+    : 0
+  const lastItem = invoices.length ? firstItem + invoices.length - 1 : 0
 
-        <span className="text-sm text-slate-500">
-          {pagination.total}{' '}
-          {pagination.total === 1 ? 'fatura' : 'faturas'}
-        </span>
-      </div>
+  return (
+    <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
+      <h2 className="text-base font-semibold text-[#0d1f35]">Faturas</h2>
+      <p className="mb-4 mt-1 text-xs text-gray-500">
+        Documentos de cada cobrança mensal.
+      </p>
 
       {downloadError && (
-        <div
-          className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          role="alert"
-        >
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800" role="alert">
           {downloadError}
-        </div>
+        </p>
       )}
 
       {invoices.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-          <FileText
-            size={28}
-            aria-hidden="true"
-            className="mx-auto text-slate-400"
-          />
-          <p className="mt-3 text-sm font-medium text-slate-700">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+          <FileText size={24} aria-hidden="true" className="mx-auto text-slate-400" />
+          <p className="mt-2 text-sm font-medium text-slate-700">
             Ainda não existem faturas.
           </p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-xs text-slate-500">
             As faturas emitidas ficarão disponíveis aqui.
           </p>
         </div>
       ) : (
         <>
-          <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Fatura
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Pagamento
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Valor
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Estado
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-semibold">
-                    Documento
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {invoices.map((invoice) => {
-                  const status =
-                    invoiceStatuses[invoice.status] ?? invoiceStatuses.processing
-
-                  return (
-                    <tr key={invoice.id} className="text-slate-700">
-                      <td className="px-4 py-4 font-medium text-slate-900">
-                        {invoice.number ?? 'Em emissão'}
-                      </td>
-                      <td className="px-4 py-4">
-                        {formatDate(invoice.paid_at)}
-                      </td>
-                      <td className="px-4 py-4">
-                        {formatAmount(invoice.amount, invoice.currency)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
+                <th scope="col" className="pb-2 font-medium">
+                  Fatura
+                </th>
+                <th scope="col" className="pb-2 text-right font-medium">
+                  Download
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => (
+                <tr key={invoice.id} className="border-b border-gray-50 last:border-0">
+                  <td className="py-1.5 text-[#0d1f35]">
+                    {getInvoiceLabel(invoice)}
+                  </td>
+                  <td className="py-1.5">
+                    <div className="-mr-2 flex justify-end">
+                      {invoice.pdf_available ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleDownload(invoice)}
+                          disabled={downloadingInvoiceId === invoice.id}
+                          title={`Descarregar fatura de ${getInvoiceLabel(invoice)}`}
+                          aria-label={`Descarregar fatura de ${getInvoiceLabel(invoice)}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-[#0d1f35] transition-colors hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {status.label}
+                          <Download size={15} aria-hidden="true" />
+                        </button>
+                      ) : (
+                        <span className="pr-2 text-xs text-slate-400">
+                          Indisponível
                         </span>
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        {invoice.pdf_available ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDownload(invoice)}
-                            disabled={downloadingInvoiceId === invoice.id}
-                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#0d1f35] transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label={`Descarregar PDF da fatura ${
-                              invoice.number ?? invoice.id
-                            }`}
-                          >
-                            <Download size={16} aria-hidden="true" />
-                            {downloadingInvoiceId === invoice.id
-                              ? 'A preparar...'
-                              : 'PDF'}
-                          </button>
-                        ) : (
-                          <span className="text-sm text-slate-400">
-                            Indisponível
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-          {pagination.last_page > 1 && (
-            <footer className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-500">
-                Página {pagination.current_page} de {pagination.last_page}
-              </p>
+          <footer className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+            <p className="text-xs text-gray-500">
+              {firstItem}–{lastItem} de {pagination.total} faturas
+            </p>
 
-              <div className="flex items-center gap-2">
+            {pagination.last_page > 1 && (
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => handlePageChange(pagination.current_page - 1)}
                   disabled={pagination.current_page === 1}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Página anterior"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  <ChevronLeft size={16} aria-hidden="true" />
-                  Anterior
+                  <ChevronLeft size={15} aria-hidden="true" />
                 </button>
+
+                {getPageNumbers(
+                  pagination.current_page,
+                  pagination.last_page,
+                ).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => handlePageChange(page)}
+                    aria-current={page === pagination.current_page ? 'page' : undefined}
+                    className={`h-8 w-8 rounded-lg text-xs font-medium transition ${
+                      page === pagination.current_page
+                        ? 'bg-[#0d1f35] text-white'
+                        : 'text-[#0d1f35] hover:bg-[#f5f3ee]'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
 
                 <button
                   type="button"
                   onClick={() => handlePageChange(pagination.current_page + 1)}
                   disabled={pagination.current_page === pagination.last_page}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Página seguinte"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  Seguinte
-                  <ChevronRight size={16} aria-hidden="true" />
+                  <ChevronRight size={15} aria-hidden="true" />
                 </button>
               </div>
-            </footer>
-          )}
+            )}
+          </footer>
         </>
       )}
     </section>

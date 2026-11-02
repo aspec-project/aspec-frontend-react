@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminUsersPage from '../../../src/pages/admin/AdminUsersPage'
 import {
@@ -1094,4 +1094,53 @@ describe('Mensagem trazida pela navegação e envio do email de pagamento na lis
     expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore)
   })
 
+})
+
+function SearchProbe() {
+  return <p data-testid="search">{useLocation().search}</p>
+}
+
+function showAt(path) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/admin/utilizadores" element={<><AdminUsersPage /><SearchProbe /></>} />
+      </Routes>
+    </MemoryRouter>
+  )
+}
+
+describe('Filtro de estado na URL', () => {
+  beforeEach(() => {
+    getAdminUsers.mockResolvedValue(list())
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+  })
+  afterEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.getState().clearSession()
+  })
+
+  it('abre já no chip Pendentes com ?estado=pending', async () => {
+    showAt('/admin/utilizadores?estado=pending')
+    await waitForTable()
+
+    expect(getAdminUsers.mock.calls[0]).toEqual([{ subscriptionState: 'pending', search: '', includeAdmins: false, page: 1 }, expect.any(AbortSignal)])
+    expect(tab('Pendentes')).toHaveAttribute('aria-pressed', 'true')
+    expect(tab('Todos')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('ignora um estado desconhecido e atualiza a URL ao mudar de chip', async () => {
+    const user = userEvent.setup()
+    showAt('/admin/utilizadores?estado=xyz')
+    await waitForTable()
+
+    expect(getAdminUsers.mock.calls[0]).toEqual([{ search: '', includeAdmins: false, page: 1 }, expect.any(AbortSignal)])
+    expect(tab('Todos')).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(tab('Ativos'))
+    await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(/^\?estado=active$/))
+
+    await user.click(tab('Todos'))
+    await waitFor(() => expect(screen.getByTestId('search').textContent).toBe(''))
+  })
 })

@@ -10,10 +10,10 @@ import MemberProfilePage from '../pages/MemberProfilePage'
 import MemberRegistrationsPage from '../pages/MemberRegistrationsPage'
 import MemberReviewsPage from '../pages/MemberReviewsPage'
 import AccountInformationPage from '../pages/AccountInformationPage'
-import ChangePasswordPage from '../pages/ChangePasswordPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
 import RequestActivationLinkPage from '../pages/RequestActivationLinkPage'
+import PendingAccountPage from '../pages/PendingAccountPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import MemberAreaLayout from '../components/layout/MemberAreaLayout'
@@ -22,11 +22,16 @@ import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
 import AdminEventsPage from '../pages/admin/AdminEventsPage'
 import AdminEventCategoriesPage from '../pages/admin/AdminEventCategoriesPage'
+import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import HomePage from '../pages/HomePage'
 import EventsPage from '../pages/EventsPage'
 import EventDetailPage from '../pages/EventDetailPage'
 import MembersPage from '../pages/MembersPage'
 import PublicMemberProfilePage from '../pages/PublicMemberProfilePage'
+import PageTitle from '../components/PageTitle'
+import NotFoundPage from '../pages/NotFoundPage'
+import InstitutionalPage from '../pages/InstitutionalPage'
+import { institutionalPages } from '../content/institutionalPages'
 
 /*
  * Centraliza as rotas da aplicação.
@@ -36,31 +41,35 @@ function AppRouter() {
     <Routes>
       {/* Rotas públicas com cabeçalho e rodapé. */}
       <Route element={<MainLayout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/eventos" element={<EventsPage />} />
+        <Route path="/" element={<PageTitle title="Início"><HomePage /></PageTitle>} />
+        <Route path="/eventos" element={<PageTitle title="Agenda de Eventos"><EventsPage /></PageTitle>} />
         <Route path="/eventos/:id" element={<EventDetailPage />} />
-        <Route path="/membros" element={<MembersPage />} />
+        <Route path="/membros" element={<PageTitle title="Diretório de Confiança"><MembersPage /></PageTitle>} />
         <Route path="/membros/:id" element={<PublicMemberProfilePage />} />
+        <Route path="/termos-e-condicoes" element={<PageTitle title={institutionalPages.terms.title}><InstitutionalPage content={institutionalPages.terms} /></PageTitle>} />
+        <Route path="/politica-de-privacidade" element={<PageTitle title={institutionalPages.privacy.title}><InstitutionalPage content={institutionalPages.privacy} /></PageTitle>} />
+        <Route path="/codigo-de-conduta" element={<PageTitle title={institutionalPages.conduct.title}><InstitutionalPage content={institutionalPages.conduct} /></PageTitle>} />
+        <Route path="*" element={<PageTitle title="Página não encontrada"><NotFoundPage /></PageTitle>} />
       </Route>
 
       {/* Rotas públicas sem o layout global. */}
-      <Route path="/login" element={<LoginPage title="Iniciar sessão" />} />
+      <Route path="/login" element={<PageTitle title="Iniciar sessão"><LoginPage title="Iniciar sessão" /></PageTitle>} />
       {/* Recuperação de password: rotas públicas abertas através do login e email. */}
-      <Route path="/esqueci-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/registo" element={<RegisterPage />} />
+      <Route path="/esqueci-password" element={<PageTitle title="Recuperar palavra-passe"><ForgotPasswordPage /></PageTitle>} />
+      <Route path="/reset-password" element={<PageTitle title="Redefinir palavra-passe"><ResetPasswordPage /></PageTitle>} />
+      <Route path="/registo" element={<PageTitle title="Candidatura"><RegisterPage /></PageTitle>} />
       <Route
         path="/ativacao/sucesso"
-        element={<AccountActivationSuccessPage />}
+        element={<PageTitle title="Conta ativada"><AccountActivationSuccessPage /></PageTitle>}
       />
       <Route
         path="/ativacao/novo-link"
-        element={<RequestActivationLinkPage />}
+        element={<PageTitle title="Novo link de ativação"><RequestActivationLinkPage /></PageTitle>}
       />
-      <Route path="/ativacao/:user" element={<AccountActivationPage />} />
+      <Route path="/ativacao/:user" element={<PageTitle title="Ativar conta"><AccountActivationPage /></PageTitle>} />
       <Route
         path="/pendente"
-        element={<PlaceholderPage title="Conta pendente" />}
+        element={<PageTitle title="Conta pendente"><PendingAccountPage /></PageTitle>}
       />
 
       {/* Área privada do membro: exige sessão ativa e mostra o layout do Figma. */}
@@ -74,15 +83,15 @@ function AppRouter() {
       >
         <Route
           path="/dashboard"
-          element={<PlaceholderPage title="Dashboard" />}
+          element={<PageTitle title="Dashboard"><PlaceholderPage title="Dashboard" /></PageTitle>}
         />
 
         <Route element={<MainLayout />}>
           <Route element={<MemberAreaLayout />}>
-            <Route path="/perfil" element={<MemberProfilePage />} />
+            <Route path="/perfil" element={<PageTitle title="Perfil"><MemberProfilePage /></PageTitle>} />
             {/* A edição é feita diretamente nos cartões da página de perfil. */}
             <Route path="/perfil/editar" element={<Navigate replace to="/perfil" />} />
-            <Route path="/perfil/portefolio" element={<PortfolioPage />} />
+            <Route path="/perfil/portefolio" element={<PageTitle title="Portefólio"><PortfolioPage /></PageTitle>} />
 
             {/*
              * A aba de avaliações aguarda um endpoint autenticado próprio.
@@ -90,24 +99,24 @@ function AppRouter() {
              */}
             <Route
               path="/perfil/inscricoes"
-              element={<MemberRegistrationsPage />}
+              element={<PageTitle title="Inscrições em eventos"><MemberRegistrationsPage /></PageTitle>}
             />
             <Route
               path="/perfil/avaliacoes"
-              element={<MemberReviewsPage />}
+              element={<PageTitle title="Avaliações"><MemberReviewsPage /></PageTitle>}
             />
 
             <Route
               path="/perfil/conta"
-              element={<AccountInformationPage />}
+              element={<PageTitle title="Informações da conta"><AccountInformationPage /></PageTitle>}
             />
             <Route
               path="/perfil/conta/password"
-              element={<ChangePasswordPage />}
+              element={<Navigate replace to="/perfil/conta" />}
             />
             <Route
               path="/perfil/subscricao"
-              element={<SubscriptionPage />}
+              element={<PageTitle title="Subscrição"><SubscriptionPage /></PageTitle>}
             />
 
             {/*
@@ -139,26 +148,18 @@ function AppRouter() {
       {/* Rotas de administração — exigem sessão válida e role Admin. */}
       <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
         <Route element={<AdminLayout />}>
-          <Route
-            path="/admin"
-            element={<PlaceholderPage title="Administração" />}
-          />
-          <Route path="/admin/utilizadores" element={<AdminUsersPage />} />
-          <Route path="/admin/utilizadores/:id" element={<AdminUserDetailPage />} />
-          <Route path="/admin/eventos" element={<AdminEventsPage />} />
-          <Route path="/admin/tipos-evento" element={<AdminEventCategoriesPage />} />
+          <Route path="/admin" element={<PageTitle title="Administração"><AdminDashboardPage /></PageTitle>} />
+          <Route path="/admin/utilizadores" element={<PageTitle title="Utilizadores"><AdminUsersPage /></PageTitle>} />
+          <Route path="/admin/utilizadores/:id" element={<PageTitle title="Detalhe do utilizador"><AdminUserDetailPage /></PageTitle>} />
+          <Route path="/admin/eventos" element={<PageTitle title="Gestão de eventos"><AdminEventsPage /></PageTitle>} />
+          <Route path="/admin/tipos-evento" element={<PageTitle title="Tipos de evento"><AdminEventCategoriesPage /></PageTitle>} />
           <Route
             path="/admin/moderacao"
-            element={<PlaceholderPage title="Moderação" />}
+            element={<PageTitle title="Moderação"><PlaceholderPage title="Moderação" /></PageTitle>}
           />
         </Route>
       </Route>
 
-      {/* Rota para URLs que não existem. */}
-      <Route
-        path="*"
-        element={<PlaceholderPage title="Página não encontrada" />}
-      />
     </Routes>
   )
 }

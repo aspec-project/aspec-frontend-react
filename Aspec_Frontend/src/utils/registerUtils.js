@@ -1,3 +1,5 @@
+import { isValidPhoneNumber } from 'libphonenumber-js/min'
+
 export const FIELD_STEP = {
   firstName: 0,
   lastName: 0,
@@ -11,6 +13,8 @@ export const FIELD_STEP = {
   commercial_phone: 1,
   location_id: 2,
   address: 2,
+  postal_code: 2,
+  city: 2,
   congregation: 3,
   role_in_congregation: 3,
   password: 4,
@@ -31,6 +35,22 @@ export const validateEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
 /*
+ * Mantém o código postal no formato português enquanto é escrito. A API
+ * também aceita os sete algarismos sem hífen, mas o formato apresentado ao
+ * utilizador fica sempre consistente.
+ */
+export const formatPostalCode = (postalCode) => {
+  const digits = String(postalCode ?? '').replace(/\D/g, '').slice(0, 7)
+
+  return digits.length > 4
+    ? `${digits.slice(0, 4)}-${digits.slice(4)}`
+    : digits
+}
+
+export const validatePostalCode = (postalCode) =>
+  /^\d{4}-?\d{3}$/.test(String(postalCode ?? '').trim())
+
+/*
  * Remove apenas separadores habituais e converte o prefixo internacional
  * 00 para +. A validação definitiva de cada país é feita pelo backend.
  */
@@ -41,11 +61,11 @@ export const normalizePhone = (phone) =>
     .replace(/^00/, '+')
 
 /*
- * Aceita um número com indicativo internacional ou um número nacional.
- * Sem indicativo, o backend interpreta-o como português.
+ * Só aceita números completos e válidos para o respetivo país. O seletor
+ * acrescenta o indicativo antes de esta validação ser chamada.
  */
 export const validatePhone = (phone) =>
-  /^\+?\d{7,15}$/.test(normalizePhone(phone))
+  isValidPhoneNumber(normalizePhone(phone))
 
 export const getPasswordCriteria = (pwd) => ({
   minLength: pwd.length >= 8,
@@ -81,10 +101,6 @@ export const validateStepForm = (currentStep, formData) => {
       newErrors.sector_id = 'Selecione o setor.'
     }
 
-    if (formData.website_url.trim() && !/^https?:\/\/.+/i.test(formData.website_url)) {
-      newErrors.website_url = 'Inválido.'
-    }
-
     if (!formData.commercial_email.trim()) {
       newErrors.commercial_email = 'Obrigatório.'
     } else if (!validateEmail(formData.commercial_email)) {
@@ -105,6 +121,16 @@ export const validateStepForm = (currentStep, formData) => {
 
     if (!formData.address.trim()) {
       newErrors.address = 'Obrigatório.'
+    }
+
+    if (!formData.postal_code.trim()) {
+      newErrors.postal_code = 'Obrigatório.'
+    } else if (!validatePostalCode(formData.postal_code)) {
+      newErrors.postal_code = 'Use o formato 0000-000.'
+    }
+
+    if (!formData.city.trim()) {
+      newErrors.city = 'Obrigatório.'
     }
   }
 
@@ -152,6 +178,8 @@ export const buildPayload = (formData) => {
     congregation: formData.congregation.trim(),
     role_in_congregation: formData.role_in_congregation.trim(),
     address: formData.address.trim(),
+    postal_code: formatPostalCode(formData.postal_code),
+    city: formData.city.trim(),
     commercial_email: formData.commercial_email.trim(),
     commercial_phone: normalizePhone(formData.commercial_phone),
     terms_accepted: formData.acceptTerms,

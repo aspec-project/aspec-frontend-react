@@ -7,7 +7,6 @@ import { getEventRegistrants } from "../../src/services/eventRegistrants";
 import { useAuthStore } from "../../src/store/authStore";
 
 vi.mock("../../src/services/eventRegistrants", async (original) => ({ ...await original(), getEventRegistrants: vi.fn() }));
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => null }));
 const id = "019512a1-9999-7123-8123-123456789abc";
 const event = { id, name: "Encontro ASPEC", category: { name: "Encontro" }, location: { name: "Lisboa" }, max_attendees: 20, registrations_count: 12, available_spots: 8 };
 const member = { id: "membro-a", role: { name: "Member" }, account_status: { name: "Active" } };
@@ -50,6 +49,67 @@ describe("Modal de empresas inscritas", () => {
     await user.clear(within(dialog).getByRole("searchbox"));
     await user.type(within(dialog).getByRole("searchbox"), "inexistente");
     expect(within(dialog).getByRole("status")).toHaveTextContent("Nenhuma empresa encontrada.");
+    expect(getEventRegistrants).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["Construções São João", "CONSTRUCOES SAO JOAO"],
+    ["Construcoes Sao Joao", "CONSTRUÇÕES SÃO JOÃO"],
+    ["Câmara Açúcar", "  camara acucar  "],
+    ["Camara Acucar", "  CÂMARA AÇÚCAR  "],
+    ["ÁÉÍÓÚ ÀÂÊÔ ÃÕ Ç", "aeiou aaeo ao c"],
+    ["Tecnologia", "TÉCNOLOGIA"],
+    ["Construções São João".normalize("NFD"), "construções são joão"],
+    ["Construções São João", "CONSTRUÇÕES SÃO JOÃO".normalize("NFD")],
+  ])("encontra %s ao pesquisar %s e preserva o nome original", async (name, query) => {
+    const companies = Object.freeze([Object.freeze({ business_name: name }), Object.freeze({ business_name: "Outra empresa" })]);
+    getEventRegistrants.mockResolvedValueOnce(companies);
+    show();
+    const user = await open();
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByText(name);
+    const search = within(dialog).getByRole("searchbox", { name: "Pesquisar empresa" });
+
+    await user.type(search, query);
+
+    expect(search).toHaveValue(query);
+    expect(within(dialog).getAllByRole("listitem").map((item) => item.textContent)).toEqual([name]);
+    expect(within(dialog).getByText("Encontro ASPEC · 2 empresas")).toBeInTheDocument();
+    expect(companies[0].business_name).toBe(name);
+    expect(getEventRegistrants).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserva duplicados, ordenação e nome indisponível ao pesquisar e limpar", async () => {
+    const companies = Object.freeze([
+      Object.freeze({ business_name: "Zeta" }),
+      Object.freeze({ business_name: "Água" }),
+      Object.freeze({ business_name: null }),
+      Object.freeze({ business_name: "Água" }),
+    ]);
+    getEventRegistrants.mockResolvedValueOnce(companies);
+    show();
+    const user = await open();
+    const dialog = screen.getByRole("dialog");
+    await within(dialog).findByText("Zeta");
+    const names = () => within(dialog).getAllByRole("listitem").map((item) => item.textContent);
+    const originalNames = names();
+    const search = within(dialog).getByRole("searchbox");
+
+    await user.type(search, "aGUA");
+    expect(names()).toEqual(["Água", "Água"]);
+    await user.clear(search);
+    await user.type(search, "INDISPONIVEL");
+    expect(names()).toEqual(["Nome da empresa indisponível"]);
+    await user.clear(search);
+    await user.type(search, "inexistênte");
+    expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Nenhuma empresa encontrada.");
+    expect(within(dialog).getByText("Encontro ASPEC · 4 empresas")).toBeInTheDocument();
+    await user.clear(search);
+    expect(names()).toEqual(originalNames);
+    await user.type(search, "   ");
+    expect(names()).toEqual(originalNames);
+    expect(companies.map((company) => company.business_name)).toEqual(["Zeta", "Água", null, "Água"]);
     expect(getEventRegistrants).toHaveBeenCalledTimes(1);
   });
 

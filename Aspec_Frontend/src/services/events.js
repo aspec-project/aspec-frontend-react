@@ -8,8 +8,11 @@ function publicEventItem(item) {
   if (Object.hasOwn(result, "is_online")) {
     result.is_online = typeof result.is_online === "boolean" ? result.is_online : null;
   }
+  if (Object.hasOwn(result, "place_id")) {
+    result.place_id = typeof result.place_id === "string" ? result.place_id.trim() : "";
+  }
   if (result.is_online === true) {
-    for (const field of ["location", "venue_name", "address", "latitude", "longitude"]) delete result[field];
+    for (const field of ["location", "venue_name", "address", "latitude", "longitude", "place_id"]) delete result[field];
   }
   return result;
 }
@@ -58,6 +61,7 @@ export async function getEventDetail(id, signal) {
     organizer_notes: text(event.organizer_notes),
     venue_name: online ? "" : text(event.venue_name),
     address: online ? "" : text(event.address),
+    place_id: online ? "" : text(event.place_id),
     latitude: online ? null : coordinate(event.latitude, 90),
     longitude: online ? null : coordinate(event.longitude, 180),
     max_attendees: count(event.max_attendees),

@@ -1,4 +1,5 @@
 import Field from "../../ui/Field";
+import InternationalPhoneInput from '../../ui/InternationalPhoneInput'
 
 export default function PersonalInfoStep({ bind, errors, inputCls }) {
   return (
@@ -18,13 +19,12 @@ export default function PersonalInfoStep({ bind, errors, inputCls }) {
         <input type="email" {...bind("email")} maxLength={255} placeholder="joao.silva@email.pt" className={inputCls} />
       </Field>
       <Field label="Telefone pessoal *" error={errors.phone}>
-      <input
-        type="tel"
-        {...bind("phone")}
-        maxLength={40}
-        placeholder="+351 912 345 678 ou +44 7911 123456"
-        className={inputCls}
-      />
+        <InternationalPhoneInput
+          id="phone"
+          {...bind("phone")}
+          placeholder="912 345 678"
+          className={inputCls}
+        />
       </Field>
     </div>
   );

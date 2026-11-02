@@ -10,7 +10,6 @@ import { useAuthStore } from "../../src/store/authStore";
 
 vi.mock("../../src/components/layout/Header", () => ({ default: () => <header>ASPEC</header> }));
 vi.mock("../../src/components/layout/Footer", () => ({ default: () => <footer>ASPEC</footer> }));
-vi.mock("../../src/components/events/EventLocationMap", () => ({ default: () => <div aria-label="Mapa do local" /> }));
 
 const id = "019512a1-9999-7123-8123-123456789abc";
 const otherId = "019512a1-9998-7123-8123-123456789abc";
@@ -28,17 +27,39 @@ const fail = (config, status) => Promise.reject(new AxiosError("Detalhe interno"
 describe("Página de detalhe do evento", () => {
   let original;
   beforeEach(() => {
+    vi.stubEnv("VITE_GOOGLE_MAPS_EMBED_KEY", "chave-ficticia-testes");
     original = api.defaults.adapter;
     useAuthStore.setState({ user: null, status: "idle" });
     api.defaults.adapter = (config) => Promise.resolve(response(config));
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   });
-  afterEach(() => { api.defaults.adapter = original; vi.restoreAllMocks(); });
+  afterEach(() => { api.defaults.adapter = original; vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+  it("liga o place_id devolvido pelo detalhe ao Embed e ao botão Google Maps", async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, place_id: " local-google-teste ", latitude: null, longitude: null }));
+    show();
+    await screen.findByRole("heading", { name: event.name });
+    const iframe = screen.getByTitle("Mapa da localização do evento");
+    expect(new URL(iframe.src).searchParams.get("q")).toBe("place_id:local-google-teste");
+    const search = new URL(screen.getByRole("link", { name: "Abrir no Google Maps" }).href).searchParams;
+    expect(search.get("query")).toBe(event.address);
+    expect(search.get("query_place_id")).toBe("local-google-teste");
+  });
+
+  it("oculta o Embed e o botão num evento online mesmo com place_id indevido", async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, is_online: true, place_id: "local-google-teste" }));
+    show();
+    await screen.findByRole("heading", { name: event.name });
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
+  });
 
   it("apresenta os dados reais e não expõe o link privado nem infere modalidade ou recorrência", async () => {
     show();
     expect(screen.getByRole("status")).toHaveTextContent("A carregar evento");
+    expect(document.title).toBe("Detalhe do evento | ASPEC");
     await screen.findByRole("heading", { name: event.name });
+    await waitFor(() => expect(document.title).toBe(`${event.name} | ASPEC`));
     for (const text of ["Descrição pública", "15 de outubro de 2030", "10:00 – 12:00", "Lisboa", "Chegar cedo.", "8 vagas disponíveis", "12 / 20", event.address]) expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "60% de ocupação");
@@ -78,7 +99,7 @@ describe("Página de detalhe do evento", () => {
     await screen.findByRole("heading", { name: event.name });
     expect(screen.queryByText(event.address)).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Abrir no Google Maps" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Mapa do local")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Mapa da localização do evento")).not.toBeInTheDocument();
     expect(screen.queryByText(event.online_url)).not.toBeInTheDocument();
   });
 
@@ -138,6 +159,7 @@ describe("Página de detalhe do evento", () => {
     api.defaults.adapter = adapter;
     show("invalido");
     expect(screen.getByRole("heading", { name: "Evento não encontrado" })).toBeInTheDocument();
+    expect(document.title).toBe("Evento não encontrado | ASPEC");
     expect(adapter).not.toHaveBeenCalled();
   });
 
@@ -145,6 +167,7 @@ describe("Página de detalhe do evento", () => {
     api.defaults.adapter = (config) => fail(config, 404);
     show();
     await screen.findByRole("heading", { name: "Evento não encontrado" });
+    await waitFor(() => expect(document.title).toBe("Evento não encontrado | ASPEC"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -157,6 +180,7 @@ describe("Página de detalhe do evento", () => {
     api.defaults.adapter = (config) => fail(config, status);
     show();
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(document.title).toBe("Detalhe do evento | ASPEC");
     expect(screen.queryByText(/confidencial/)).not.toBeInTheDocument();
     api.defaults.adapter = (config) => Promise.resolve(response(config));
     screen.getByRole("button", { name: "Tentar novamente" }).focus();
@@ -187,7 +211,9 @@ describe("Página de detalhe do evento", () => {
     expect(pending[0].config.signal.aborted).toBe(true);
     await act(async () => pending[1].resolve(response(pending[1].config, { ...event, id: otherId, name: "Outro encontro" })));
     await screen.findByRole("heading", { name: "Outro encontro" });
+    expect(document.title).toBe("Outro encontro | ASPEC");
     await act(async () => pending[0].resolve(response(pending[0].config)));
+    expect(document.title).toBe("Outro encontro | ASPEC");
     expect(screen.queryByRole("heading", { name: event.name })).not.toBeInTheDocument();
   });
 
@@ -206,6 +232,23 @@ describe("Página de detalhe do evento", () => {
     await act(async () => useAuthStore.getState().clearSession());
     expect(screen.queryByRole("heading", { name: "Sessão atual" })).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("A carregar evento");
+    expect(document.title).toBe("Detalhe do evento | ASPEC");
+  });
+
+  it("retira o nome carregado ao mudar de evento e atualiza o título seguinte", async () => {
+    const pending = [];
+    api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }));
+    render(<MemoryRouter initialEntries={[`/eventos/${id}`]}><Link to={`/eventos/${otherId}`}>Outro evento</Link><Routes><Route path="/eventos/:id" element={<EventDetailPage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => pending[0].resolve(response(pending[0].config)));
+    expect(document.title).toBe(`${event.name} | ASPEC`);
+    await userEvent.setup().click(screen.getByRole("link", { name: "Outro evento" }));
+    expect(document.title).toBe("Detalhe do evento | ASPEC");
+    await waitFor(() => expect(pending).toHaveLength(2));
+    const name = '<script>exemplo</script> & Encontro';
+    await act(async () => pending[1].resolve(response(pending[1].config, { ...event, id: otherId, name })));
+    expect(document.title).toBe(`${name} | ASPEC`);
+    expect(document.querySelector('title script')).toBeNull();
   });
 
   it("renderiza descrições e notas como texto sem executar HTML da API", async () => {

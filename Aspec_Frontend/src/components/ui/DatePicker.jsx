@@ -66,18 +66,21 @@ function getInitialFocus(value, min, max) {
  *   placeholder?: string,
  *   invalid?: boolean,
  *   describedBy?: string,
- * }} props
+ *   name?: string,
+ *   labelId?: string,
+ * }} props Num formulário: `name` vai para o botão e, com `labelId`, a label é de fora (não desenha a sua) e o
+ * nome acessível continua a ser "label + data" (`aria-labelledby` com a label de fora e o valor).
  * @param {import('react').Ref<HTMLButtonElement>} [ref] Permite pôr o foco no botão (ex.: depois de limpar os filtros).
  * @returns {JSX.Element}
  */
-export default function DatePicker({ id, label, value, onChange, min, max, placeholder = '', invalid = false, describedBy, ref }) {
+export default function DatePicker({ id, label, value, onChange, min, max, placeholder = '', invalid = false, describedBy, name, labelId, ref }) {
   const [open, setOpen] = useState(false)
   const [focused, setFocused] = useState('')
   const containerRef = useRef(null)
   const openerRef = useRef(null)
   const popoverRef = useRef(null)
   const focusDayRef = useRef(false)
-  const labelId = `${id}-label`
+  const ownLabelId = `${id}-label`
   const valueId = `${id}-value`
   const shortValue = formatShortDate(value)
   const today = todayIso()
@@ -212,14 +215,15 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
 
   return (
     <div ref={containerRef} className="relative">
-      <span id={labelId} className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
+      {!labelId && <span id={ownLabelId} className="mb-1 block text-xs font-medium text-gray-600">{label}</span>}
       <button
         ref={openerRef}
         id={id}
+        name={name}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-labelledby={`${labelId} ${valueId}`}
+        aria-labelledby={`${labelId ?? ownLabelId} ${valueId}`}
         aria-invalid={invalid ? 'true' : undefined}
         aria-describedby={describedBy}
         onClick={() => (open ? setOpen(false) : openPicker())}

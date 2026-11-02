@@ -141,7 +141,7 @@ export default function MemberAreaLayout() {
               />
 
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-bold text-[#0d1f35]">
+                <h1 className="truncate text-xl font-semibold text-[#0d1f35]">
                   {displayName}
                 </h1>
 

@@ -1,28 +1,47 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Globe, Link2, Lock, MapPin } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
+import { groupBusinessHours } from '../../utils/businessHours'
+import PortfolioImageDialog from './PortfolioImageDialog'
 
 const cardClass = 'rounded-xl border border-gray-100 bg-white p-6 shadow-sm'
 const sidebarClass = 'rounded-xl border border-gray-100 bg-white p-5 shadow-sm'
 const linkClass = 'rounded font-semibold text-[#0d1f35] underline focus-visible:outline-2 focus-visible:outline-offset-4'
-const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
 
-function ProfileImage({ src, title, logo = false, index }) {
+function ProfileImage({ src, title, logo = false, index, onOpen }) {
   const [failed, setFailed] = useState(null)
   const visible = src && failed !== src
+  const alt = logo ? `Logótipo de ${title}` : `Imagem ${index + 1} do portefólio de ${title}`
+  const className = logo ? 'flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#8a7043] text-3xl font-semibold text-white' : 'flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-100 text-sm text-gray-600'
+  const content = visible ? (
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(src)}
+    />
+  ) : logo ? title.trim().charAt(0).toLocaleUpperCase('pt-PT') : 'Imagem indisponível'
+
+  if (!logo && visible && onOpen) {
+    return (
+      <button
+        type="button"
+        aria-label={`Ampliar imagem ${index + 1} do portefólio de ${title}`}
+        aria-haspopup="dialog"
+        className={`${className} cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]`}
+        onClick={() => onOpen(index)}
+      >
+        {content}
+      </button>
+    )
+  }
+
   return (
-    <div className={logo ? 'flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#8a7043] text-3xl font-semibold text-white' : 'flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-100 text-sm text-gray-600'}>
-      {visible ? (
-        <img
-          src={src}
-          alt={logo ? `Logótipo de ${title}` : `Imagem ${index + 1} do portefólio de ${title}`}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(src)}
-        />
-      ) : logo ? title.trim().charAt(0).toLocaleUpperCase('pt-PT') : 'Imagem indisponível'}
+    <div className={className}>
+      {content}
     </div>
   )
 }
@@ -130,20 +149,29 @@ function LocationCard({ address }) {
 }
 
 export default function PublicMemberProfile({ member, allowContacts, showLockedContacts = false, allowReview = false, allowComments = false }) {
+  const [selectedImage, setSelectedImage] = useState(null)
+  const closeImage = useCallback(() => setSelectedImage(null), [])
   const title = member.business_name || member.name
-  const address = allowContacts ? member.members_only?.address?.trim() : null
+  const portfolioImages = member.portfolio.map((item, index) => ({
+    id: item.id, src: item.image_url, index, alt: `Imagem ${index + 1} do portefólio de ${title}`,
+  })).filter((image) => image.src)
+  const contacts = allowContacts ? member.members_only : null
+  const address = [
+    contacts?.address?.trim(),
+    [contacts?.postal_code?.trim(), contacts?.city?.trim()].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ')
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
     <>
-    <section className="bg-white pb-16 pt-10 text-[#0d1f35]">
+    <section className="bg-[#0d1f35] pb-16 pt-10 text-white">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col items-start gap-6 md:flex-row">
           <ProfileImage key={member.id} src={member.logo_url} title={title} logo />
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-medium leading-normal">{title}</h1>
-            <p className="mb-3 mt-2 text-sm leading-relaxed text-gray-600">{member.sector.name}</p>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-              <p className="flex items-center gap-2"><MapPin size={13} aria-hidden="true" />{member.location.name}, Portugal</p>
+            <p className="mb-3 mt-2 text-sm leading-relaxed text-white/75">{member.sector.name}</p>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-white/80">
+              <p className="flex items-center gap-2"><MapPin size={13} aria-hidden="true" className="text-primary" />{member.location.name}, Portugal</p>
               <p className="flex items-center gap-2">
                 <RatingStars rating={hasRating ? member.average_rating : null} size={13} />
                 <span>{hasRating ? `${member.average_rating.toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} (${member.reviews_count} ${member.reviews_count === 1 ? 'avaliação' : 'avaliações'})` : 'Sem avaliações'}</span>
@@ -162,36 +190,34 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
         <section className={cardClass}>
           <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Horário de Atendimento</h2>
           <dl className="mt-4 space-y-3">
-            {days.map((day) => {
-              const intervals = member.business_hours.filter((item) => item.week_day === day && item.open_time && item.close_time)
-              return (
-                <div key={day} className="flex flex-wrap justify-between gap-2 text-sm leading-relaxed">
-                  <dt>{day}</dt>
-                  <dd>{intervals.length > 0 ? intervals.map((item) => `${item.open_time} – ${item.close_time}`).join(' / ') : 'Encerrado'}</dd>
-                </div>
-              )
-            })}
+            {groupBusinessHours(member.business_hours).map(({ label, intervals }) => (
+              <div key={label} className="flex flex-wrap justify-between gap-2 text-sm leading-relaxed">
+                <dt>{label}</dt>
+                <dd>{intervals.length > 0 ? intervals.map((item) => `${item.open_time} – ${item.close_time}`).join(' / ') : 'Encerrado'}</dd>
+              </div>
+            ))}
           </dl>
         </section>
         <section className={cardClass}>
           <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Portefólio</h2>
           {member.portfolio.length ? (
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {member.portfolio.map((item, index) => <ProfileImage key={item.id} src={item.image_url} title={title} index={index} />)}
+              {member.portfolio.map((item, index) => <ProfileImage key={item.id} src={item.image_url} title={title} index={index} onOpen={setSelectedImage} />)}
             </div>
           ) : <p className="mt-4 text-sm leading-relaxed text-gray-600">Sem imagens no portefólio.</p>}
         </section>
         {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} />}
       </div>
       <aside className="space-y-6">
-        <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
-        {address && <LocationCard address={address} />}
         <section className={sidebarClass}>
           <h2 className="mb-4 text-base font-medium leading-normal text-[#0d1f35]">Classificação Global</h2>
           <Rating member={member} />
         </section>
+        <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
+        {address && <LocationCard address={address} />}
       </aside>
     </div>
+    {selectedImage !== null && <PortfolioImageDialog images={portfolioImages} initialIndex={portfolioImages.findIndex((image) => image.index === selectedImage)} onClose={closeImage} />}
     </>
   )
 }

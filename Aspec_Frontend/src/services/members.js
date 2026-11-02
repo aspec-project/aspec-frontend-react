@@ -115,11 +115,13 @@ export async function getPublicMemberProfile(id, allowContacts = false, signal) 
     const contacts = data.members_only
     if (typeof contacts !== 'object' || Array.isArray(contacts) ||
       !['website_url', 'address', 'commercial_phone', 'commercial_email'].every((key) => nullableText(contacts[key])) ||
+      !['postal_code', 'city'].every((key) => contacts[key] === undefined || nullableText(contacts[key])) ||
       !Array.isArray(contacts.social_links) || !contacts.social_links.every((item) => item && isMemberProfileId(item.platform_id) && typeof item.platform === 'string' && item.platform.trim() !== '' && typeof item.url === 'string')) {
       throw new Error('A resposta do perfil tem um formato inesperado.')
     }
     profile.members_only = {
       website_url: safeMemberUrl(contacts.website_url), address: contacts.address,
+      postal_code: contacts.postal_code, city: contacts.city,
       social_links: contacts.social_links.map((item) => ({ platform_id: item.platform_id, platform: item.platform, url: safeMemberUrl(item.url) })),
       commercial_phone: contacts.commercial_phone, commercial_email: contacts.commercial_email,
     }

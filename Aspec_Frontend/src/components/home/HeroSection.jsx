@@ -36,7 +36,7 @@ export default function HeroSection() {
             </h1>
 
             <p
-              className="text-lg mb-10 max-w-xl"
+              className="text-lg mb-10 max-w-xl text-justify"
               style={{ color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}
             >
               Mostrar o <strong>Caminho</strong> para uma{" "}

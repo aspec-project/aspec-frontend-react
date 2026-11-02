@@ -334,3 +334,28 @@ describe('DatePicker', () => {
     expect(within(picker()).getByRole('button', { name: 'Mês anterior' })).toHaveAttribute('aria-disabled', 'true')
   })
 })
+
+describe('DatePicker num formulário', () => {
+  it('com labelId usa a label de fora, junta-lhe o valor no nome e aplica o name', () => {
+    const { rerender } = render(
+      <>
+        <label id="d-label" htmlFor="data">Data</label>
+        <DatePicker id="data" label="Data" labelId="d-label" name="eventDate" value="2026-11-20" placeholder="Selecionar data" onChange={vi.fn()} />
+      </>,
+    )
+
+    const button = screen.getByRole('button', { name: 'Data 20 Nov 2026' })
+    expect(screen.getAllByText('Data')).toHaveLength(1)
+    expect(button).toHaveAttribute('aria-labelledby', 'd-label data-value')
+    expect(button).toHaveAttribute('name', 'eventDate')
+
+    rerender(
+      <>
+        <label id="d-label" htmlFor="data">Data</label>
+        <DatePicker id="data" label="Data" labelId="d-label" name="eventDate" value="" placeholder="Selecionar data" onChange={vi.fn()} />
+      </>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Data Selecionar data' })).toHaveTextContent('Selecionar data')
+  })
+})

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -19,12 +19,24 @@ const profile = {
   sector: { id, name: 'Consultoria' }, location: { id, name: 'Lisboa' }, logo_url: null,
   business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '09:00', close_time: '18:00' }],
   portfolio: [{ id, image_url: 'https://example.test/image.jpg' }], average_rating: 4.8, reviews_count: 12,
-  members_only: { website_url: 'https://example.test', address: 'Morada privada', social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }], commercial_phone: '912345678', commercial_email: 'comercial@example.test', phone: '999111222', commercial_contacts: 'Contacto antigo' },
+  members_only: { website_url: 'https://example.test', address: 'Morada privada', postal_code: '1000-100', city: 'Cidade privada', social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test' }], commercial_phone: '912345678', commercial_email: 'comercial@example.test', phone: '999111222', commercial_contacts: 'Contacto antigo' },
   contacts: { email: 'legado@example.test', phone: '999999999', commercial_contacts: 'Contacto legado', address: 'Morada legada' },
   secret: 'Campo desconhecido',
 }
+const portfolioForNavigation = [
+  profile.portfolio[0],
+  { id: 'invalid-image', image_url: 'javascript:alert(1)' },
+  { id: 'second-image', image_url: 'https://example.test/image-2.jpg' },
+  { id: 'third-image', image_url: 'https://example.test/image-3.jpg' },
+]
 const response = (config, data = profile) => ({ data: { success: true, message: 'Perfil', data }, config, status: 200, statusText: '', headers: {} })
 const active = { id, role: { name: 'Member' }, account_status: { name: 'Active' } }
+const fullAddress = 'Morada privada, 1000-100 Cidade privada'
+const expectPrivateLocationHidden = () => {
+  for (const value of ['Morada privada', '1000-100', 'Cidade privada']) expect(document.body).not.toHaveTextContent(value)
+  expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+}
 const show = (memberId = id) => render(<MemoryRouter initialEntries={[`/membros/${memberId}`]}><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
 function fail(config, status) { return Promise.reject(new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config), status })) }
 
@@ -39,11 +51,13 @@ describe('Perfil público de membro', () => {
 
   it('aceita o horário da API em português e mostra segunda-feira aberta no perfil', async () => {
     show()
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     await screen.findByRole('heading', { name: profile.business_name })
+    await waitFor(() => expect(document.title).toBe(`${profile.business_name} | ASPEC`))
     const mondayHours = screen.getByText('Segunda-feira').nextElementSibling
     expect(mondayHours).toHaveTextContent('09:00 – 18:00')
     expect(mondayHours).not.toHaveTextContent('Encerrado')
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(screen.getByText('Terça a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
   })
 
   it.each([
@@ -67,6 +81,9 @@ describe('Perfil público de membro', () => {
 
   it.each([
     ['visitante', null, 'idle'], ['sessão a confirmar', active, 'loading'],
+    ['logout em curso', active, 'logging-out'],
+    ['erro de sessão com identidade anterior', active, 'error'],
+    ['papel não autorizado', { ...active, role: { name: 'Visitor' } }, 'authenticated'],
     ['visitante sem sessão confirmada', null, 'loading'], ['visitante após erro de sessão', null, 'error'],
     ['inativo', { ...active, account_status: { name: 'Inactive' } }, 'authenticated'],
     ['pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated'],
@@ -78,7 +95,7 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     for (const value of ['privado@example.test', '912345678', 'comercial@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', 'Campo desconhecido', '999111222', 'Contacto antigo', 'comercial@example.test', 'Morada privada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByText('https://social.test/')).not.toBeInTheDocument()
@@ -95,10 +112,10 @@ describe('Perfil público de membro', () => {
     } else expect(screen.queryByRole('region', { name: 'Contactos reservados' })).not.toBeInTheDocument()
     expect(screen.getByText('Descrição pública')).toBeInTheDocument()
     expect(screen.getByText('Segunda-feira')).toBeInTheDocument()
-    expect(screen.getByText('Domingo')).toBeInTheDocument()
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(screen.getByText('Terça a Domingo')).toBeInTheDocument()
+    expect(screen.getAllByText('Encerrado')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name)) {
       expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
     } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
@@ -111,7 +128,8 @@ describe('Perfil público de membro', () => {
     await screen.findByText('912345678')
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
-    expect(screen.getByText('Morada privada')).toBeInTheDocument()
+    expect(screen.getByText(fullAddress)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', '999111222', 'Contacto antigo']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('href', 'https://social.test/')
@@ -121,7 +139,8 @@ describe('Perfil público de membro', () => {
     expect(screen.getByRole('link', { name: 'Rede social' }).querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByText('09:00 – 18:00')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: `Imagem 1 do portefólio de ${profile.business_name}` })).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /Ampliar imagem 1/ })).toBeInTheDocument()
   })
 
   it('mostra o card bloqueado ao visitante quando o backend devolve members_only null', async () => {
@@ -135,6 +154,7 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByText('comercial@example.test')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Classificação Global' })).toBeInTheDocument()
@@ -153,6 +173,7 @@ describe('Perfil público de membro', () => {
     await act(async () => useAuthStore.setState({ user: null, status: 'idle' }))
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('A carregar perfil')
@@ -160,7 +181,7 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[1].resolve(response(pending[1].config)))
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.getByRole('region', { name: 'Contactos reservados' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -170,6 +191,7 @@ describe('Perfil público de membro', () => {
     expect(pending[0].config.signal.aborted).toBe(true)
     await act(async () => useAuthStore.setState({ user: active, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     await waitFor(() => expect(pending).toHaveLength(3))
     await act(async () => pending[2].resolve(response(pending[2].config)))
     await screen.findByText('912345678')
@@ -177,7 +199,7 @@ describe('Perfil público de membro', () => {
     expect(screen.getByRole('link', { name: 'Rede social' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Visitar website' })).toBeInTheDocument()
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
-    expect(screen.getByText('Morada privada')).toBeInTheDocument()
+    expect(screen.getByText(fullAddress)).toBeInTheDocument()
     expect(pending[1].config.signal.aborted).toBe(true)
   })
 
@@ -194,6 +216,7 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[0].resolve(response(pending[0].config)))
     expect(screen.getByRole('heading', { name: 'Resultado atual' })).toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 
   it('cancela e esconde dados quando muda o utilizador autenticado', async () => {
@@ -204,6 +227,7 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => new Promise(() => { expect(config.signal.aborted).toBe(false) })
     await act(async () => useAuthStore.setState({ user: { ...active, id: otherId }, status: 'authenticated' }))
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
   })
 
@@ -216,8 +240,9 @@ describe('Perfil público de membro', () => {
     await act(async () => pending[0].resolve(response(pending[0].config)))
     await screen.findByText('912345678')
     await act(async () => useAuthStore.setState((state) => ({ sessionGeneration: state.sessionGeneration + 1 })))
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
-    expect(screen.queryByText('Morada privada')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     await waitFor(() => expect(pending).toHaveLength(2))
     expect(pending[0].config.signal.aborted).toBe(true)
@@ -242,7 +267,9 @@ describe('Perfil público de membro', () => {
     expect(pending[0].config.signal.aborted).toBe(true)
     await act(async () => pending[1].resolve(response(pending[1].config, { ...profile, id: otherId, business_name: 'Outro negócio' })))
     await screen.findByRole('heading', { name: 'Outro negócio' })
+    expect(document.title).toBe('Outro negócio | ASPEC')
     await act(async () => pending[0].resolve(response(pending[0].config)))
+    expect(document.title).toBe('Outro negócio | ASPEC')
     expect(screen.queryByRole('heading', { name: profile.business_name })).not.toBeInTheDocument()
   })
 
@@ -264,10 +291,12 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = adapter
     const view = show('invalido')
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
+    expect(document.title).toBe('Perfil não encontrado | ASPEC')
     expect(adapter).not.toHaveBeenCalled()
     view.unmount()
     show()
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
+    expect(document.title).toBe('Perfil não encontrado | ASPEC')
     expect(screen.queryByText(/pendente|inativ/i)).not.toBeInTheDocument()
   })
 
@@ -276,10 +305,26 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => failure ? fail(config, status) : Promise.resolve(response(config))
     show()
     await screen.findByRole('alert')
+    expect(document.title).toBe('Perfil do membro | ASPEC')
     failure = false
     screen.getByRole('button', { name: 'Tentar novamente' }).focus()
     await userEvent.setup().keyboard('{Enter}')
     await screen.findByRole('heading', { name: profile.business_name })
+    expect(document.title).toBe(`${profile.business_name} | ASPEC`)
+  })
+
+  it('retira o nome carregado ao navegar e usa o nome do membro sem nome comercial', async () => {
+    const pending = []
+    api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
+    render(<MemoryRouter initialEntries={[`/membros/${id}`]}><Link to={`/membros/${otherId}`}>Outro membro</Link><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
+    await waitFor(() => expect(pending).toHaveLength(1))
+    await act(async () => pending[0].resolve(response(pending[0].config)))
+    expect(document.title).toBe(`${profile.business_name} | ASPEC`)
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Outro membro' }))
+    expect(document.title).toBe('Perfil do membro | ASPEC')
+    await waitFor(() => expect(pending).toHaveLength(2))
+    await act(async () => pending[1].resolve(response(pending[1].config, { ...profile, id: otherId, name: 'João & Ana', business_name: null })))
+    expect(document.title).toBe('João & Ana | ASPEC')
   })
 
   it('apresenta estados vazios sem inventar horários ou avaliações', async () => {
@@ -287,10 +332,11 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: 'Ana' })
     for (const text of ['Descrição não disponível.', 'Sem imagens no portefólio.']) expect(screen.getByText(text)).toBeInTheDocument()
-    expect(screen.getAllByText('Encerrado')).toHaveLength(7)
+    expect(screen.getByText('Segunda a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
+    expect(screen.getAllByRole('term')).toHaveLength(1)
   })
 
-  it('mostra os sete dias por ordem e preserva os vários intervalos do mesmo dia', async () => {
+  it('cobre os sete dias por ordem, agrupando encerrados e preservando a ordem dos intervalos', async () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       ...profile,
       business_hours: [
@@ -303,31 +349,121 @@ describe('Perfil público de membro', () => {
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.getByText('14:00 – 18:00 / 09:00 – 12:00')).toBeInTheDocument()
     const labels = screen.getAllByRole('term').map((element) => element.textContent)
-    expect(labels).toEqual(['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'])
-    expect(screen.getAllByText('Encerrado')).toHaveLength(6)
+    expect(labels).toEqual(['Segunda-feira', 'Terça a Domingo'])
+    expect(screen.getAllByText('Encerrado')).toHaveLength(1)
+  })
+
+  it('apresenta dias úteis agrupados com todos os intervalos e o fim de semana encerrado', async () => {
+    const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
+    api.defaults.adapter = (config) => Promise.resolve(response(config, {
+      ...profile,
+      business_hours: days.flatMap((week_day, index) => [
+        { week_day_id: index + 1, week_day, open_time: '14:00', close_time: '18:00' },
+        { week_day_id: index + 1, week_day, open_time: '09:00', close_time: '12:00' },
+      ]),
+    }))
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getAllByRole('term').map((element) => element.textContent)).toEqual(['Segunda a Sexta', 'Sábado a Domingo'])
+    expect(screen.getByText('Segunda a Sexta').nextElementSibling).toHaveTextContent('14:00 – 18:00 / 09:00 – 12:00')
+    expect(screen.getByText('Sábado a Domingo').nextElementSibling).toHaveTextContent('Encerrado')
+  })
+
+  it('mantém dias não consecutivos e horários diferentes separados no perfil', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, {
+      ...profile,
+      business_hours: [
+        ...profile.business_hours,
+        { week_day_id: 3, week_day: 'Quarta-feira', open_time: '09:00', close_time: '18:00' },
+        { week_day_id: 4, week_day: 'Quinta-feira', open_time: '09:00', close_time: '17:00' },
+      ],
+    }))
+    show()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expect(screen.getAllByRole('term').map((element) => element.textContent)).toEqual(['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta a Domingo'])
+    expect(screen.getByText('Segunda-feira').nextElementSibling).toHaveTextContent('09:00 – 18:00')
+    expect(screen.getByText('Terça-feira').nextElementSibling).toHaveTextContent('Encerrado')
+    expect(screen.getByText('Quarta-feira').nextElementSibling).toHaveTextContent('09:00 – 18:00')
+    expect(screen.getByText('Quinta-feira').nextElementSibling).toHaveTextContent('09:00 – 17:00')
   })
 
   it('mostra a morada autorizada uma vez e codifica a pesquisa externa', async () => {
     const address = 'Rua da Sé, 2 & 3? Lisboa #A'
+    const fullAddress = `${address}, 1000-100 Cidade privada`
     api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
-    expect(screen.getAllByText(address)).toHaveLength(1)
-    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`)
+    expect(screen.getAllByText(fullAddress)).toHaveLength(1)
+    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     expect(document.querySelector('iframe')).toBeNull()
     expect(screen.queryByRole('img', { name: /mapa/i })).not.toBeInTheDocument()
   })
 
-  it.each([null, '', '   '])('não mostra cartão de mapa quando a morada não está informada: %s', async (address) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address } }))
+  it.each([undefined, null, '', '   '])('não mostra cartão de mapa quando todas as partes estão vazias: %s', async (address) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address: address ?? null, postal_code: address, city: address } }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [' Rua X ', ' 1000-100 ', ' Lisboa ', 'Rua X, 1000-100 Lisboa'],
+    ['Rua X', '1000-100', undefined, 'Rua X, 1000-100'],
+    ['Rua X', undefined, 'Lisboa', 'Rua X, Lisboa'],
+    ['Rua X', undefined, undefined, 'Rua X'],
+    [null, '1000-100', 'Lisboa', '1000-100 Lisboa'],
+    [null, '1000-100', undefined, '1000-100'],
+    [null, undefined, 'Cidade privada', 'Cidade privada'],
+    ['Rua X', null, 'Lisboa', 'Rua X, Lisboa'],
+    ['Rua X', '1000-100', null, 'Rua X, 1000-100'],
+    ['Rua X', '', '   ', 'Rua X'],
+    ['', '1000-100', '   ', '1000-100'],
+    ['   ', '', 'Cidade privada', 'Cidade privada'],
+  ])('compõe partes opcionais sem separadores soltos: %j / %j / %j', async (address, postal_code, city, expected) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, address, postal_code, city } }))
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
+    const card = link.closest('section')
+    expect(card.querySelector('p').textContent).toBe(expected)
+    expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(expected)}`)
+  })
+
+  it.each(['Member', 'Admin'])('retira a morada completa quando %s perde o estado Active', async (role) => {
+    const user = { ...active, role: { name: role } }
+    useAuthStore.setState({ user, status: 'authenticated' })
+    show()
+    await screen.findByText(fullAddress)
+    await act(async () => useAuthStore.setState({ user: { ...user, account_status: { name: 'Inactive' } } }))
+    expectPrivateLocationHidden()
+    await screen.findByRole('heading', { name: profile.business_name })
+    expectPrivateLocationHidden()
+  })
+
+  it.each(['postal_code', 'city'])('conserva %s opcional sem impor formatos não confirmados', async (field) => {
+    for (const value of [undefined, null, '', '   ', 'Texto livre']) {
+      const members_only = { ...profile.members_only }
+      if (value === undefined) delete members_only[field]
+      else members_only[field] = value
+      api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only }))
+      const result = await getPublicMemberProfile(id, true)
+      expect(result.members_only[field]).toBe(value)
+    }
+  })
+
+  it.each(['postal_code', 'city'].flatMap((field) => [42, true, {}, []].map((value) => [field, value])))('rejeita %s com tipo inválido %j apenas quando autorizado', async (field, value) => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: { ...profile.members_only, [field]: value } }))
+    await expect(getPublicMemberProfile(id, true)).rejects.toThrow('formato inesperado')
+    await expect(getPublicMemberProfile(id, false)).resolves.not.toHaveProperty('members_only')
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
+    expectPrivateLocationHidden()
   })
 
   it('descarta URLs perigosos no serviço e no DOM', async () => {
@@ -337,18 +473,233 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ampliar imagem/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Insegura' })).not.toBeInTheDocument()
   })
 
-  it('o serviço conserva apenas os cinco campos autorizados dentro de members_only', async () => {
+  it('amplia a imagem original, fecha pelo X e repõe o foco e o scroll anteriores', async () => {
+    const user = userEvent.setup()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'auto'
+    try {
+      show()
+      const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+      expect(thumbnail).toHaveClass('cursor-pointer')
+      await user.click(thumbnail)
+      const dialog = screen.getByRole('dialog', { name: `Imagem 1 do portefólio de ${profile.business_name}` })
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      const image = within(dialog).getByRole('img')
+      expect(image).toHaveAttribute('src', profile.portfolio[0].image_url)
+      expect(image).toHaveAttribute('referrerpolicy', 'no-referrer')
+      expect(image).toHaveClass('object-contain')
+      expect(document.body.style.overflow).toBe('hidden')
+      const close = within(dialog).getByRole('button', { name: 'Fechar imagem ampliada' })
+      expect(within(dialog).queryByRole('button', { name: 'Imagem anterior' })).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('button', { name: 'Imagem seguinte' })).not.toBeInTheDocument()
+      expect(close).toHaveFocus()
+      await user.keyboard('{ArrowLeft}{ArrowRight}')
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', profile.portfolio[0].image_url)
+      await user.tab()
+      expect(close).toHaveFocus()
+      await user.tab({ shift: true })
+      expect(close).toHaveFocus()
+      await user.click(close)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(thumbnail).toHaveFocus()
+      expect(document.body.style.overflow).toBe('auto')
+    } finally {
+      document.body.style.overflow = previousOverflow
+    }
+  })
+
+  it.each(['{Enter}', ' '])('abre a imagem por teclado (%s) e fecha com Escape', async (key) => {
+    const user = userEvent.setup()
+    show()
+    const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+    thumbnail.focus()
+    await user.keyboard(key)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(thumbnail).toHaveFocus()
+  })
+
+  it('mantém os fallbacks do logótipo e das miniaturas sem disponibilizar abertura', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, logo_url: 'https://example.test/logo.jpg' }))
+    show()
+    fireEvent.error(await screen.findByRole('img', { name: `Logótipo de ${profile.business_name}` }))
+    expect(screen.getByText('S')).toBeInTheDocument()
+    const thumbnail = screen.getByRole('button', { name: /Ampliar imagem 1/ })
+    fireEvent.error(within(thumbnail).getByRole('img'))
+    expect(screen.getByText('Imagem indisponível')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ampliar imagem/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('mostra fallback quando a imagem ampliada falha e mantém o fecho disponível', async () => {
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.error(within(dialog).getByRole('img'))
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Imagem indisponível.')
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: /Ampliar imagem 1/ }))
+    expect(within(screen.getByRole('dialog')).getByRole('img')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fechar imagem ampliada' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('navega circularmente por clique e teclado sem fechar e preserva a ordem original', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 3/ }))
+    const dialog = screen.getByRole('dialog')
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    const expectImage = (index) => {
+      expect(screen.getByRole('dialog')).toBe(dialog)
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[index].image_url)
+      expect(within(dialog).getByRole('img')).toHaveAccessibleName(`Imagem ${index + 1} do portefólio de ${profile.business_name}`)
+      expect(document.body.style.overflow).toBe('hidden')
+    }
+    expectImage(2)
+    expect(previous).toBeEnabled()
+    expect(next).toBeEnabled()
+    await user.click(next)
+    expectImage(3)
+    expect(next).toBeEnabled()
+    await user.click(next)
+    expectImage(0)
+    await user.click(previous)
+    expectImage(3)
+    await user.click(previous)
+    expectImage(2)
+    await user.click(previous)
+    expectImage(0)
+    expect(previous).toBeEnabled()
+    await user.keyboard('{ArrowLeft}')
+    expectImage(3)
+    await user.keyboard('{ArrowRight}')
+    expectImage(0)
+    await user.keyboard('{ArrowRight}')
+    expectImage(2)
+    await user.keyboard('{ArrowRight}{ArrowRight}')
+    expectImage(0)
+    await user.keyboard('{ArrowLeft}')
+    expectImage(3)
+  })
+
+  it('retém o foco no modal e mantém o foco nas setas ao circular', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    const thumbnail = await screen.findByRole('button', { name: /Ampliar imagem 1/ })
+    await user.click(thumbnail)
+    const dialog = screen.getByRole('dialog')
+    const close = within(dialog).getByRole('button', { name: 'Fechar imagem ampliada' })
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    await user.tab()
+    expect(previous).toHaveFocus()
+    await user.tab()
+    expect(next).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(next).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(previous).toHaveFocus()
+    await user.tab()
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(next).toBeEnabled()
+    expect(next).toHaveFocus()
+    await user.click(next)
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[0].image_url)
+    expect(next).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(previous).toHaveFocus()
+    await user.click(previous)
+    expect(previous).toHaveFocus()
+    expect(previous).toBeEnabled()
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[3].image_url)
+    await user.keyboard('{Escape}')
+    expect(thumbnail).toHaveFocus()
+  })
+
+  it('mantém ambas as setas ativas e circula nos dois sentidos com duas imagens', async () => {
+    const portfolio = [portfolioForNavigation[0], portfolioForNavigation[2]]
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    const previous = within(dialog).getByRole('button', { name: 'Imagem anterior' })
+    const next = within(dialog).getByRole('button', { name: 'Imagem seguinte' })
+    for (const [control, index] of [[previous, 1], [previous, 0], [next, 1], [next, 0]]) {
+      expect(previous).toBeEnabled()
+      expect(next).toBeEnabled()
+      await user.click(control)
+      expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[index].image_url)
+    }
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[0].image_url)
+    await user.keyboard('{ArrowLeft}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[1].image_url)
+    await user.keyboard('{ArrowRight}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolio[0].image_url)
+  })
+
+  it('permite continuar a navegar após falha de imagem e limpa o fallback ao mudar', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, portfolio: portfolioForNavigation }))
+    const user = userEvent.setup()
+    show()
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.error(within(dialog).getByRole('img'))
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Imagem indisponível.')
+    await user.click(within(dialog).getByRole('button', { name: 'Imagem seguinte' }))
+    expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[2].image_url)
+    await user.keyboard('{ArrowLeft}')
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', portfolioForNavigation[0].image_url)
+    expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('limpa o diálogo e o bloqueio de scroll ao desmontar o perfil', async () => {
+    const user = userEvent.setup()
+    const view = show()
+    const previousOverflow = document.body.style.overflow
+    await user.click(await screen.findByRole('button', { name: /Ampliar imagem 1/ }))
+    expect(document.body.style.overflow).toBe('hidden')
+    view.unmount()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe(previousOverflow)
+    const outsideButton = document.createElement('button')
+    document.body.append(outsideButton)
+    try {
+      outsideButton.focus()
+      await user.tab()
+      expect(outsideButton).not.toHaveFocus()
+    } finally {
+      outsideButton.remove()
+    }
+  })
+
+  it('o serviço conserva apenas os sete campos autorizados dentro de members_only', async () => {
     const result = await getPublicMemberProfile(id, true)
     expect(result.members_only).toEqual({
-      website_url: 'https://example.test/', address: 'Morada privada',
+      website_url: 'https://example.test/', address: 'Morada privada', postal_code: '1000-100', city: 'Cidade privada',
       social_links: [{ platform_id: id, platform: 'Rede social', url: 'https://social.test/' }],
       commercial_phone: '912345678', commercial_email: 'comercial@example.test',
     })
-    for (const field of ['website_url', 'address', 'social_links', 'phone', 'commercial_contacts']) expect(result).not.toHaveProperty(field)
+    for (const field of ['website_url', 'address', 'postal_code', 'city', 'social_links', 'phone', 'commercial_contacts']) expect(result).not.toHaveProperty(field)
     expect(result.members_only).not.toHaveProperty('phone')
     expect(result.members_only).not.toHaveProperty('commercial_contacts')
   })
@@ -366,11 +717,11 @@ describe('Perfil público de membro', () => {
   })
 
   it.each([undefined, null])('oculta contactos quando members_only é %s, sem fallback legado', async (members_only) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, website_url: 'https://legacy.test', address: 'Morada legada', social_links: profile.members_only.social_links, members_only }))
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, website_url: 'https://legacy.test', address: 'Morada legada', postal_code: '9999-999', city: 'Cidade legada', social_links: profile.members_only.social_links, members_only }))
     useAuthStore.setState({ user: active, status: 'authenticated' })
     show()
     await screen.findByRole('heading', { name: profile.business_name })
-    for (const value of ['999999999', 'Contacto legado', 'legado@example.test', 'Morada legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
+    for (const value of ['999999999', 'Contacto legado', 'legado@example.test', 'Morada legada', '9999-999', 'Cidade legada']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -410,6 +761,7 @@ describe('Perfil público de membro', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByRole('link', { name: /^\s*$/ })).not.toBeInTheDocument()
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 
   it.each([{ id: otherId }, { average_rating: 6 }, { reviews_count: -1 }, { business_hours: [{ week_day_id: 1, week_day: 'Segunda-feira', open_time: '25:00', close_time: '18:00' }] }, { portfolio: [{}] }])('rejeita contrato malformado: %j', async (change) => {
@@ -417,5 +769,6 @@ describe('Perfil público de membro', () => {
     show()
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
+    expectPrivateLocationHidden()
   })
 })
