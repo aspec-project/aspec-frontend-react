@@ -9,6 +9,7 @@ import SubscriptionPage from '../pages/SubscriptionPage'
 import MemberProfilePage from '../pages/MemberProfilePage'
 import MemberRegistrationsPage from '../pages/MemberRegistrationsPage'
 import MemberReviewsPage from '../pages/MemberReviewsPage'
+import MemberPrayerCardsPage from '../pages/MemberPrayerCardsPage'
 import AccountInformationPage from '../pages/AccountInformationPage'
 import AccountActivationPage from '../pages/AccountActivationPage'
 import AccountActivationSuccessPage from '../pages/AccountActivationSuccessPage'
@@ -105,6 +106,10 @@ function AppRouter() {
             <Route
               path="/perfil/avaliacoes"
               element={<PageTitle title="Avaliações"><MemberReviewsPage /></PageTitle>}
+            />
+            <Route
+              path="/perfil/cartoes-oracao"
+              element={<PageTitle title="Cartões de oração"><MemberPrayerCardsPage /></PageTitle>}
             />
 
             <Route

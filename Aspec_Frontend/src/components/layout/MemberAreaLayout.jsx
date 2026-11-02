@@ -21,6 +21,7 @@ const memberTabs = [
   { label: 'Avaliações', to: '/perfil/avaliacoes' },
   { label: 'Informações de conta', to: '/perfil/conta' },
   { label: 'Subscrição', to: '/perfil/subscricao' },
+  { label: 'Cartões de oração', to: '/perfil/cartoes-oracao' },
 ]
 
 /*
