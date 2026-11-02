@@ -104,14 +104,14 @@ export default function Header() {
         </div>
       )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-18">
           
           {/* Logo ASPEC */}
           <Link to="/" onClick={closeMenus} className="flex items-center gap-2 cursor-pointer">
             <img
-              src="/images/log-branco.png"
+              src="/images/aspec-logo-sf.png"
               alt="ASPEC"
-              className="h-6 w-auto"/>
+              className="h-auto w-[140px] lg:w-[220px]"/>
           </Link>
 
           {/* Desktop Nav */}

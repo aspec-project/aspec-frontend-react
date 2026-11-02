@@ -73,7 +73,7 @@ export default function Footer() {
           <div className="md:col-span-1">
           <div className="mb-4">
             <img
-              src="/images/log-branco.png"
+              src="/images/aspec-logo-sf.png"
               alt="ASPEC"
               className="w-60 max-w-full h-auto"
             />

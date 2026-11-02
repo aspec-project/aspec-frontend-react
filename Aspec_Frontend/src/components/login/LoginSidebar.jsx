@@ -1,4 +1,3 @@
-import logoImg from "../../../public/images/log-branco.png";
 export default function LoginSidebar({ onNavigateHome }) {
   const stats = [
     { num: "320+", label: "Membros" },
@@ -20,8 +19,8 @@ export default function LoginSidebar({ onNavigateHome }) {
         }}
       />
       <div className="relative z-10">
-        <button type="button" onClick={onNavigateHome} className="cursor-pointer">
-          <img src={logoImg} alt="ASPEC" className="h-10 w-70 object-contain" />
+        <button type="button" onClick={onNavigateHome} className="w-70 max-w-full cursor-pointer">
+          <img src="/images/aspec-logo-sf.png" alt="ASPEC" className="h-auto w-full object-contain" />
         </button>
       </div>
       <div className="relative z-10">
