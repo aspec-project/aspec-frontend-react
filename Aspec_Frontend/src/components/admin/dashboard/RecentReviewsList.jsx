@@ -1,9 +1,10 @@
 import RatingStars from '../../members/RatingStars'
-import { DASHBOARD_TEXTS, getBusinessName } from '../../../utils/adminDashboard'
+import { DASHBOARD_ROW_CLASS, DASHBOARD_TEXTS, getBusinessName } from '../../../utils/adminDashboard'
 
 /**
  * Lista das avaliações recentes do painel, pela ordem da API: negócio avaliado (com o badge "Sinalizado"
- * nas avaliações sinalizadas), "por <negócio do autor>" e as estrelas da nota.
+ * nas avaliações sinalizadas), "por <negócio do autor>" e as estrelas da nota. As linhas têm a mesma altura
+ * mínima das candidaturas pendentes, para ficarem alinhadas lado a lado.
  *
  * @param {{reviews: {
  *   id: string,
@@ -18,7 +19,7 @@ export default function RecentReviewsList({ reviews }) {
   return (
     <ul className="divide-y divide-gray-100">
       {reviews.map((review) => (
-        <li key={review.id} className="flex items-center gap-4 py-4">
+        <li key={review.id} className={DASHBOARD_ROW_CLASS}>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate font-medium text-[#0d1f35]">{getBusinessName(review.reviewed?.business_name)}</p>

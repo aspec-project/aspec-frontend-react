@@ -85,4 +85,44 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('main')).toContainElement(screen.getByText('Conteúdo do detalhe'))
     expect(screen.getByRole('contentinfo')).toBeInTheDocument()
   })
+
+  it.each([
+    ['/admin/utilizadores', 'Gestão de Utilizadores'],
+    ['/admin/eventos', 'Gestão de Eventos'],
+  ])('em %s a banda do herói é escura com o eyebrow dourado claro e o título branco', (path, title) => {
+    show(path)
+
+    const heading = screen.getByRole('heading', { level: 1, name: title })
+    const hero = heading.closest('section')
+    expect(hero).toHaveClass('bg-[linear-gradient(135deg,#0d1f35,#060f1a)]')
+    expect(hero).not.toHaveClass('bg-white')
+    expect(within(hero).getByText('Área de Administração')).toHaveClass('text-[#c9b87a]', 'uppercase')
+    expect(heading).toHaveClass('text-white')
+    expect(screen.getByRole('navigation', { name: 'Secções da administração' })).toHaveClass('bg-white')
+  })
+
+  it('no dashboard a banda do herói é escura com o título dourado claro e a data em cinzento claro', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 13, 12))
+
+    show('/admin')
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Área de Administração' })
+    const hero = heading.closest('section')
+    expect(hero).toHaveClass('bg-[linear-gradient(135deg,#0d1f35,#060f1a)]')
+    expect(hero).not.toHaveClass('bg-white')
+    expect(heading).toHaveClass('text-[#c9b87a]')
+    expect(within(hero).getByText('terça-feira, 13 de outubro de 2026')).toHaveClass('text-gray-300')
+  })
+
+  it.each(['/admin/tipos-evento', '/admin'])('em %s nenhum texto do herói usa as cores pensadas para fundo claro', (path) => {
+    show(path)
+
+    const hero = screen.getByRole('heading', { level: 1 }).closest('section')
+    for (const element of hero.querySelectorAll('*')) {
+      expect(element).not.toHaveClass('text-[#0d1f35]')
+      expect(element).not.toHaveClass('text-[#8a7043]')
+      expect(element).not.toHaveClass('text-gray-600')
+    }
+  })
 })

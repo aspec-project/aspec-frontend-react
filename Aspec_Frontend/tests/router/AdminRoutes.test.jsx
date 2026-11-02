@@ -22,7 +22,10 @@ vi.mock('../../src/services/adminUsers', () => ({
   anonymizeUser: vi.fn(),
   sendPaymentLink: vi.fn(),
 }))
-vi.mock('../../src/services/adminDashboard', () => ({ getAdminDashboard: vi.fn() }))
+vi.mock('../../src/services/adminDashboard', () => ({
+  getAdminDashboard: vi.fn(),
+  getDashboardPendingApplications: vi.fn(),
+}))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
   getEventsErrorMessage: vi.fn(() => 'Erro'),
@@ -115,6 +118,8 @@ describe('Rotas de administração', () => {
         pending_applications: { total: 0 },
         events: { this_month: 0, this_week: 0 },
         reviews: { flagged: 0, new_this_week: 0 },
+        overdue_payments: { total: 0, grace: 0, unpaid: 0 },
+        event_registrations: { this_week: 0, events_with_registrations: 0 },
       },
       pending_applications: [],
       recent_reviews: [],
