@@ -18,6 +18,7 @@ import { Check, ChevronDown } from 'lucide-react'
  *   invalid?: boolean,
  *   describedBy?: string,
  *   required?: boolean,
+ *   variant?: 'default' | 'public-filter',
  * }} props A primeira opção pode ter value '' (ex.: "Todos os tipos"). Num formulário: `name` vai para o
  * botão; com `labelId` a label é de fora (não desenha a sua) e liga-se ao botão por `aria-labelledby`, e a lista chama-se "Opções de {label}"; `placeholder`
  * aparece a cinzento quando o valor não está nas opções (não é uma opção da lista); `invalid`,
@@ -37,12 +38,16 @@ export default function SelectMenu({
   invalid = false,
   describedBy,
   required = false,
+  variant = 'default',
 }) {
+  const publicFilter = variant === 'public-filter'
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
+  const [menuPlacement, setMenuPlacement] = useState({ above: false, maxHeight: 288 })
   const containerRef = useRef(null)
   const buttonRef = useRef(null)
   const listRef = useRef(null)
+  const typeaheadRef = useRef({ text: '', timestamp: 0 })
   const ownLabelId = `${id}-label`
   const labelledBy = labelId ?? ownLabelId
   const listboxId = `${id}-listbox`
@@ -70,10 +75,37 @@ export default function SelectMenu({
     if (open) listRef.current?.children[highlighted]?.scrollIntoView?.({ block: 'nearest' })
   }, [open, highlighted])
 
+  useEffect(() => {
+    if (!open || !publicFilter) return undefined
+
+    /*
+     * Mantém o menu dentro da janela e abre-o acima quando falta espaço abaixo,
+     * tal como o posicionamento do dropdown na referência do Figma.
+     */
+    const updatePlacement = () => {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const below = Math.max(0, window.innerHeight - rect.bottom - 14)
+      const above = Math.max(0, rect.top - 14)
+      const wantedHeight = Math.min(288, listRef.current?.scrollHeight ?? 288)
+      const useAbove = below < wantedHeight && above > below
+      setMenuPlacement({ above: useAbove, maxHeight: Math.min(288, useAbove ? above : below) })
+    }
+
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [open, publicFilter])
+
   /**
    * Abre a lista com a opção escolhida realçada.
    */
   const openMenu = () => {
+    typeaheadRef.current = { text: '', timestamp: 0 }
     setHighlighted(selectedIndex)
     setOpen(true)
   }
@@ -97,6 +129,33 @@ export default function SelectMenu({
    * @param {import('react').KeyboardEvent<HTMLButtonElement>} event
    */
   const handleKeyDown = (event) => {
+    if (publicFilter && event.key.length === 1 && (event.key !== ' ' || (typeaheadRef.current.text && Date.now() - typeaheadRef.current.timestamp < 700)) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault()
+      const normalize = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-PT')
+      const timestamp = Date.now()
+      const previous = typeaheadRef.current
+      const text = `${timestamp - previous.timestamp < 700 ? previous.text : ''}${normalize(event.key)}`
+      typeaheadRef.current = { text, timestamp }
+
+      /*
+       * Repetir uma letra percorre os nomes com essa inicial; escrever um prefixo
+       * continua a procura a partir da opção atual, sem confirmar o menu aberto.
+       */
+      const repeated = [...text].every((character) => character === text[0])
+      const prefix = repeated ? text[0] : text
+      const current = open ? highlighted : selectedIndex
+      const start = repeated ? current + 1 : current
+      for (let offset = 0; offset < options.length; offset += 1) {
+        const index = (start + offset) % options.length
+        if (!normalize(options[index].label).startsWith(prefix)) continue
+        if (open) setHighlighted(index)
+        else choose(index)
+        break
+      }
+      return
+    }
+
+    if (publicFilter) typeaheadRef.current = { text: '', timestamp: 0 }
     if (!open) {
       if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
         event.preventDefault()
@@ -162,10 +221,12 @@ export default function SelectMenu({
         onKeyUp={(event) => {
           if (event.key === ' ') event.preventDefault()
         }}
-        className={`flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3 text-left text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:bg-gray-100 ${invalid ? 'border-red-400' : 'border-gray-200'}`}
+        className={publicFilter
+          ? `flex w-full items-center justify-between gap-2 rounded-lg border bg-transparent px-4 py-2.5 text-left text-sm font-medium text-[#0d1f35] outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:bg-[#f5f3ee] disabled:opacity-60 ${invalid ? 'border-red-400' : 'border-[#d4d8e3]'}`
+          : `flex h-11 w-full items-center justify-between gap-2 rounded-lg border bg-white px-3 text-left text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:bg-gray-100 ${invalid ? 'border-red-400' : 'border-gray-200'}`}
       >
         <span className={`truncate ${selected ? '' : 'text-gray-400'}`}>{selected ? selected.label : placeholder}</span>
-        <ChevronDown size={16} aria-hidden="true" className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={publicFilter ? 15 : 16} aria-hidden="true" className={`shrink-0 ${publicFilter ? 'text-primary duration-200' : 'text-gray-400'} transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <ul
         ref={listRef}
@@ -174,8 +235,11 @@ export default function SelectMenu({
         aria-labelledby={labelId ? undefined : ownLabelId}
         aria-label={labelId ? `Opções de ${label}` : undefined}
         hidden={!open}
+        style={publicFilter ? { maxHeight: menuPlacement.maxHeight, ...(menuPlacement.above ? { bottom: 'calc(100% + 6px)', marginTop: 0 } : {}) } : undefined}
         onMouseDown={(event) => event.preventDefault()}
-        className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        className={publicFilter
+          ? "absolute left-0 right-0 z-[200] mt-1.5 min-w-full overflow-y-auto break-words rounded-xl border border-[#e4dfd3] bg-white p-1.5 shadow-[0_12px_32px_-8px_rgba(13,31,53,0.25)]"
+          : "absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"}
       >
         {options.map((option, index) => {
           const isSelected = option.value === value
@@ -188,10 +252,12 @@ export default function SelectMenu({
               aria-selected={isSelected}
               onClick={() => choose(index)}
               onMouseEnter={() => setHighlighted(index)}
-              className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${index === highlighted ? 'bg-[#f5f3ee]' : ''} ${isSelected ? 'font-semibold text-[#0d1f35]' : 'text-gray-700'}`}
+              className={publicFilter
+                ? `relative flex cursor-pointer items-center rounded-lg py-2 pl-3 pr-8 text-sm text-[#0d1f35] ${index === highlighted ? 'bg-[#f5f3ee]' : ''} ${isSelected ? 'font-medium' : ''}`
+                : `flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${index === highlighted ? 'bg-[#f5f3ee]' : ''} ${isSelected ? 'font-semibold text-[#0d1f35]' : 'text-gray-700'}`}
             >
-              <span>{option.label}</span>
-              {isSelected && <Check size={16} aria-hidden="true" className="shrink-0 text-[#8a7043]" />}
+              <span className={publicFilter ? "min-w-0 break-words" : undefined}>{option.label}</span>
+              {isSelected && <Check size={publicFilter ? 14 : 16} aria-hidden="true" className={publicFilter ? "absolute right-3 text-primary" : "shrink-0 text-[#8a7043]"} />}
             </li>
           )
         })}

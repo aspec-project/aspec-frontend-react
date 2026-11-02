@@ -1,22 +1,21 @@
-const controlClass = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:opacity-60'
+import SelectMenu from '../ui/SelectMenu'
+import { PublicFilterSearch, publicFilterLabelClass, publicFilterButtonClass, publicFilterClearClass } from '../ui/PublicFilterControls'
+
 export const directoryButtonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 export default function MemberFilters({ filters, draftSearch, changeSearch, changeFilter, onSearch, clearFilters, references, loading, fieldErrors }) {
   return (
     <form onSubmit={onSearch} className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm" aria-label="Pesquisar membros">
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="md:col-span-2">
-          <label htmlFor="member-search" className="mb-1.5 block text-sm font-medium text-gray-700">Pesquisar</label>
-          <input id="member-search" type="search" value={draftSearch} onChange={(event) => changeSearch(event.target.value)} placeholder="Nome, nome comercial ou descrição" className={controlClass} aria-invalid={!!fieldErrors.search} aria-describedby={fieldErrors.search ? 'member-search-error' : undefined} />
+        <div className="min-w-0 md:col-span-2">
+          <label htmlFor="member-search" className={publicFilterLabelClass}>Pesquisar</label>
+          <PublicFilterSearch iconSize={15} id="member-search" value={draftSearch} onChange={(event) => changeSearch(event.target.value)} placeholder="Nome, nome comercial ou descrição" aria-invalid={!!fieldErrors.search} aria-describedby={fieldErrors.search ? 'member-search-error' : undefined} />
           {fieldErrors.search && <p id="member-search-error" className="mt-1 text-sm text-red-700">{fieldErrors.search}</p>}
         </div>
         {[['sector_id', 'Setor', references.sectors, 'Todos os setores'], ['location_id', 'Distrito', references.locations, 'Todos os distritos']].map(([key, label, options, placeholder]) => (
-          <div key={key}>
-            <label htmlFor={`member-${key}`} className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
-            <select id={`member-${key}`} value={filters[key]} onChange={(event) => changeFilter(key, event.target.value)} disabled={!references.ready} className={controlClass} aria-invalid={!!fieldErrors[key]} aria-describedby={fieldErrors[key] ? `member-${key}-error` : undefined}>
-              <option value="">{placeholder}</option>
-              {options.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+          <div key={key} className="min-w-0">
+            <label id={`member-${key}-label`} htmlFor={`member-${key}`} className={publicFilterLabelClass}>{label}</label>
+            <SelectMenu id={`member-${key}`} label={label} labelId={`member-${key}-label`} variant="public-filter" value={filters[key]} onChange={(value) => changeFilter(key, value)} disabled={!references.ready} invalid={!!fieldErrors[key]} describedBy={fieldErrors[key] ? `member-${key}-error` : undefined} options={[{ value: '', label: placeholder }, ...options.map((item) => ({ value: String(item.id), label: item.name }))]} />
             {fieldErrors[key] && <p id={`member-${key}-error`} className="mt-1 text-sm text-red-700">{fieldErrors[key]}</p>}
           </div>
         ))}
@@ -30,8 +29,8 @@ export default function MemberFilters({ filters, draftSearch, changeSearch, chan
           {fieldErrors.min_rating && <p className="mt-1 text-sm text-red-700" role="alert">{fieldErrors.min_rating}</p>}
         </fieldset>
         <div className="flex flex-wrap items-center gap-4">
-          <button type="submit" disabled={loading} className={directoryButtonClass}>Pesquisar</button>
-          <button type="button" onClick={clearFilters} className="rounded text-sm font-medium text-[#0d1f35] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]">Limpar filtros</button>
+          <button type="submit" disabled={loading} className={publicFilterButtonClass}>Pesquisar</button>
+          <button type="button" onClick={clearFilters} className={publicFilterClearClass}>Limpar filtros</button>
         </div>
       </div>
     </form>
