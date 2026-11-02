@@ -4,6 +4,7 @@ import { Globe, Link2, Lock, MapPin } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
 import { groupBusinessHours } from '../../utils/businessHours'
+import { buildMapEmbedUrl, getEmbedKey } from '../../utils/googleMapsEmbed'
 import PortfolioImageDialog from './PortfolioImageDialog'
 
 const cardClass = 'rounded-xl border border-gray-100 bg-white p-6 shadow-sm'
@@ -138,10 +139,24 @@ function Contacts({ member, allowContacts, showLockedContacts }) {
 
 function LocationCard({ address }) {
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+  const embedUrl = buildMapEmbedUrl(getEmbedKey(), address)
   return (
     <section className={sidebarClass}>
       <h2 className="text-base font-medium leading-normal text-[#0d1f35]">Localização</h2>
-      <div className="mt-4 flex h-32 items-center justify-center rounded-lg bg-gray-100 text-[#8a7043]" aria-hidden="true"><MapPin size={32} /></div>
+      <div className="mt-4 h-[200px] overflow-hidden rounded-lg bg-gray-100">
+        {embedUrl ? (
+          <iframe
+            title="Mapa da localização do membro"
+            src={embedUrl}
+            className="block h-full w-full border-0"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        ) : (
+          <p role="status" className="flex h-full items-center p-4 text-sm text-gray-600">O mapa está indisponível. Pode abrir a localização no Google Maps.</p>
+        )}
+      </div>
       <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{address}</p>
       <a className={`${linkClass} mt-4 inline-block text-sm`} href={mapUrl} target="_blank" rel="noopener noreferrer">Ver no Google Maps</a>
     </section>
