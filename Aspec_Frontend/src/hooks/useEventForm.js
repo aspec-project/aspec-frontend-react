@@ -32,7 +32,9 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null, c
  * "Criar série de eventos?" e qualquer erro do pedido fecha-a; `seriesSessions` tem as sessões calculadas a
  * partir da 1.ª data, da última e da frequência (para a pré-visualização e a confirmação). Quando a
  * verificação da morada encontra um local aproximado, só deixa guardar depois de o admin o confirmar
- * (`confirmLocation`); a confirmação é só da interface e não segue no pedido.
+ * (`confirmLocation`); a confirmação é só da interface e não segue no pedido. Na edição de um evento com
+ * cartões de oração preenchidos, `prayerCardsLocked` bloqueia o interruptor e o versículo; um erro do servidor
+ * no versículo que não pode receber foco (cartões desligados ou bloqueados) vai também para a mensagem geral.
  *
  * @param {{
  *   onSuccess: (message: string) => void,
@@ -44,6 +46,8 @@ const IDLE_GEOCODE = { status: 'idle', result: null, message: '', query: null, c
  *   setField: (name: string, value: string) => void,
  *   setFormat: (isOnline: boolean) => void,
  *   setRepetition: (isRecurring: boolean) => void,
+ *   setPrayerCardsEnabled: (enabled: boolean) => void,
+ *   prayerCardsLocked: boolean,
  *   seriesSessions: {dates: string[], tooMany: boolean},
  *   missingFields: string[],
  *   errors: Record<string, string>,
@@ -83,6 +87,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
 
   useEffect(() => () => geocodeControllerRef.current?.abort(), [])
 
+  const prayerCardsLocked = event?.prayer_cards_locked === true
   const registrationsCount = Number.isInteger(event?.registrations_count) && event.registrations_count >= 0
     ? event.registrations_count
     : null
@@ -159,12 +164,25 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
   }
 
   /**
+   * Liga ou desliga os cartões de oração sem apagar o versículo escrito (desligados, o versículo não é
+   * enviado) e apaga o erro do servidor do versículo e a mensagem geral.
+   *
+   * @param {boolean} enabled true para ligar, false para desligar.
+   */
+  const setPrayerCardsEnabled = (enabled) => {
+    setValues((current) => ({ ...current, prayerCardsEnabled: enabled }))
+    clearServerError('prayerVerse')
+    setFormError('')
+  }
+
+  /**
    * Pede ao modal que foque o primeiro campo com erro, pela ordem do formulário.
    *
    * @param {Record<string, string>} fieldErrors Erros por campo.
+   * @param {string[]} [skip] Campos que não podem receber foco.
    */
-  const focusFirstInvalid = (fieldErrors) => {
-    const name = EVENT_FIELD_ORDER.find((field) => field in fieldErrors)
+  const focusFirstInvalid = (fieldErrors, skip = []) => {
+    const name = EVENT_FIELD_ORDER.find((field) => field in fieldErrors && !skip.includes(field))
 
     if (name) {
       setFocusField((current) => ({ name, key: (current?.key ?? 0) + 1 }))
@@ -175,7 +193,8 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
    * Cria ou atualiza o evento (um só pedido de cada vez). Em erro, o formulário fica com os valores. Na
    * criação, qualquer erro fecha a confirmação da série (quando está aberta). Na edição (com a confirmação aberta): um 422 só da justificação, um 403/429/5xx ou uma falha de rede deixam
    * a confirmação aberta com a mensagem; um 422 de outros campos ou um 404 da morada fecham-na e assinalam os
-   * campos; um 409 ou um 404 do evento chamam `onStale`.
+   * campos; um 409 ou um 404 do evento chamam `onStale`. Um erro no versículo com os cartões desligados ou
+   * bloqueados (o campo não pode receber foco) aparece também na mensagem geral.
    *
    * @param {string} [justification] Justificação para os inscritos (só na edição).
    * @returns {Promise<void>}
@@ -191,7 +210,7 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
 
     try {
       const response = isEditing
-        ? await updateAdminEvent(event.id, buildEventUpdatePayload(values, geocode, justification))
+        ? await updateAdminEvent(event.id, buildEventUpdatePayload(values, geocode, justification, initialValues))
         : await createAdminEvent(buildEventPayload(values, geocode))
       onSuccess(response.message)
     } catch (err) {
@@ -212,17 +231,19 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
           return
         }
 
+        const hiddenVerseError = eventErrors.prayerVerse && (!values.prayerCardsEnabled || prayerCardsLocked)
+          ? eventErrors.prayerVerse
+          : ''
         setConfirming(false)
         setServerErrors(eventErrors)
         /* Os erros já associados a um campo aparecem junto desse campo. */
-        setFormError(
-          unmatched.length > 0
-            ? unmatched.join(' ')
-            : Object.keys(eventErrors).length === 0 && !justificationError
-              ? message
-              : justificationError ?? '',
-        )
-        focusFirstInvalid(eventErrors)
+        const generalError = unmatched.length > 0
+          ? unmatched.join(' ')
+          : Object.keys(eventErrors).length === 0 && !justificationError
+            ? message
+            : justificationError ?? ''
+        setFormError([generalError, hiddenVerseError].filter(Boolean).join(' '))
+        focusFirstInvalid(eventErrors, hiddenVerseError ? ['prayerVerse'] : [])
       } else if (isEditing && status === 409) {
         onStale?.(message)
       } else if (isEditing && status === 404 && message !== EVENT_EDIT_TEXTS.addressNotFound) {
@@ -325,6 +346,8 @@ export default function useEventForm({ onSuccess, onStale, event = null }) {
     setField,
     setFormat,
     setRepetition,
+    setPrayerCardsEnabled,
+    prayerCardsLocked,
     seriesSessions,
     missingFields,
     errors: { ...browserErrors, ...serverErrors },

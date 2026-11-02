@@ -84,8 +84,8 @@ export async function createAdminEvent(payload) {
 }
 
 /**
- * Atualiza um evento no backoffice (PUT com o corpo completo). Se houver inscritos, o backend envia-lhes um
- * email com a justificação, quando vem preenchida.
+ * Atualiza um evento no backoffice (PUT com o corpo completo). O backend só envia email aos inscritos quando
+ * mudam dados que lhes interessam, com a justificação, quando vem preenchida.
  *
  * @param {string} eventId Id do evento.
  * @param {object} payload Corpo completo do pedido, já em snake_case (ver buildEventUpdatePayload).
