@@ -1,4 +1,5 @@
 import { api, API_URL } from './api'
+import { getSessionContext } from './sessionContext'
 
 const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0
 const validId = (value) => typeof value === 'string' && value.trim() !== ''
@@ -142,12 +143,34 @@ function validReviewDate(value) {
   return month >= 1 && month <= 12 && day >= 1 && day <= monthDays[month - 1]
 }
 
-export async function getMemberReviews(id, page = 1, signal) {
-  if (!isMemberProfileId(id) || !positiveInteger(page)) {
+function validReview(item) {
+  return item && isMemberProfileId(item.id) && Number.isInteger(item.rating) && item.rating >= 1 && item.rating <= 5 &&
+    nullableText(item.comment) && validReviewDate(item.created_at) &&
+    (item.is_mine === undefined || typeof item.is_mine === 'boolean') &&
+    (item.reviewer?.id === null || isMemberProfileId(item.reviewer?.id)) &&
+    typeof item.reviewer?.business_name === 'string' && item.reviewer.business_name.trim() !== ''
+}
+
+function publicReview(item) {
+  return {
+    id: item.id, rating: item.rating, comment: item.comment, created_at: item.created_at,
+    reviewer: { id: item.reviewer.id, business_name: item.reviewer.business_name },
+    ...(item.is_mine === undefined ? {} : { is_mine: item.is_mine }),
+  }
+}
+
+export async function getMemberReviews(id, page = 1, signal, filters = {}) {
+  if (!isMemberProfileId(id) || !positiveInteger(page) || page > 10000 ||
+    !filters || typeof filters !== 'object' ||
+    (filters.sort !== undefined && !['newest', 'oldest', 'highest', 'lowest'].includes(filters.sort)) ||
+    (filters.rating !== undefined && filters.rating !== '' &&
+      (!Number.isInteger(filters.rating) || filters.rating < 1 || filters.rating > 5))) {
     throw new Error('Os parâmetros das avaliações são inválidos.')
   }
   const response = await api.get(`/members/${encodeURIComponent(id)}/reviews`, {
-    params: { page }, signal, skipAuthRedirect: true,
+    params: { page, ...(filters.sort === undefined ? {} : { sort: filters.sort }),
+      ...(filters.rating === undefined || filters.rating === '' ? {} : { rating: filters.rating }) },
+    signal, skipAuthRedirect: true,
   })
   const data = response.data?.data
   const pagination = data?.pagination
@@ -162,10 +185,7 @@ export async function getMemberReviews(id, page = 1, signal) {
     pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
     items.length > pagination.per_page || items.length > pagination.total ||
     new Set(items.map((item) => item?.id)).size !== items.length ||
-    !items.every((item) => item && isMemberProfileId(item.id) && Number.isInteger(item.rating) && item.rating >= 1 && item.rating <= 5 &&
-      nullableText(item.comment) && validReviewDate(item.created_at) &&
-      (item.reviewer?.id === null || isMemberProfileId(item.reviewer?.id)) &&
-      typeof item.reviewer?.business_name === 'string' && item.reviewer.business_name.trim() !== '')) {
+    !items.every(validReview)) {
     throw new Error('A resposta das avaliações tem um formato inesperado.')
   }
   /*
@@ -174,10 +194,101 @@ export async function getMemberReviews(id, page = 1, signal) {
    */
   return {
     average_rating: data.average_rating, reviews_count: data.reviews_count,
-    items: items.map((item) => ({
-      id: item.id, rating: item.rating, comment: item.comment, created_at: item.created_at,
-      reviewer: { id: item.reviewer.id, business_name: item.reviewer.business_name },
-    })),
+    items: items.map(publicReview),
     pagination: { current_page: pagination.current_page, per_page: pagination.per_page, total: pagination.total, last_page: pagination.last_page },
+  }
+}
+
+
+export async function getMemberReviewPage(id, page = 1, signal, filters = {}) {
+  if (!positiveInteger(page) || page > 10000) throw new Error('A página das avaliações é inválida.')
+  /* A janela completa pertence à mesma sessão, incluindo os pedidos seguintes. */
+  const context = getSessionContext()
+  signal = signal ? AbortSignal.any([signal, context.signal]) : context.signal
+  const first = await getMemberReviews(id, 1, signal, filters)
+  const mine = first.items.find((item) => item.is_mine === true) ?? null
+  const total = Math.max(0, first.pagination.total - (mine ? 1 : 0))
+  const lastPage = Math.max(1, Math.ceil(total / 5))
+  const currentPage = Math.min(page, lastPage)
+  const start = (currentPage - 1) * 5 + (mine ? 1 : 0)
+  const end = Math.min(start + 5, first.pagination.total)
+  const perPage = first.pagination.per_page
+  const firstSourcePage = Math.floor(start / perPage) + 1
+  const lastSourcePage = Math.ceil(end / perPage)
+  const rows = []
+  /*
+   * A API inclui a avaliação própria na primeira página, mesmo fora do filtro.
+   * A janela compensa essa posição para manter cinco outras avaliações por página.
+   */
+  for (let sourcePage = firstSourcePage; sourcePage <= lastSourcePage; sourcePage += 1) {
+    const data = sourcePage === 1 ? first : await getMemberReviews(id, sourcePage, signal, filters)
+    const offset = (sourcePage - 1) * perPage
+    rows.push(...data.items.filter((item, index) => offset + index >= start && offset + index < end && item.id !== mine?.id && item.is_mine !== true))
+  }
+  return {
+    average_rating: first.average_rating, reviews_count: first.reviews_count,
+    mine, items: rows,
+    pagination: { current_page: currentPage, per_page: 5, total, last_page: lastPage },
+  }
+}
+
+export async function saveMemberReview(id, values, signal) {
+  if (!isMemberProfileId(id) || !Number.isInteger(values?.rating) || values.rating < 1 || values.rating > 5 ||
+    typeof values?.comment !== 'string' || !values.comment.trim() || [...values.comment.trim()].length > 2000) {
+    throw new Error('Escolha entre 1 e 5 estrelas e escreva um comentário com até 2000 caracteres.')
+  }
+  const response = await api.post(`/members/${encodeURIComponent(id)}/reviews`, {
+    rating: values.rating, comment: values.comment.trim(),
+  }, { signal, skipAuthRedirect: true })
+  if (![200, 201].includes(response.status) || response.data?.success !== true || !validReview(response.data?.data)) {
+    throw new Error('A resposta da avaliação tem um formato inesperado.')
+  }
+  return publicReview(response.data.data)
+}
+
+export async function deleteMemberReview(id, signal) {
+  if (!isMemberProfileId(id)) throw new Error('O identificador do membro é inválido.')
+  const response = await api.delete(`/members/${encodeURIComponent(id)}/reviews`, { signal, skipAuthRedirect: true })
+  if (response.status !== 200 || response.data?.success !== true || response.data?.data !== null) {
+    throw new Error('A resposta da remoção da avaliação tem um formato inesperado.')
+  }
+}
+
+export const MEMBER_REVIEW_REPORT_REASONS = [
+  { value: 'offensive_or_disrespectful_content', label: 'Conteúdo ofensivo ou desrespeitoso' },
+  { value: 'false_or_unsubstantiated_claims', label: 'Afirmações falsas ou sem fundamento' },
+  { value: 'no_business_relationship', label: 'Não fui cliente / não houve relação comercial' },
+  { value: 'spam_or_advertising', label: 'Spam ou publicidade' },
+  { value: 'other', label: 'Outro motivo' },
+]
+
+export async function reportMemberReview(reviewId, values, signal) {
+  const validReason = (reason) => MEMBER_REVIEW_REPORT_REASONS.some((option) => option.value === reason)
+  const comment = values?.comment
+  if (!isMemberProfileId(reviewId) || !validReason(values?.reason) ||
+    (comment !== undefined && comment !== null && (typeof comment !== 'string' || [...comment].length > 2000))) {
+    throw new Error('Selecione um motivo válido e escreva um comentário com até 2000 caracteres.')
+  }
+  const payload = { reason: values.reason }
+  if (typeof comment === 'string' && comment.trim()) payload.comment = comment.trim()
+  const response = await api.post(`/reviews/${encodeURIComponent(reviewId)}/reports`, payload, { signal, skipAuthRedirect: true })
+  const body = response.data
+  const report = body?.data
+  if (response.status !== 201 || body?.success !== true || typeof body.message !== 'string' || !body.message.trim() ||
+    !report || !isMemberProfileId(report.id) || report.review_id !== reviewId || !validReason(report.reason) ||
+    !nullableText(report.comment) || (typeof report.comment === 'string' && [...report.comment].length > 2000) ||
+    report.source !== 'member' || report.resolved_at !== null || !validReviewDate(report.created_at)) {
+    throw new Error('A resposta da sinalização tem um formato inesperado.')
+  }
+  /*
+   * A confirmação conserva apenas os campos contratados da sinalização.
+   * A mensagem é texto e deve ser apresentada pelo React sem interpretar HTML.
+   */
+  return {
+    message: body.message,
+    report: {
+      id: report.id, review_id: report.review_id, reason: report.reason, comment: report.comment,
+      source: report.source, resolved_at: report.resolved_at, created_at: report.created_at,
+    },
   }
 }
