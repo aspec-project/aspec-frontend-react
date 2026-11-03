@@ -155,8 +155,8 @@ export function getDashboardStatCards(stats) {
       'Avaliações para moderar',
       stats.reviews.flagged,
       `${formatCount(newReviews)} ${newReviews === 1 ? 'nova' : 'novas'} esta semana`,
-      '/admin/moderacao',
-      'Abrir a moderação',
+      '/admin/moderacao?estado=flagged',
+      'Ver avaliações sinalizadas',
     ),
     linkedCard(
       'overdue',
