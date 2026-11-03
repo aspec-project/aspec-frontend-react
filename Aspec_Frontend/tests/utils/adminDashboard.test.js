@@ -65,8 +65,8 @@ describe('getDashboardStatCards', () => {
         label: 'Avaliações para moderar',
         value: '2',
         hint: '5 novas esta semana',
-        to: '/admin/moderacao',
-        linkLabel: 'Avaliações para moderar: 2 (5 novas esta semana). Abrir a moderação',
+        to: '/admin/moderacao?estado=flagged',
+        linkLabel: 'Avaliações para moderar: 2 (5 novas esta semana). Ver avaliações sinalizadas',
       },
       {
         key: 'overdue',
@@ -152,7 +152,7 @@ describe('getDashboardStatCards', () => {
       members: '/admin/utilizadores?estado=active',
       pending: '/admin/utilizadores?estado=pending',
       events: '/admin/eventos',
-      reviews: '/admin/moderacao',
+      reviews: '/admin/moderacao?estado=flagged',
       overdue: '/admin/utilizadores?estado=grace',
       registrations: null,
     })

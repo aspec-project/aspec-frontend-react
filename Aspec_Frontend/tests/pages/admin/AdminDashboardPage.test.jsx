@@ -717,7 +717,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
       ['Membros Ativos: 320 (+12 este mês). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
       ['Candidaturas Pendentes: 3 (Requerem ação). Ver candidaturas pendentes', '/admin/utilizadores?estado=pending'],
       ['Eventos este mês: 8 (2 esta semana). Ver eventos agendados', '/admin/eventos'],
-      ['Avaliações para moderar: 2 (5 novas esta semana). Abrir a moderação', '/admin/moderacao'],
+      ['Avaliações para moderar: 2 (5 novas esta semana). Ver avaliações sinalizadas', '/admin/moderacao?estado=flagged'],
       ['Quotas em atraso: 7 (4 em carência, 3 inativas por falta de pagamento). Ver utilizadores em carência', '/admin/utilizadores?estado=grace'],
     ]
     for (const [name, href] of expected) {

@@ -25,6 +25,7 @@ import AdminEventsPage from '../pages/admin/AdminEventsPage'
 import AdminEventDetailPage from '../pages/admin/AdminEventDetailPage'
 import AdminEventCategoriesPage from '../pages/admin/AdminEventCategoriesPage'
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
+import AdminModerationPage from '../pages/admin/AdminModerationPage'
 import HomePage from '../pages/HomePage'
 import EventsPage from '../pages/EventsPage'
 import EventDetailPage from '../pages/EventDetailPage'
@@ -162,7 +163,7 @@ function AppRouter() {
           <Route path="/admin/tipos-evento" element={<PageTitle title="Tipos de evento"><AdminEventCategoriesPage /></PageTitle>} />
           <Route
             path="/admin/moderacao"
-            element={<PageTitle title="Moderação"><PlaceholderPage title="Moderação" /></PageTitle>}
+            element={<PageTitle title="Moderação"><AdminModerationPage /></PageTitle>}
           />
         </Route>
       </Route>

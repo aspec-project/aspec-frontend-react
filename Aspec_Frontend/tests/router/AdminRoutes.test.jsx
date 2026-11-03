@@ -47,6 +47,13 @@ vi.mock('../../src/services/adminEventCategories', () => ({
   updateEventCategory: vi.fn(),
   deleteEventCategory: vi.fn(),
 }))
+const { getAdminReviews } = vi.hoisted(() => ({ getAdminReviews: vi.fn() }))
+vi.mock('../../src/services/adminReviews', () => ({
+  getAdminReviews,
+  hideReview: vi.fn(),
+  showReview: vi.fn(),
+  unflagReview: vi.fn(),
+}))
 vi.mock('../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(() => Promise.resolve([])),
   getWeekDays: vi.fn(() => Promise.resolve([])),
@@ -229,6 +236,23 @@ describe('Rotas de administração', () => {
     await waitFor(() => expect(getEvents).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Candidaturas Pendentes' })).not.toBeInTheDocument()
     expect(getAdminDashboard).not.toHaveBeenCalled()
+  })
+
+  it('um admin vê a moderação de conteúdos dentro do layout de administração, sem o placeholder', async () => {
+    getAdminReviews.mockResolvedValue({
+      items: [],
+      pagination: { current_page: 1, per_page: 10, total: 0, last_page: 1 },
+      counts: { all: 0, flagged: 0, visible: 0, hidden: 0 },
+    })
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/moderacao')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Moderação de Conteúdos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Moderação' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('group', { name: 'Filtrar avaliações por estado' })).toBeInTheDocument()
+    expect(screen.queryByText('Esta página será implementada mais tarde.')).not.toBeInTheDocument()
+    expect(getAdminReviews).toHaveBeenCalled()
   })
 
   it('um admin vai do painel para a lista de utilizadores já filtrada nas pendentes', async () => {

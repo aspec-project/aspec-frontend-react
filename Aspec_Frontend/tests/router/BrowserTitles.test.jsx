@@ -28,6 +28,7 @@ vi.mock('../../src/pages/admin/AdminUserDetailPage', () => ({ default: () => nul
 vi.mock('../../src/pages/admin/AdminEventsPage', () => ({ default: () => null }))
 vi.mock('../../src/pages/admin/AdminEventCategoriesPage', () => ({ default: () => null }))
 vi.mock('../../src/pages/admin/AdminDashboardPage', () => ({ default: () => null }))
+vi.mock('../../src/pages/admin/AdminModerationPage', () => ({ default: () => null }))
 vi.mock('../../src/components/layout/MainLayout', () => ({ default: () => <Outlet /> }))
 vi.mock('../../src/components/layout/MemberAreaLayout', () => ({ default: () => <Outlet /> }))
 vi.mock('../../src/components/layout/AdminLayout', () => ({ default: () => <Outlet /> }))
