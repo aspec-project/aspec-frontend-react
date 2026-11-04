@@ -1,10 +1,13 @@
 import { CheckCircle2, Mail, LogIn } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import PublicAccountBrand from '../components/layout/PublicAccountBrand'
 
 function AccountActivationSuccessPage() {
   return (
-    <section className="flex min-h-screen items-center justify-center bg-[#f8f7f2] px-5 py-12">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10">
+    <main className="min-h-screen bg-[#f8f7f2]">
+      <PublicAccountBrand />
+      <section className="flex justify-center px-5 pb-12 pt-0">
+        <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10">
         <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
           <CheckCircle2 size={38} />
         </div>
@@ -30,8 +33,9 @@ function AccountActivationSuccessPage() {
           <LogIn size={18} />
           Iniciar sessão
         </Link>
-      </div>
-    </section>
+        </div>
+      </section>
+    </main>
   )
 }
 
