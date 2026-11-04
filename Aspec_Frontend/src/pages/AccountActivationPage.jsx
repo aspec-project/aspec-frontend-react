@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
+import PublicAccountBrand from '../components/layout/PublicAccountBrand'
 import {
   AlertCircle,
   CheckCircle2,
@@ -139,11 +140,14 @@ function BillingField({ label, name, error, ...inputProps }) {
 
 function ActivationShell({ children }) {
   return (
-    <section className="flex min-h-screen items-center justify-center bg-[#f8f7f2] px-5 py-12">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
-        {children}
-      </div>
-    </section>
+    <main className="min-h-screen bg-[#f8f7f2]">
+      <PublicAccountBrand />
+      <section className="flex justify-center px-5 pb-12 pt-0">
+        <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+          {children}
+        </div>
+      </section>
+    </main>
   )
 }
 
