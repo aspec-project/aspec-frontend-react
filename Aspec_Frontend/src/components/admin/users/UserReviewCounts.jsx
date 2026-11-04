@@ -16,6 +16,8 @@ function isValidSide(side) {
 
 /**
  * Grupo de três mosaicos (Total, Ocultas, Sinalizadas), anunciado com o nome do subtítulo.
+ * As Sinalizadas só ficam em âmbar quando há alguma para moderar. Em telemóvel cada mosaico
+ * ocupa uma linha, com o rótulo à esquerda e o número à direita.
  *
  * @param {{title: string, counts: {total: number, hidden: number, flagged: number}}} props
  * @returns {JSX.Element}
@@ -25,20 +27,25 @@ function CountsGroup({ title, counts }) {
   const tiles = [
     { label: 'Total', value: counts.total },
     { label: 'Ocultas', value: counts.hidden, Icon: EyeOff },
-    { label: 'Sinalizadas', value: counts.flagged, Icon: Flag, valueClass: 'text-[#8a7043]' },
+    {
+      label: 'Sinalizadas',
+      value: counts.flagged,
+      Icon: Flag,
+      valueClass: counts.flagged > 0 ? 'text-amber-700' : undefined,
+    },
   ]
 
   return (
     <div role="group" aria-labelledby={id}>
       <h3 id={id} className="text-xs text-gray-500">{title}</h3>
-      <dl className="mt-2 grid grid-cols-3 gap-3">
+      <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         {tiles.map(({ label, value, Icon, valueClass = 'text-[#0d1f35]' }) => (
-          <div key={label} className="rounded-lg bg-[#f5f5f4] p-3">
+          <div key={label} className="flex items-center justify-between rounded-lg bg-[#f5f5f4] p-3 sm:block">
             <dt className="flex items-center gap-1 text-xs text-gray-500">
               {Icon && <Icon size={12} aria-hidden="true" />}
               {label}
             </dt>
-            <dd className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</dd>
+            <dd className={`text-2xl font-semibold sm:mt-1 ${valueClass}`}>{value}</dd>
           </div>
         ))}
       </dl>
