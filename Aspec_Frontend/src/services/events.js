@@ -1,6 +1,8 @@
 import { api, normalizeError } from "./api";
 import { useAuthStore } from "../store/authStore";
 import { getOnlineMeetingUrl } from "../utils/eventAccess";
+import { getSessionContext, isSessionCurrent } from "./sessionContext";
+import { eventSessionStart } from "../utils/eventSessions";
 
 function publicEventItem(item) {
   const result = { ...item };
@@ -25,7 +27,8 @@ export async function getEventDetail(id, signal) {
   const viewer = useAuthStore.getState();
   const response = await api.get(`/events/${encodeURIComponent(id)}`, { signal });
   const event = response.data?.data;
-  if (response.data?.success !== true || event?.id !== id || typeof event.name !== "string" || !event.name.trim()) {
+  if (response.data?.success !== true || event?.id !== id || typeof event.name !== "string" || !event.name.trim() ||
+    (event.series_id != null && !isEventId(event.series_id))) {
     throw new Error("A resposta do evento tem um formato inesperado.");
   }
 
@@ -47,6 +50,7 @@ export async function getEventDetail(id, signal) {
    */
   return {
     id: event.id,
+    series_id: event.series_id ?? null,
     name: event.name.trim(),
     is_online: typeof event.is_online === "boolean" ? event.is_online : null,
     description: text(event.description),
@@ -69,6 +73,70 @@ export async function getEventDetail(id, signal) {
     available_spots: count(event.available_spots),
     ...(onlineUrl ? { online_url: onlineUrl } : {}),
   };
+}
+
+function viewerIdentity() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([state.sessionGeneration, state.status, state.sessionChanging, state.user?.id, state.user?.role?.name, state.user?.account_status?.name]);
+}
+
+export async function getEventSessions(seriesId, signal, context = getSessionContext()) {
+  if (!isEventId(seriesId)) throw new Error("O identificador da série é inválido.");
+  const identity = viewerIdentity();
+  const current = () => isSessionCurrent(context) && !signal?.aborted &&
+    !useAuthStore.getState().sessionChanging && viewerIdentity() === identity;
+  const config = {
+    signal: signal ? AbortSignal.any([signal, context.signal]) : context.signal,
+    sessionGeneration: context.generation,
+  };
+  const sessions = [];
+  const ids = new Set();
+  let expectedTotal;
+  let lastPage = 1;
+
+  /*
+   * Uma série só fica disponível depois de todas as páginas serem confirmadas.
+   * Se a lista mudar durante a leitura, o utilizador pode repetir os GET.
+   */
+  for (let page = 1; page <= lastPage; page += 1) {
+    if (!current()) throw new Error("O contexto das sessões já não é válido.");
+    const response = await api.get("/events", { ...config, params: { series_id: seriesId, page, per_page: 9 } });
+    if (!current()) throw new Error("O contexto das sessões já não é válido.");
+    const data = response.data?.data;
+    const pagination = data?.pagination;
+    if (response.data?.success !== true || !Array.isArray(data?.items) || !pagination ||
+      ![pagination.current_page, pagination.per_page, pagination.total, pagination.last_page].every(Number.isSafeInteger) ||
+      pagination.current_page !== page || pagination.per_page !== 9 || pagination.total < 0 ||
+      pagination.last_page < 1 || pagination.last_page > 10000 ||
+      pagination.last_page !== Math.max(1, Math.ceil(pagination.total / 9)) ||
+      data.items.length !== Math.min(9, Math.max(0, pagination.total - (page - 1) * 9)) ||
+      (expectedTotal !== undefined && (pagination.total !== expectedTotal || pagination.last_page !== lastPage))) {
+      throw new Error("A paginação das sessões tem um formato inesperado.");
+    }
+    expectedTotal = pagination.total;
+    lastPage = pagination.last_page;
+    for (const item of data.items) {
+      if (!isEventId(item?.id) || item.series_id !== seriesId || eventSessionStart(item) === null || ids.has(item.id.toLowerCase())) {
+        throw new Error("A resposta das sessões tem um formato inesperado.");
+      }
+      ids.add(item.id.toLowerCase());
+      const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
+      sessions.push({
+        id: item.id,
+        series_id: item.series_id,
+        event_date: item.event_date,
+        event_start_time: item.event_start_time,
+        event_end_time: typeof item.event_end_time === "string" ? item.event_end_time : "",
+        registration_deadline: typeof item.registration_deadline === "string" ? item.registration_deadline : "",
+        is_registered: typeof item.is_registered === "boolean" ? item.is_registered : null,
+        registration_open: typeof item.registration_open === "boolean" ? item.registration_open : null,
+        max_attendees: count(item.max_attendees),
+        registrations_count: count(item.registrations_count),
+        available_spots: count(item.available_spots),
+      });
+    }
+  }
+  return sessions.sort((left, right) => eventSessionStart(left).localeCompare(eventSessionStart(right)) || left.id.localeCompare(right.id));
 }
 
 export function getEventDetailErrorMessage(error) {
