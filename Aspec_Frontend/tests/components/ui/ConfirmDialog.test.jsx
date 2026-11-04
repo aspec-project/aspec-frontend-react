@@ -21,6 +21,21 @@ function dialog(props = {}) {
 }
 
 describe('ConfirmDialog', () => {
+  it('pode bloquear apenas a confirmação sem impedir fechar ou cancelar', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+    render(dialog({ confirmDisabled: true, showClose: true, onConfirm, onCancel }))
+    expect(screen.getByRole('button', { name: 'Bloquear' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Bloquear' }))
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Fechar' })).toBeEnabled()
+    screen.getByRole('button', { name: 'Cancelar' }).focus()
+    await user.keyboard('{Escape}')
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
   it('só aparece quando está aberto, com nome, descrição e o foco em Cancelar', () => {
     const { rerender } = render(dialog({ open: false }))
 

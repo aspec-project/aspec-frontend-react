@@ -23,7 +23,8 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  *   cancelLabel?: string,
  *   tone?: 'primary'|'danger'|'gold',
  *   pending?: boolean,
- *   onConfirm: () => void,
+ *   confirmDisabled?: boolean,
+ *   onConfirm?: () => void,
  *   onCancel: () => void,
  *   children?: import('react').ReactNode,
  *   showClose?: boolean,
@@ -41,6 +42,7 @@ export default function ConfirmDialog({
   cancelLabel = 'Cancelar',
   tone = 'primary',
   pending = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -152,7 +154,7 @@ export default function ConfirmDialog({
           {Icon && <Icon size={20} aria-hidden="true" className="shrink-0" />}
           {title}
         </h2>
-        <p id={descriptionId} className="mt-3 shrink-0 text-sm text-gray-600">{description}</p>
+        <p id={descriptionId} className="mt-3 shrink-0 break-words text-sm text-gray-600 [overflow-wrap:anywhere]">{description}</p>
         {note && <p role="note" className="mt-4 shrink-0 rounded-lg bg-[#f5f1e8] px-4 py-3 text-sm text-[#6b5631]">{note}</p>}
         {children && <div tabIndex={0} role="region" aria-label="Resumo da confirmação" className="min-h-0 overflow-y-auto">{children}</div>}
         <div className={`mt-6 flex shrink-0 justify-end gap-3 ${showClose ? 'flex-col-reverse sm:flex-row' : ''}`}>
@@ -167,8 +169,8 @@ export default function ConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={pending || waiting}
+            onClick={() => { if (!pending && !waiting && !confirmDisabled && typeof onConfirm === 'function') onConfirm() }}
+            disabled={pending || waiting || confirmDisabled || typeof onConfirm !== 'function'}
             className={`${buttonBase} text-white ${TONE_CLASSES[tone] ?? TONE_CLASSES.primary}`}
           >
             {pending ? 'A processar...' : waiting ? `${confirmLabel} (${remaining}s)` : confirmLabel}

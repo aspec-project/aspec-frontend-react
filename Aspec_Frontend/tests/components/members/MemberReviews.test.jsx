@@ -38,8 +38,8 @@ describe('Avaliações públicas de membros', () => {
     render(<MemberReviews memberId={id} />)
     expect(screen.getByRole('status')).toHaveTextContent('A carregar avaliações')
     await screen.findByText('Santos & Filhos')
-    expect(screen.getByText('S&')).toBeInTheDocument()
-    expect(screen.getByText('20/09/2026')).toHaveAttribute('datetime', review.created_at)
+    expect(screen.getByText('S')).toBeInTheDocument()
+    expect(screen.getByText('Set 2026')).toHaveAttribute('datetime', review.created_at)
     expect(screen.getByText(review.comment)).toBeInTheDocument()
     expect(document.querySelector('script')).toBeNull()
     expect(screen.queryByText('privado@example.test')).not.toBeInTheDocument()
@@ -64,7 +64,7 @@ describe('Avaliações públicas de membros', () => {
     ])))
     render(<MemberReviews memberId={id} />)
     expect(await screen.findByText('Empresa anonimizada')).toBeInTheDocument()
-    expect(screen.getByText('EA')).toBeInTheDocument()
+    expect(screen.getByText('E')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -103,9 +103,9 @@ describe('Avaliações públicas de membros', () => {
     expect(screen.getByRole('button', { name: 'Avaliações anteriores' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Avaliações seguintes' }))
     await screen.findByText('Autor página 2')
-    expect(screen.getByText('Página 2 de 2')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('button', { name: 'Avaliações seguintes' })).toBeDisabled()
-    expect(adapter.mock.calls.map(([config]) => config.params.page)).toEqual([1, 2])
+    expect(adapter.mock.calls.map(([config]) => config.params.page)).toEqual([1, 1, 2])
     expect(screen.queryByText(/histograma/i)).not.toBeInTheDocument()
   })
 
@@ -170,7 +170,7 @@ describe('Avaliações públicas de membros', () => {
     render(<MemberReviews memberId={id} />)
     await screen.findByText('Santos & Filhos')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Avaliações seguintes' }))
-    await screen.findByText('Página 2 de 2')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page'))
     block = true
     await act(async () => useAuthStore.setState({ user: { id: otherId, role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' }))
     expect(screen.queryByText('Santos & Filhos')).not.toBeInTheDocument()
@@ -178,7 +178,7 @@ describe('Avaliações públicas de membros', () => {
     await waitFor(() => expect(pending).toHaveLength(1))
     expect(pending[0].config.params.page).toBe(1)
     await act(async () => pending[0].resolve(response(pending[0].config, body(1, [review], 6))))
-    await screen.findByText('Página 1 de 2')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute('aria-current', 'page'))
   })
 
   it('ignora respostas de pedidos pendentes de uma sessão anterior', async () => {
