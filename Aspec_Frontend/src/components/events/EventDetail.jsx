@@ -17,10 +17,10 @@ function HeaderInformation({ icon: Icon, label, children }) {
   );
 }
 
-export default function EventDetail({ event, onEventUpdate, onRefresh, sessions = null, recurrenceLabel = "", onSelectSession }) {
-  const recurring = Array.isArray(sessions);
-  const selectedSession = recurring ? sessions.findIndex((session) => session?.id === event.id) : -1;
-  const dates = recurring ? sessions.map((session) => session?.event_date).filter((date) => formatDate(date) !== "Data por confirmar").sort() : [];
+export default function EventDetail({ event, onEventUpdate, onReconcile, onRefresh, sessions = null, sessionsStatus, sessionsError, onRetrySessions, recurrenceLabel = "", onSelectSession }) {
+  const recurring = !!event.series_id || Array.isArray(sessions);
+  const selectedSession = Array.isArray(sessions) ? sessions.findIndex((session) => session?.id === event.id) : -1;
+  const dates = Array.isArray(sessions) ? sessions.map((session) => session?.event_date).filter((date) => formatDate(date) !== "Data por confirmar").sort() : [];
   const dateLabel = dates.length > 1 ? `${formatDate(dates[0])} — ${formatDate(dates[dates.length - 1])}` : formatDate(event.event_date);
   const startTime = formatTime(event.event_start_time);
   const endTime = formatTime(event.event_end_time);
@@ -87,7 +87,7 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
           {event.is_online === true ? <EventOnlineAccess key={`${event.id}:${event.registration_deadline}`} event={event} onRefresh={onRefresh} /> : <EventLocation event={event} />}
-          {recurring && <EventSessions sessions={sessions.map((session) => session?.id === event.id ? { ...session, ...event } : session)} selectedId={event.id} onSelect={onSelectSession} recurrenceLabel={recurrenceLabel} />}
+          {recurring && <EventSessions sessions={sessions?.map((session) => session?.id === event.id ? { ...session, ...event } : session) ?? null} status={sessionsStatus} error={sessionsError} onRetry={onRetrySessions} selectedId={event.id} onSelect={onSelectSession} recurrenceLabel={recurrenceLabel} />}
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm" aria-labelledby="event-description">
             <h2 id="event-description" className="text-base font-semibold">Sobre o evento</h2>
             <p className="mt-4 whitespace-pre-line break-words text-sm leading-6 text-gray-600">{event.description || "Descrição não disponível."}</p>
@@ -125,7 +125,7 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
             </p>
           )}
         </section>
-        <EventRegistrationCard key={event.id} event={event} onEventUpdate={onEventUpdate} />
+        <EventRegistrationCard key={event.id} event={event} onEventUpdate={onEventUpdate} onReconcile={onReconcile} seriesReady={!event.series_id || sessionsStatus === "ready"} />
         </div>
       </div>
     </article>

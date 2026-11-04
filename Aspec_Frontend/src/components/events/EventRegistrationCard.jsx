@@ -8,6 +8,7 @@ import { getEventDetail } from "../../services/events";
 import { changeEventRegistration, getRegistrationErrorMessage } from "../../services/eventRegistrations";
 import { getSessionContext, isSessionCurrent } from "../../services/sessionContext";
 import { formatRegistrationDeadline } from "../../utils/eventFormatting";
+import { isFutureEventSession } from "../../utils/eventSessions";
 
 const buttonClass = "w-full rounded-lg bg-[#0D1F35] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:opacity-50";
 const goldButtonClass = "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#8A7043] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#796038] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8A7043] disabled:cursor-not-allowed disabled:opacity-50";
@@ -25,15 +26,17 @@ function deadlineIsOpen(event) {
   return !!formatRegistrationDeadline(event.registration_deadline) && Date.now() <= Date.parse(event.registration_deadline);
 }
 
-function RegistrationControls({ event, onEventUpdate, eligible, visitor, identity }) {
+function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, eligible, visitor, identity }) {
   const [dialog, setDialog] = useState(null);
+  const [scope, setScope] = useState("this");
   const [operation, setOperation] = useState({ pending: false, refreshing: false, stale: false, message: "", success: false });
   const [, setClock] = useState(0);
   const lifecycle = useRef(null);
   const lock = useRef(false);
   const openDeadline = deadlineIsOpen(event);
-  const canRegister = eligible && event.is_registered === false && event.registration_open === true && openDeadline;
-  const canCancel = eligible && event.is_registered === true && openDeadline;
+  const futureSession = !event.series_id || isFutureEventSession(event);
+  const canRegister = eligible && seriesReady && futureSession && event.is_registered === false && event.registration_open === true && openDeadline;
+  const canCancel = eligible && seriesReady && event.is_registered === true && openDeadline;
   const cancelledAwaitingRefresh = operation.success && operation.action === "cancel" && operation.stale;
   const registered = (operation.success && operation.action === "register" && operation.stale) || (event.is_registered === true && !cancelledAwaitingRefresh);
 
@@ -67,9 +70,11 @@ function RegistrationControls({ event, onEventUpdate, eligible, visitor, identit
     if (!current()) return;
     setOperation({ ...feedback, pending: false, refreshing: true, stale: true });
     try {
-      const updated = await getEventDetail(event.id, controller.signal);
+      const updated = typeof onReconcile === "function"
+        ? await onReconcile(controller.signal)
+        : await getEventDetail(event.id, controller.signal);
       if (!current()) return;
-      onEventUpdate(updated);
+      if (updated) onEventUpdate(updated);
       setOperation({ ...feedback, pending: false, refreshing: false, stale: false });
     } catch {
       if (current()) setOperation({ ...feedback, pending: false, refreshing: false, stale: true });
@@ -79,8 +84,8 @@ function RegistrationControls({ event, onEventUpdate, eligible, visitor, identit
   async function confirm() {
     const state = useAuthStore.getState();
     const action = dialog;
-    if (lock.current || operation.stale || identityKey(state) !== identity || !memberCanAct(state) || !deadlineIsOpen(event) ||
-      (action === "register" ? event.is_registered !== false || event.registration_open !== true : action !== "cancel" || event.is_registered !== true)) {
+    if (lock.current || operation.stale || !seriesReady || identityKey(state) !== identity || !memberCanAct(state) || !deadlineIsOpen(event) ||
+      (action === "register" ? (event.series_id && !isFutureEventSession(event)) || event.is_registered !== false || event.registration_open !== true : action !== "cancel" || event.is_registered !== true)) {
       if (!lock.current) setDialog(null);
       return;
     }
@@ -95,10 +100,11 @@ function RegistrationControls({ event, onEventUpdate, eligible, visitor, identit
     setOperation({ pending: true, refreshing: false, stale: false, message: "", success: false });
     let feedback;
     try {
-      await changeEventRegistration(event.id, action, controller.signal, context);
+      await changeEventRegistration(event.id, action, controller.signal, context, action === "register" && event.series_id && scope === "this_and_following" ? scope : undefined);
       feedback = { success: true, action, message: action === "register" ? "Inscrição efetuada com sucesso." : "Inscrição cancelada com sucesso." };
     } catch (error) {
-      feedback = { success: false, action, message: getRegistrationErrorMessage(error) };
+      const groupConflict = action === "register" && scope === "this_and_following" && error?.response?.status === 409;
+      feedback = { success: false, action, message: `${getRegistrationErrorMessage(error)}${groupConflict ? " Não foram efetuadas inscrições neste pedido." : ""}` };
     }
     if (!controller.signal.aborted && isSessionCurrent(context) && identityKey(useAuthStore.getState()) === identity) {
       setDialog(null);
@@ -149,6 +155,8 @@ function RegistrationControls({ event, onEventUpdate, eligible, visitor, identit
         {event.is_registered === null && !registered && (
           <p className="text-sm leading-6 text-gray-600">Não foi possível confirmar o estado da sua inscrição.</p>
         )}
+        {event.series_id && !futureSession && <p className="mt-3 text-sm text-gray-600">Esta sessão já começou ou não tem uma data de início válida. Não permite novas inscrições.</p>}
+        {event.series_id && !seriesReady && <p className="mt-3 text-sm text-gray-600">É necessário carregar as sessões da série para confirmar uma inscrição.</p>}
         {canRegister && !registered && (
           <button type="button" className={goldButtonClass} disabled={disabled} onClick={() => setDialog("register")}>
             <CircleCheck size={18} aria-hidden="true" /> Inscrever-me
@@ -202,13 +210,27 @@ function RegistrationControls({ event, onEventUpdate, eligible, visitor, identit
         onConfirm={confirm}
         onCancel={() => setDialog(null)}
       >
-        {dialog === "register" && <EventRegistrationSummary event={event} />}
+        {dialog === "register" && <>
+          <EventRegistrationSummary event={event} />
+          {event.series_id && <fieldset disabled={operation.pending} className="mt-4 min-w-0 space-y-3 text-left text-sm text-[#0D1F35]">
+            <legend className="mb-2 font-semibold">Sessões a inscrever</legend>
+            <label className="flex items-start gap-2 rounded-lg border border-[#E5DFD3] p-3">
+              <input type="radio" name="registration-scope" value="this" checked={scope === "this"} onChange={() => setScope("this")} className="mt-1 shrink-0 accent-[#8A7043]" />
+              <span className="min-w-0 break-words">Só nesta sessão</span>
+            </label>
+            <label className="flex items-start gap-2 rounded-lg border border-[#E5DFD3] p-3">
+              <input type="radio" name="registration-scope" value="this_and_following" checked={scope === "this_and_following"} onChange={() => setScope("this_and_following")} className="mt-1 shrink-0 accent-[#8A7043]" />
+              <span className="min-w-0 break-words">Nesta e nas seguintes</span>
+            </label>
+            {scope === "this_and_following" && <p className="text-xs leading-5 text-gray-600">Inclui esta sessão e as seguintes da série. Se alguma estiver lotada, fora do prazo ou já tiver a sua inscrição, o pedido é recusado por inteiro.</p>}
+          </fieldset>}
+        </>}
       </ConfirmDialog>
     </section>
   );
 }
 
-export default function EventRegistrationCard({ event, onEventUpdate }) {
+export default function EventRegistrationCard({ event, onEventUpdate, onReconcile, seriesReady = true }) {
   const status = useAuthStore((state) => state.status);
   const generation = useAuthStore((state) => state.sessionGeneration);
   const changing = useAuthStore((state) => state.sessionChanging);
@@ -222,6 +244,8 @@ export default function EventRegistrationCard({ event, onEventUpdate }) {
       identity={identity}
       event={event}
       onEventUpdate={onEventUpdate}
+      onReconcile={onReconcile}
+      seriesReady={seriesReady}
       eligible={eligible}
       visitor={visitor}
     />

@@ -53,15 +53,22 @@ export async function getMyEventRegistrations(
   return registrations
 }
 
-export async function changeEventRegistration(id, action, signal, context = getSessionContext()) {
-  if (!isEventId(id) || !["register", "cancel"].includes(action) || !isSessionCurrent(context)) {
+export async function changeEventRegistration(id, action, signal, context = getSessionContext(), scope) {
+  if (!isEventId(id) || !["register", "cancel"].includes(action) || !isSessionCurrent(context) ||
+    (scope !== undefined && (action !== "register" || scope !== "this_and_following"))) {
     throw new Error("O contexto da inscrição é inválido.");
   }
   const url = `/events/${encodeURIComponent(id)}/registrations`;
   const config = { signal: signal ? AbortSignal.any([signal, context.signal]) : context.signal, sessionGeneration: context.generation };
-  const response = action === "register" ? await api.post(url, undefined, config) : await api.delete(url, config);
+  const response = action === "register" ? await api.post(url, scope ? { scope } : undefined, config) : await api.delete(url, config);
+  const registrations = response.data?.data?.registrations;
+  const validGroup = scope === "this_and_following" && Array.isArray(registrations) && registrations.length > 0 &&
+    registrations.every((registration) => isEventId(registration?.id) && isEventId(registration.event_instance_id)) &&
+    registrations.some((registration) => registration.event_instance_id === id) &&
+    new Set(registrations.map((registration) => registration.id.toLowerCase())).size === registrations.length &&
+    new Set(registrations.map((registration) => registration.event_instance_id.toLowerCase())).size === registrations.length;
   const valid = response.data?.success === true && (action === "register"
-    ? response.status === 201 && isEventId(response.data?.data?.id) && response.data.data.event_instance_id === id
+    ? response.status === 201 && (scope ? validGroup : isEventId(response.data?.data?.id) && response.data.data.event_instance_id === id)
     : response.status === 200 && response.data.data === null);
   if (!isSessionCurrent(context) || !valid) throw new Error("Não foi possível confirmar a resposta da inscrição.");
 }
