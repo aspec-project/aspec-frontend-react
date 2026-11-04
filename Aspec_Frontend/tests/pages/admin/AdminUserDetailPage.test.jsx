@@ -230,6 +230,31 @@ describe('Detalhe do membro', () => {
     expect(screen.queryByText('Contactos comerciais')).not.toBeInTheDocument()
   })
 
+  it('as ligações de Contactos e redes não estão sublinhadas e só ficam sublinhadas ao passar o rato ou no foco', async () => {
+    show()
+
+    await loaded()
+    const links = region('Contactos e redes').getAllByRole('link')
+    expect(links.length).toBeGreaterThanOrEqual(3)
+
+    for (const link of links) {
+      expect(link.classList.contains('underline')).toBe(false)
+      expect(link).toHaveClass('hover:underline', 'focus-visible:underline')
+    }
+  })
+
+  it('as ligações de Contactos e redes mostram o contorno de foco do backoffice', async () => {
+    show()
+
+    await loaded()
+    const links = region('Contactos e redes').getAllByRole('link')
+    expect(links.length).toBeGreaterThanOrEqual(3)
+
+    for (const link of links) {
+      expect(link).toHaveClass('focus-visible:outline-2', 'focus-visible:outline-offset-2', 'focus-visible:outline-[#315a79]')
+    }
+  })
+
   it('sem contactos comerciais mostra Não indicado e nunca cai para os contactos pessoais', async () => {
     getAdminUser.mockResolvedValue(withProfile({ commercial_email: null, commercial_phone: null, website_url: null, social_links: [] }))
     show()
@@ -297,6 +322,68 @@ describe('Detalhe do membro', () => {
       expect(card.textContent).not.toMatch(/\d/)
       unmount()
     }
+  })
+
+  it('mostra os cartões por colunas (conta e congregação, contactos e negócio, avaliações e horário) e as sinalizadas em âmbar', async () => {
+    show()
+
+    await loaded()
+    const expectedOrder = ['Conta', 'Congregação', 'Contactos e redes', 'Sobre o negócio', 'Avaliações', 'Horário de atendimento']
+    const names = screen.getAllByRole('region')
+      .map((section) => section.querySelector('h2')?.textContent)
+      .filter((name) => expectedOrder.includes(name))
+    expect(names).toEqual(expectedOrder)
+
+    const received = within(region('Avaliações').getByRole('group', { name: 'No perfil do membro' }))
+    const flagged = received.getAllByRole('definition')[2]
+    expect(flagged).toHaveTextContent('1')
+    expect(flagged).toHaveClass('text-amber-700')
+  })
+
+  it('arruma os seis cartões em três colunas da grelha, dois em cada', async () => {
+    show()
+
+    await loaded()
+    const column = (name) => screen.getByRole('region', { name }).parentElement
+    const first = column('Conta')
+    const second = column('Contactos e redes')
+    const third = column('Avaliações')
+    expect(column('Congregação')).toBe(first)
+    expect(column('Sobre o negócio')).toBe(second)
+    expect(column('Horário de atendimento')).toBe(third)
+    expect(new Set([first, second, third]).size).toBe(3)
+
+    const grid = first.parentElement
+    expect(second.parentElement).toBe(grid)
+    expect(third.parentElement).toBe(grid)
+    expect([...grid.children]).toEqual([first, second, third])
+    expect(grid).toHaveClass('grid', 'lg:grid-cols-3')
+    for (const element of [first, second, third]) {
+      expect(element).toHaveClass('space-y-6')
+    }
+  })
+
+  it('mostra Imagens a toda a largura depois das colunas e a zona de risco no fim', async () => {
+    show()
+
+    await loaded()
+    const grid = screen.getByRole('region', { name: 'Conta' }).closest('[class~="lg:grid-cols-3"]')
+    const imagens = screen.getByRole('region', { name: /^Imagens/ })
+    const riskZone = screen.getByRole('region', { name: 'Zona de risco · RGPD' })
+    expect(grid.contains(imagens)).toBe(false)
+    expect(grid.compareDocumentPosition(imagens) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(imagens.compareDocumentPosition(riskZone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('um admin sem perfil mantém a conta e o perfil de membro lado a lado na mesma grelha', async () => {
+    getAdminUser.mockResolvedValue({ ...helena, phone: null, member_profile: null })
+    show()
+
+    await loaded('helena@brandao.pt')
+    const conta = screen.getByRole('region', { name: 'Conta' })
+    const perfil = screen.getByRole('region', { name: 'Perfil de membro' })
+    expect(perfil.parentElement).toBe(conta.parentElement)
+    expect(conta.parentElement).toHaveClass('lg:grid-cols-3')
   })
 
   it('agrupa o horário de atendimento e mostra Sem horário definido quando não há horas', async () => {
