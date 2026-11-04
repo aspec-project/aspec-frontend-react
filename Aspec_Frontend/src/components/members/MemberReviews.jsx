@@ -56,6 +56,40 @@ function ReviewCard({ review, mine = false, onEdit, editable, onReport }) {
   )
 }
 
+function RatingDistribution({ distribution, total }) {
+  const maximum = Math.max(...distribution.map((item) => item.count), 1)
+
+  return (
+    <section
+      className="mt-5 rounded-xl border border-[#e8eef5] bg-[#f8f9fa] p-4"
+      aria-label="Distribuição das avaliações por estrelas"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[#0d1f35]">Distribuição por estrelas</h3>
+        <span className="text-xs text-slate-500">
+          {total} {total === 1 ? 'avaliação' : 'avaliações'}
+        </span>
+      </div>
+
+      <ol className="mt-3 space-y-2">
+        {[...distribution].reverse().map(({ rating, count }) => (
+          <li key={rating} className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="w-3 text-right font-semibold text-[#0d1f35]">{rating}</span>
+            <Star size={13} className="shrink-0 fill-[#9b7b45] text-[#9b7b45]" aria-hidden="true" />
+            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-[#9b7b45] transition-[width]"
+                style={{ width: `${(count / maximum) * 100}%` }}
+              />
+            </div>
+            <span className="w-5 text-right tabular-nums">{count}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 /*
  * A mudança de contexto remonta o cartão para descartar imediatamente
  * comentários e formulários da identidade ou do perfil anteriores.
@@ -230,6 +264,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
         {confirmDelete && <div className="mt-4 rounded-lg border border-red-200 p-3 text-sm"><p>Pretende remover a sua avaliação?</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={busy || !data} className={`${buttonClass} bg-red-700 text-white`} onClick={() => submit(true)}>Confirmar remoção</button><button type="button" disabled={busy} className={buttonClass} onClick={() => setConfirmDelete(false)}>Manter avaliação</button></div></div>}
       </form>}
       {notice && <p role="status" className="mt-4 text-sm text-gray-600">{data ? notice.replace(' A atualizar avaliações…', '') : notice}</p>}
+      {data && <RatingDistribution distribution={data.rating_distribution} total={data.reviews_count} />}
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 [&_button[role=combobox]]:px-2.5 [&_button[role=combobox]]:py-1.5 [&_button[role=combobox]]:text-xs">
         <span id={`${formId}-sort-label`} className="sr-only">Ordenar avaliações</span>
         <SelectMenu id={`${formId}-sort`} label="Ordenar avaliações" labelId={`${formId}-sort-label`} value={sort} options={sortOptions} onChange={(value) => changeFilter(setSort, value)} variant="public-filter" disabled={busy} />

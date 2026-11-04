@@ -151,6 +151,12 @@ function validReview(item) {
     typeof item.reviewer?.business_name === 'string' && item.reviewer.business_name.trim() !== ''
 }
 
+function validRatingDistribution(value) {
+  return Array.isArray(value) && value.length === 5 && value.every((item, index) =>
+    item && item.rating === index + 1 && Number.isSafeInteger(item.count) && item.count >= 0,
+  )
+}
+
 function publicReview(item) {
   return {
     id: item.id, rating: item.rating, comment: item.comment, created_at: item.created_at,
@@ -175,9 +181,11 @@ export async function getMemberReviews(id, page = 1, signal, filters = {}) {
   const data = response.data?.data
   const pagination = data?.pagination
   const items = data?.items
+  const ratingDistribution = data?.rating_distribution
   if (response.data?.success !== true || !data ||
     !(data.average_rating === null || (typeof data.average_rating === 'number' && Number.isFinite(data.average_rating) && data.average_rating >= 0 && data.average_rating <= 5)) ||
     !Number.isSafeInteger(data.reviews_count) || data.reviews_count < 0 ||
+    !validRatingDistribution(ratingDistribution) ||
     !Array.isArray(items) || !pagination || !positiveInteger(pagination.current_page) ||
     pagination.current_page !== page || !positiveInteger(pagination.per_page) ||
     !Number.isSafeInteger(pagination.total) || pagination.total < 0 ||
@@ -194,6 +202,10 @@ export async function getMemberReviews(id, page = 1, signal, filters = {}) {
    */
   return {
     average_rating: data.average_rating, reviews_count: data.reviews_count,
+    rating_distribution: ratingDistribution.map((item) => ({
+      rating: item.rating,
+      count: item.count,
+    })),
     items: items.map(publicReview),
     pagination: { current_page: pagination.current_page, per_page: pagination.per_page, total: pagination.total, last_page: pagination.last_page },
   }
@@ -227,6 +239,7 @@ export async function getMemberReviewPage(id, page = 1, signal, filters = {}) {
   }
   return {
     average_rating: first.average_rating, reviews_count: first.reviews_count,
+    rating_distribution: first.rating_distribution,
     mine, items: rows,
     pagination: { current_page: currentPage, per_page: 5, total, last_page: lastPage },
   }
@@ -289,6 +302,91 @@ export async function reportMemberReview(reviewId, values, signal) {
     report: {
       id: report.id, review_id: report.review_id, reason: report.reason, comment: report.comment,
       source: report.source, resolved_at: report.resolved_at, created_at: report.created_at,
+    },
+  }
+}
+
+const MY_REVIEW_DIRECTIONS = ['all', 'received', 'written']
+const MY_REVIEW_STATUSES = ['all', 'visible', 'hidden', 'flagged']
+
+function validMyReview(item) {
+  return item &&
+    isMemberProfileId(item.id) &&
+    MY_REVIEW_DIRECTIONS.includes(item.direction) &&
+    Number.isInteger(item.rating) && item.rating >= 1 && item.rating <= 5 &&
+    typeof item.comment === 'string' &&
+    ['Visible', 'Hidden', 'Flagged'].includes(item.status) &&
+    nullableText(item.hidden_reason) &&
+    validReviewDate(item.created_at) &&
+    validReviewDate(item.updated_at) &&
+    (item.reviewer?.id === null || isMemberProfileId(item.reviewer?.id)) &&
+    typeof item.reviewer?.business_name === 'string' && item.reviewer.business_name.trim() !== '' &&
+    (item.reviewed?.id === null || isMemberProfileId(item.reviewed?.id)) &&
+    typeof item.reviewed?.business_name === 'string' && item.reviewed.business_name.trim() !== ''
+}
+
+/*
+ * Lista autenticada das avaliações recebidas e escritas pelo membro.
+ * A API só devolve dados das contas envolvidas e a validação preserva
+ * exatamente os campos necessários para a área privada.
+ */
+export async function getMyReviews({ direction = 'received', status = 'all', page = 1, perPage = 10 } = {}, signal) {
+  if (!MY_REVIEW_DIRECTIONS.includes(direction) ||
+    !MY_REVIEW_STATUSES.includes(status) ||
+    !positiveInteger(page) || page > 10000 ||
+    !positiveInteger(perPage) || perPage > 50) {
+    throw new Error('Os parâmetros das suas avaliações são inválidos.')
+  }
+
+  const response = await api.get('/me/reviews', {
+    params: {
+      direction,
+      status,
+      page,
+      per_page: perPage,
+    },
+    signal,
+  })
+  const data = response.data?.data
+  const pagination = data?.pagination
+  const items = data?.items
+
+  if (response.data?.success !== true || !Array.isArray(items) || !pagination ||
+    !positiveInteger(pagination.current_page) || pagination.current_page !== page ||
+    !positiveInteger(pagination.per_page) || pagination.per_page !== perPage ||
+    !Number.isSafeInteger(pagination.total) || pagination.total < 0 ||
+    !positiveInteger(pagination.last_page) || pagination.current_page > pagination.last_page ||
+    pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
+    items.length > pagination.per_page || items.length > pagination.total ||
+    new Set(items.map((item) => item?.id)).size !== items.length ||
+    !items.every(validMyReview)) {
+    throw new Error('A resposta das suas avaliações tem um formato inesperado.')
+  }
+
+  return {
+    items: items.map((item) => ({
+      id: item.id,
+      direction: item.direction,
+      rating: item.rating,
+      comment: item.comment,
+      status: item.status,
+      hidden_reason: item.hidden_reason,
+      reviewer: {
+        id: item.reviewer.id,
+        business_name: item.reviewer.business_name,
+      },
+      reviewed: {
+        id: item.reviewed.id,
+        business_name: item.reviewed.business_name,
+      },
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    })),
+    pagination: {
+      current_page: pagination.current_page,
+      per_page: pagination.per_page,
+      total: pagination.total,
+      last_page: pagination.last_page,
     },
   }
 }

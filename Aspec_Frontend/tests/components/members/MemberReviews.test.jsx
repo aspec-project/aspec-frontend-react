@@ -17,6 +17,10 @@ const review = {
 const body = (page = 1, items = [review], total = 2) => ({
   success: true, message: 'Avaliações', data: {
     average_rating: 4.8, reviews_count: total, items,
+    rating_distribution: [1, 2, 3, 4, 5].map((rating) => ({
+      rating,
+      count: rating === 5 ? total : 0,
+    })),
     pagination: { current_page: page, per_page: 5, total, last_page: Math.max(1, Math.ceil(total / 5)) },
   },
 })
@@ -46,6 +50,7 @@ describe('Avaliações públicas de membros', () => {
     expect(screen.queryByText('Dados privados')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
+    expect(screen.getByText('Distribuição por estrelas')).toBeInTheDocument()
     expect(adapter.mock.calls[0][0]).toMatchObject({ url: `/members/${id}/reviews`, params: { page: 1 }, skipAuthRedirect: true })
   })
 
@@ -94,7 +99,7 @@ describe('Avaliações públicas de membros', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('pagina no servidor e mantém a ordem recebida sem calcular histograma', async () => {
+  it('pagina no servidor e apresenta a distribuição enviada pela API', async () => {
     const user = userEvent.setup()
     const adapter = vi.fn((config) => Promise.resolve(response(config, body(config.params.page, [{ ...review, reviewer: { ...review.reviewer, business_name: `Autor página ${config.params.page}` } }], 6))))
     api.defaults.adapter = adapter
@@ -106,7 +111,7 @@ describe('Avaliações públicas de membros', () => {
     expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('button', { name: 'Avaliações seguintes' })).toBeDisabled()
     expect(adapter.mock.calls.map(([config]) => config.params.page)).toEqual([1, 1, 2])
-    expect(screen.queryByText(/histograma/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Distribuição por estrelas')).toBeInTheDocument()
   })
 
   it.each([401, 403, 404, 500, undefined])('erro %s permite repetir a lista sem afetar o perfil', async (status) => {
