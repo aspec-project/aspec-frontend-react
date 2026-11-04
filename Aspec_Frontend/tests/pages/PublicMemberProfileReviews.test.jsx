@@ -15,6 +15,10 @@ const profile = {
 }
 const reviews = {
   average_rating: 4, reviews_count: 1,
+  rating_distribution: [
+    { rating: 1, count: 0 }, { rating: 2, count: 0 }, { rating: 3, count: 0 },
+    { rating: 4, count: 1 }, { rating: 5, count: 0 },
+  ],
   items: [{ id, rating: 4, comment: 'Comentário de teste', created_at: '2026-10-01T12:00:00Z', reviewer: { id, business_name: 'Empresa avaliadora' } }],
   pagination: { current_page: 1, per_page: 5, total: 1, last_page: 1 },
 }
