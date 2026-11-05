@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -170,6 +170,7 @@ describe('Detalhe do evento no backoffice', () => {
     getPrayerCardsStatus.mockResolvedValue(baseStatus)
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
   })
