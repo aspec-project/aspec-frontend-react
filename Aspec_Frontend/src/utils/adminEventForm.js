@@ -63,7 +63,7 @@ export const EVENT_FORM_MESSAGES = {
   confirmLocation: 'Confirme a localização no mapa antes de guardar.',
   mapUnavailable: 'Pré-visualização do mapa indisponível.',
   mapTitle: 'Mapa da localização do evento',
-  timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
+  timeIncomplete: 'Preencha as horas e os minutos (ex.: 19:30).',
   deadlineDays: 'Indique um número inteiro de dias, a partir de 1.',
   firstDeadlinePast: 'O prazo calculado para a primeira sessão já passou.',
   seriesEndBeforeStart: 'A data de fim tem de ser igual ou posterior à data de início.',
