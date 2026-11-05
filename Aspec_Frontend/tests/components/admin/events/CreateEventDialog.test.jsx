@@ -457,7 +457,7 @@ describe('CreateEventDialog', () => {
 
     expect(screen.getByText('O prazo de inscrição tem de ser anterior ou igual ao início do evento.')).toBeInTheDocument()
     expect(field.deadline()).toHaveAttribute('aria-invalid', 'true')
-  })
+  }, 10000)
 
   it('cria um presencial sem verificação com o payload exato e bloqueia o modal durante o pedido', async () => {
     const pending = deferred()

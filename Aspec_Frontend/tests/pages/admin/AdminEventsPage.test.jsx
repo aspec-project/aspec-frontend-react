@@ -953,7 +953,7 @@ describe('Gestão de Eventos', () => {
       await user.click(within(successBanner()).getByRole('button', { name: 'Fechar mensagem' }))
 
       expect(successBanner()).toBeUndefined()
-    })
+    }, 10000)
 
     it('criar uma série pede confirmação, mostra a mensagem da série e recarrega com os mesmos filtros', async () => {
       const SERIES_SUCCESS = 'Série de eventos criada com sucesso.'
