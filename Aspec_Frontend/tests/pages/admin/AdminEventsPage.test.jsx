@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
@@ -188,6 +188,7 @@ describe('Gestão de Eventos', () => {
     getLocations.mockResolvedValue(locations)
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
   })

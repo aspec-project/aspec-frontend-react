@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -402,6 +402,7 @@ describe('Aprovar e recusar no painel', () => {
     getAdminDashboard.mockResolvedValue(dashboard())
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
     vi.restoreAllMocks()
@@ -703,6 +704,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     getAdminDashboard.mockResolvedValue(dashboard())
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
     vi.restoreAllMocks()
