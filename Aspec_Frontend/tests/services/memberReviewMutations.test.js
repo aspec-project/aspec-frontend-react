@@ -12,6 +12,10 @@ const review = (index, mine = false) => ({
 const response = (data, config, status = 200) => ({ data, config, status, statusText: '', headers: {} })
 const listBody = (all, page) => ({ success: true, data: {
   average_rating: 4.5, reviews_count: all.length,
+  rating_distribution: [1, 2, 3, 4, 5].map((rating) => ({
+    rating,
+    count: all.filter((item) => item.rating === rating).length,
+  })),
   items: all.slice((page - 1) * 5, page * 5),
   pagination: { current_page: page, per_page: 5, total: all.length, last_page: Math.max(1, Math.ceil(all.length / 5)) },
 } })

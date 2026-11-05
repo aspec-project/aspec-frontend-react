@@ -33,7 +33,16 @@ describe('Formulário de avaliação do perfil público', () => {
         return response(config, mine, existed ? 200 : 201)
       }
       const items = mine ? [mine, other] : [other]
-      return response(config, { items, average_rating: mine ? (mine.rating + 5) / 2 : 5, reviews_count: items.length, pagination: { current_page: 1, per_page: 5, total: items.length, last_page: 1 } })
+      return response(config, {
+        items,
+        average_rating: mine ? (mine.rating + 5) / 2 : 5,
+        reviews_count: items.length,
+        rating_distribution: [1, 2, 3, 4, 5].map((rating) => ({
+          rating,
+          count: items.filter((item) => item.rating === rating).length,
+        })),
+        pagination: { current_page: 1, per_page: 5, total: items.length, last_page: 1 },
+      })
     })
     api.defaults.adapter = adapter
   })
@@ -124,7 +133,7 @@ describe('Formulário de avaliação do perfil público', () => {
     await user.click(screen.getByRole('option', { name: '5 estrelas', exact: true }))
     await waitFor(() => expect(adapter.mock.calls.some(([c]) => c.params?.rating === 5)).toBe(true))
     await screen.findByRole('button', { name: 'Editar', exact: true })
-    expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('A minha avaliação')
+    expect(screen.getByText('A minha avaliação').closest('li')).toHaveTextContent('A minha avaliação')
     expect(screen.getAllByText(initialMine.comment)).toHaveLength(1)
     api.defaults.adapter = async (config) => { throw new AxiosError('Erro', 'ERR_BAD_RESPONSE', config, undefined, { status: 500 }) }
     await user.click(screen.getByRole('combobox', { name: 'Ordenar avaliações' }))

@@ -36,6 +36,10 @@ describe('Sinalizar avaliação através do contrato real', () => {
       }
       return { config, status: 200, statusText: 'OK', headers: {}, data: { success: true, data: {
       average_rating: rows.length ? 4 : null, reviews_count: rows.length, items: rows,
+      rating_distribution: [1, 2, 3, 4, 5].map((rating) => ({
+        rating,
+        count: rows.filter((item) => item.rating === rating).length,
+      })),
       pagination: { current_page: 1, per_page: 5, total: rows.length, last_page: 1 },
     } } }
     })
