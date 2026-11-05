@@ -34,7 +34,7 @@ const END_TIME_ERROR = 'A hora de fim deve ser posterior à hora de início.'
 const NOT_FOUND = 'Não foi possível encontrar esta morada no mapa. Verifique a morada e tente novamente.'
 const UNAVAILABLE = 'O serviço de localização não está disponível de momento. Tente novamente dentro de instantes.'
 const SUCCESS = 'Evento criado com sucesso.'
-const FORMAT_ERROR = 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).'
+const INCOMPLETE_ERROR = 'Preencha as horas e os minutos (ex.: 19:30).'
 const APPROXIMATE_TITLE = 'A localização no mapa é aproximada'
 const CONFIRM_LOCATION = 'Confirmar localização'
 const CONFIRM_LOCATION_FOOTER = 'Confirme a localização no mapa antes de guardar.'
@@ -80,6 +80,18 @@ function labelled(text) {
   const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
   return screen.getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
+}
+
+function hoursBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, horas` })
+}
+
+function minutesBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, minutos` })
+}
+
+function timeValue(label, scope = screen) {
+  return `${hoursBox(label, scope).value}:${minutesBox(label, scope).value}`
 }
 
 const field = {
@@ -345,16 +357,18 @@ describe('CreateEventDialog', () => {
     expect(describedIds(field.deadline())).toContain(screen.getByText(DEADLINE_HINT).id)
   })
 
-  it('as horas são campos de texto ao minuto e uma hora incompleta continua em falta', async () => {
+  it('as horas são caixas de horas e minutos e uma hora incompleta continua em falta', async () => {
     const user = userEvent.setup({ delay: null })
     show()
 
-    for (const [element, name] of [[field.start(), 'startTime'], [field.end(), 'endTime']]) {
-      expect(screen.getAllByRole('textbox')).toContain(element)
+    for (const [label, element, name] of [['Hora de início', field.start(), 'startTime'], ['Hora de fim', field.end(), 'endTime']]) {
+      expect(element).toHaveAttribute('role', 'spinbutton')
+      expect(element).toBe(hoursBox(label))
       expect(element).toHaveValue('')
-      expect(element).toHaveAttribute('placeholder', 'hh:mm')
       expect(element).toHaveAttribute('name', name)
+      expect(element).toHaveAttribute('placeholder', '--')
       expect(element).toHaveAttribute('aria-required', 'true')
+      expect(minutesBox(label)).toHaveAttribute('aria-required', 'true')
     }
 
     await user.type(field.start(), '17:39')
@@ -368,17 +382,18 @@ describe('CreateEventDialog', () => {
     await typeInto(user, field.end(), '17:00')
 
     const error = screen.getByText(END_TIME_ERROR)
-    expect(describedIds(field.end())).toContain(error.id)
+    expect(describedIds(hoursBox('Hora de fim'))).toContain(error.id)
     expect(submitButton()).toBeDisabled()
 
-    await typeInto(user, field.start(), '17:3')
+    await user.click(minutesBox('Hora de início'))
+    await user.keyboard('{Backspace}')
 
     expect(missingText()).toHaveTextContent('hora de início')
-    expect(screen.queryByText(FORMAT_ERROR)).not.toBeInTheDocument()
+    expect(screen.queryByText(INCOMPLETE_ERROR)).not.toBeInTheDocument()
 
     await user.tab()
 
-    expect(screen.getByText(FORMAT_ERROR)).toBeInTheDocument()
+    expect(screen.getByText(INCOMPLETE_ERROR)).toBeInTheDocument()
   }, 10000)
 
   it('as listas abertas do tipo e da delegação têm nome próprio', async () => {
@@ -700,6 +715,24 @@ describe('CreateEventDialog', () => {
     expect(screen.getByText(START_ERROR)).toBeInTheDocument()
   })
 
+  it('um 422 só na hora de início assinala as duas caixas e foca a caixa das horas', async () => {
+    const START_ERROR = 'A hora de início não é válida.'
+    createAdminEvent.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', {
+      event_start_time: [START_ERROR],
+    }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await fillValidInPerson(user)
+
+    await user.click(submitButton())
+
+    const message = await screen.findByText(START_ERROR)
+    expect(hoursBox('Hora de início')).toHaveAttribute('aria-invalid', 'true')
+    expect(minutesBox('Hora de início')).toHaveAttribute('aria-invalid', 'true')
+    expect(describedIds(hoursBox('Hora de início'))).toContain(message.id)
+    await waitFor(() => expect(hoursBox('Hora de início')).toHaveFocus())
+  })
+
   it('o Escape fecha só a lista ou o calendário aberto e um segundo Escape fecha o modal', async () => {
     const user = userEvent.setup({ delay: null })
     const { onClose } = show()
@@ -858,7 +891,17 @@ describe('CreateEventDialog', () => {
       sequence.push(document.activeElement)
     }
 
-    expect(sequence).toEqual([field.category(), field.location(), field.date(), field.start(), field.end(), field.deadline(), field.venue()])
+    expect(sequence).toEqual([
+      field.category(),
+      field.location(),
+      field.date(),
+      hoursBox('Hora de início'),
+      minutesBox('Hora de início'),
+      hoursBox('Hora de fim'),
+      minutesBox('Hora de fim'),
+      field.deadline(),
+      field.venue(),
+    ])
   })
 
   it('cria um evento online só com o link e recusa links que não sejam http ou https', async () => {
@@ -1488,8 +1531,8 @@ describe('CreateEventDialog — série recorrente', () => {
       const frequency = inside.getByRole('combobox', { name: /^Frequência/ })
       const first = inside.getByLabelText(/^Início\s*\*?\s*\(inclusive\)$/)
       const last = inside.getByLabelText(/^Fim\s*\*?\s*\(inclusive\)$/)
-      const start = inside.getByRole('textbox', { name: /^Hora de início/ })
-      const end = inside.getByRole('textbox', { name: /^Hora de fim/ })
+      const start = hoursBox('Hora de início', inside)
+      const end = hoursBox('Hora de fim', inside)
       const days = inside.getByRole('spinbutton', { name: /^Fechar inscrições antes de cada sessão/ })
 
       expect(first.tagName).toBe('BUTTON')
@@ -1504,8 +1547,8 @@ describe('CreateEventDialog — série recorrente', () => {
       expect(describedTexts).toContain(DAYS_HINT)
       expect(screen.getAllByText('(inclusive)')).toHaveLength(2)
 
-      expect(screen.getAllByLabelText(/^Hora de início/)).toHaveLength(1)
-      expect(screen.getAllByLabelText(/^Hora de fim/)).toHaveLength(1)
+      expect(screen.getAllByRole('spinbutton', { name: /^Hora de início, / })).toHaveLength(2)
+      expect(screen.getAllByRole('spinbutton', { name: /^Hora de fim, / })).toHaveLength(2)
       expect(document.querySelectorAll('[name="eventDate"]')).toHaveLength(1)
       expect(screen.queryByLabelText(/^Data limite de inscrição/)).not.toBeInTheDocument()
       expect(screen.queryByLabelText(/^Data\s*\*?$/)).not.toBeInTheDocument()
@@ -1569,8 +1612,8 @@ describe('CreateEventDialog — série recorrente', () => {
       await chooseRecurring(user)
 
       expect(series.firstDate()).toHaveTextContent('20 Mar 2099')
-      expect(within(recurrenceBox()).getByRole('textbox', { name: /^Hora de início/ })).toHaveValue('19:30')
-      expect(within(recurrenceBox()).getByRole('textbox', { name: /^Hora de fim/ })).toHaveValue('21:30')
+      expect(timeValue('Hora de início', within(recurrenceBox()))).toBe('19:30')
+      expect(timeValue('Hora de fim', within(recurrenceBox()))).toBe('21:30')
 
       await pickDate(user, series.firstDate(), '27 de março de 2099')
       await user.click(repetitionButton('Pontual'))

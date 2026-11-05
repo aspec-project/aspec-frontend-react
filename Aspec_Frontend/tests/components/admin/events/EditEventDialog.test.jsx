@@ -136,6 +136,18 @@ function queryLabelled(text) {
   return screen.queryByLabelText(new RegExp(`^${escapeRegExp(text)}\\s*\\*?$`))
 }
 
+function hoursBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, horas` })
+}
+
+function minutesBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, minutos` })
+}
+
+function timeValue(label, scope = screen) {
+  return `${hoursBox(label, scope).value}:${minutesBox(label, scope).value}`
+}
+
 const field = {
   title: () => labelled('Título do evento'),
   category: () => labelled('Tipo de evento'),
@@ -272,9 +284,9 @@ describe('EditEventDialog', () => {
     expect(field.location()).toHaveTextContent('Lisboa')
     expect(field.date().tagName).toBe('BUTTON')
     expect(field.date()).toHaveTextContent('21 Jan 2099')
-    expect(field.start()).toHaveAttribute('placeholder', 'hh:mm')
-    expect(field.start()).toHaveValue('08:00')
-    expect(field.end()).toHaveValue('10:00')
+    expect(field.start()).toHaveAttribute('placeholder', '--')
+    expect(timeValue('Hora de início')).toBe('08:00')
+    expect(timeValue('Hora de fim')).toBe('10:00')
     expect(field.deadline().tagName).toBe('BUTTON')
     expect(field.deadline()).toHaveTextContent('19 Jan 2099')
     expect(field.venue()).toHaveValue('Centro de Congressos')
@@ -299,8 +311,8 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
 
-    expect(screen.getAllByRole('textbox')).toContain(field.start())
-    expect(field.start()).toHaveValue('18:45')
+    expect(field.start()).toHaveAttribute('role', 'spinbutton')
+    expect(timeValue('Hora de início')).toBe('18:45')
     expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
 
     await typeInto(user, field.start(), '17:39')
@@ -322,13 +334,30 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00' }))
 
-    expect(screen.getAllByRole('textbox')).toContain(field.end())
+    expect(field.end()).toHaveAttribute('role', 'spinbutton')
     await typeInto(user, field.end(), '8:00')
     await user.tab()
 
-    expect(field.end()).toHaveValue('08:00')
+    expect(timeValue('Hora de fim')).toBe('08:00')
     const error = screen.getByText(END_TIME_ERROR)
     expect(describedIds(field.end())).toContain(error.id)
+    expect(submitButton()).toBeDisabled()
+  })
+
+  it('as setas nos minutos contam como alteração e voltar à hora guardada desfaz a alteração', async () => {
+    const user = userEvent.setup({ delay: null })
+    show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
+
+    await user.click(minutesBox('Hora de início'))
+    await user.keyboard('{ArrowUp}')
+
+    expect(timeValue('Hora de início')).toBe('18:46')
+    expect(submitButton()).toBeEnabled()
+
+    await user.keyboard('{ArrowDown}')
+
+    expect(timeValue('Hora de início')).toBe('18:45')
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
   })
 

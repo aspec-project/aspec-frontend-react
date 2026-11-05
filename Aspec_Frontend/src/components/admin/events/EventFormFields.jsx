@@ -25,6 +25,10 @@ const REPETITIONS = [
   { value: true, label: 'Recorrente', icon: Repeat },
 ]
 
+/** Labels das horas, usadas na label do campo e no nome das caixas de horas e minutos. */
+const START_LABEL = 'Hora de início'
+const END_LABEL = 'Hora de fim'
+
 /** Campos da série: um erro em qualquer um esconde a pré-visualização e o texto de espera. */
 const SERIES_ERROR_FIELDS = ['frequency', 'seriesEndsOn', 'deadlineDaysBefore']
 
@@ -173,11 +177,11 @@ export default function EventFormFields({ values, errors, options, onFieldChange
   const zoneName = options.locations.find((location) => location.id === values.locationId)?.name ?? ''
   const timeFields = (
     <>
-      <EventField {...fieldProps('startTime', 'Hora de início')}>
-        <TimeInput {...customProps('startTime')} required />
+      <EventField {...fieldProps('startTime', START_LABEL)}>
+        <TimeInput {...customProps('startTime')} label={START_LABEL} required />
       </EventField>
-      <EventField {...fieldProps('endTime', 'Hora de fim')}>
-        <TimeInput {...customProps('endTime')} required />
+      <EventField {...fieldProps('endTime', END_LABEL)}>
+        <TimeInput {...customProps('endTime')} label={END_LABEL} required />
       </EventField>
     </>
   )
