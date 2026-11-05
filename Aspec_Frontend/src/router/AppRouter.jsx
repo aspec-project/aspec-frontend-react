@@ -18,6 +18,7 @@ import PendingAccountPage from '../pages/PendingAccountPage'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import MainLayout from '../components/layout/MainLayout'
 import MemberAreaLayout from '../components/layout/MemberAreaLayout'
+import MemberProfileRequired from '../components/member/MemberProfileRequired'
 import AdminLayout from '../components/layout/AdminLayout'
 import AdminUsersPage from '../pages/admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/admin/AdminUserDetailPage'
@@ -75,11 +76,11 @@ function AppRouter() {
         element={<PageTitle title="Conta pendente"><PendingAccountPage /></PageTitle>}
       />
 
-      {/* Área privada do membro: exige sessão ativa e mostra o layout do Figma. */}
+      {/* Área privada do membro (membros e admins com conta ativa): mostra o layout do Figma. */}
       <Route
         element={
           <ProtectedRoute
-            allowedRoles={['Member']}
+            allowedRoles={['Member', 'Admin']}
             allowedStatuses={['Active']}
           />
         }
@@ -91,28 +92,35 @@ function AppRouter() {
 
         <Route element={<MainLayout />}>
           <Route element={<MemberAreaLayout />}>
-            <Route path="/perfil" element={<PageTitle title="Perfil"><MemberProfilePage /></PageTitle>} />
+            {/* Só estas rotas precisam de perfil de membro; o admin técnico não tem perfil. */}
+            <Route element={<MemberProfileRequired />}>
+              <Route path="/perfil" element={<PageTitle title="Perfil"><MemberProfilePage /></PageTitle>} />
+              <Route path="/perfil/portefolio" element={<PageTitle title="Portefólio"><PortfolioPage /></PageTitle>} />
+
+              {/*
+               * A aba de avaliações aguarda um endpoint autenticado próprio.
+               * Não apresentamos dados fictícios enquanto a API não existir.
+               */}
+              <Route
+                path="/perfil/inscricoes"
+                element={<PageTitle title="Inscrições em eventos"><MemberRegistrationsPage /></PageTitle>}
+              />
+              <Route
+                path="/perfil/avaliacoes"
+                element={<PageTitle title="Avaliações"><MemberReviewsPage /></PageTitle>}
+              />
+              <Route
+                path="/perfil/cartoes-oracao"
+                element={<PageTitle title="Cartões de oração"><MemberPrayerCardsPage /></PageTitle>}
+              />
+              <Route
+                path="/perfil/subscricao"
+                element={<PageTitle title="Subscrição"><SubscriptionPage /></PageTitle>}
+              />
+            </Route>
+
             {/* A edição é feita diretamente nos cartões da página de perfil. */}
             <Route path="/perfil/editar" element={<Navigate replace to="/perfil" />} />
-            <Route path="/perfil/portefolio" element={<PageTitle title="Portefólio"><PortfolioPage /></PageTitle>} />
-
-            {/*
-             * A aba de avaliações aguarda um endpoint autenticado próprio.
-             * Não apresentamos dados fictícios enquanto a API não existir.
-             */}
-            <Route
-              path="/perfil/inscricoes"
-              element={<PageTitle title="Inscrições em eventos"><MemberRegistrationsPage /></PageTitle>}
-            />
-            <Route
-              path="/perfil/avaliacoes"
-              element={<PageTitle title="Avaliações"><MemberReviewsPage /></PageTitle>}
-            />
-            <Route
-              path="/perfil/cartoes-oracao"
-              element={<PageTitle title="Cartões de oração"><MemberPrayerCardsPage /></PageTitle>}
-            />
-
             <Route
               path="/perfil/conta"
               element={<PageTitle title="Informações da conta"><AccountInformationPage /></PageTitle>}
@@ -120,10 +128,6 @@ function AppRouter() {
             <Route
               path="/perfil/conta/password"
               element={<Navigate replace to="/perfil/conta" />}
-            />
-            <Route
-              path="/perfil/subscricao"
-              element={<PageTitle title="Subscrição"><SubscriptionPage /></PageTitle>}
             />
 
             {/*

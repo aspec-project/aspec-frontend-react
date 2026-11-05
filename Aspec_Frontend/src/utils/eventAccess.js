@@ -1,4 +1,5 @@
 import { formatRegistrationDeadline } from "./eventFormatting";
+import { canActAsMember } from "./memberAccess";
 
 /*
  * Este filtro evita conservar o URL privado em contextos não autorizados.
@@ -7,8 +8,7 @@ import { formatRegistrationDeadline } from "./eventFormatting";
 export function getOnlineMeetingUrl(event, auth, now = Date.now()) {
   if (auth?.status !== "authenticated" || auth.sessionChanging ||
     typeof auth.user?.id !== "string" || !auth.user.id.trim() ||
-    !["Member", "Admin"].includes(auth.user.role?.name) ||
-    auth.user.account_status?.name !== "Active" ||
+    !canActAsMember(auth.user) ||
     event?.is_online !== true || event.is_registered !== true ||
     !formatRegistrationDeadline(event.registration_deadline) ||
     !Number.isFinite(now) || now <= Date.parse(event.registration_deadline) ||
