@@ -6,6 +6,7 @@ import { MEMBER_REVIEW_REPORT_REASONS, reportMemberReview } from '../../services
 import { normalizeError } from '../../services/api'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
 import { useAuthStore } from '../../store/authStore'
+import { canReportReviews } from '../../utils/memberAccess'
 
 const fallbackMessages = {
   401: 'A sessão terminou. Entre novamente para sinalizar.',
@@ -32,8 +33,8 @@ export default function ReportReviewDialog({ review, onClose, onReported }) {
   const sessionChanging = useAuthStore((state) => state.sessionChanging)
   const [origin] = useState(() => ({ user, generation, reviewId: review.id, context: getSessionContext() }))
   const eligible = user === origin.user && generation === origin.generation && review.id === origin.reviewId &&
-    status === 'authenticated' && !sessionChanging && user?.role?.name === 'Member' &&
-    user?.account_status?.name === 'Active' && review.is_mine === false && isSessionCurrent(origin.context)
+    status === 'authenticated' && !sessionChanging && canReportReviews(user) &&
+    review.is_mine === false && isSessionCurrent(origin.context)
   const validReason = MEMBER_REVIEW_REPORT_REASONS.some((option) => option.value === reason)
   const commentLength = [...comment].length
   const commentError = errors.comment || (commentLength > 2000 ? 'O comentário não pode exceder 2000 caracteres.' : '')
@@ -44,8 +45,8 @@ export default function ReportReviewDialog({ review, onClose, onReported }) {
     if (requestRef.current) return
     const auth = useAuthStore.getState()
     if (!eligible || !isSessionCurrent(origin.context) || auth.user !== origin.user || auth.sessionGeneration !== origin.generation ||
-      auth.status !== 'authenticated' || auth.sessionChanging || auth.user?.role?.name !== 'Member' ||
-      auth.user?.account_status?.name !== 'Active' || review.is_mine !== false) return
+      auth.status !== 'authenticated' || auth.sessionChanging || !canReportReviews(auth.user) ||
+      review.is_mine !== false) return
     const fields = {}
     if (!validReason) fields.reason = 'Selecione um motivo.'
     if (commentLength > 2000) fields.comment = 'O comentário não pode exceder 2000 caracteres.'
@@ -59,7 +60,7 @@ export default function ReportReviewDialog({ review, onClose, onReported }) {
     const current = () => !controller.signal.aborted && isSessionCurrent(context) &&
       useAuthStore.getState().user === origin.user && useAuthStore.getState().sessionGeneration === origin.generation &&
       useAuthStore.getState().status === 'authenticated' && !useAuthStore.getState().sessionChanging &&
-      useAuthStore.getState().user?.role?.name === 'Member' && useAuthStore.getState().user?.account_status?.name === 'Active'
+      canReportReviews(useAuthStore.getState().user)
     try {
       const result = await reportMemberReview(review.id, { reason, comment: comment.trim() || null }, AbortSignal.any([controller.signal, context.signal]))
       if (current()) onReported?.(result)

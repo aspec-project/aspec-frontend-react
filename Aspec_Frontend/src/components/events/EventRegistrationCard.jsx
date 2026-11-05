@@ -9,13 +9,23 @@ import { changeEventRegistration, getRegistrationErrorMessage } from "../../serv
 import { getSessionContext, isSessionCurrent } from "../../services/sessionContext";
 import { formatRegistrationDeadline } from "../../utils/eventFormatting";
 import { isFutureEventSession } from "../../utils/eventSessions";
+import { canActAsMember, hasMemberProfile } from "../../utils/memberAccess";
 
 const buttonClass = "w-full rounded-lg bg-[#0D1F35] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:opacity-50";
 const goldButtonClass = "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#8A7043] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#796038] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#8A7043] disabled:cursor-not-allowed disabled:opacity-50";
 const cancelButtonClass = "mt-4 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-[#0D1F35] hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:opacity-50";
 
 function memberCanAct(state) {
-  return state.status === "authenticated" && !state.sessionChanging && !!state.user?.id && state.user.role?.name === "Member" && state.user.account_status?.name === "Active";
+  return state.status === "authenticated" && !state.sessionChanging && !!state.user?.id && canActAsMember(state.user);
+}
+
+/**
+ * Indica se a sessão é de um admin técnico ativo (sem perfil de membro).
+ * @param {object} state Estado da sessão (status, sessionChanging e user).
+ * @returns {boolean}
+ */
+function isTechnicalAdmin(state) {
+  return state.status === "authenticated" && !state.sessionChanging && state.user?.role?.name === "Admin" && state.user.account_status?.name === "Active" && !hasMemberProfile(state.user);
 }
 
 function identityKey(state) {
@@ -26,7 +36,7 @@ function deadlineIsOpen(event) {
   return !!formatRegistrationDeadline(event.registration_deadline) && Date.now() <= Date.parse(event.registration_deadline);
 }
 
-function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, eligible, visitor, identity }) {
+function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, eligible, visitor, technicalAdmin, identity }) {
   const [dialog, setDialog] = useState(null);
   const [scope, setScope] = useState("this");
   const [operation, setOperation] = useState({ pending: false, refreshing: false, stale: false, message: "", success: false });
@@ -140,7 +150,9 @@ function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, 
   } else if (!eligible) {
     content = (
       <p className="text-sm leading-6 text-gray-600">
-        A inscrição está disponível apenas para membros ASPEC ativos com sessão confirmada.
+        {technicalAdmin
+          ? "Esta conta de administração não tem perfil de membro, por isso não se pode inscrever em eventos."
+          : "A inscrição está disponível apenas para membros ASPEC ativos com sessão confirmada."}
       </p>
     );
   } else {
@@ -237,6 +249,7 @@ export default function EventRegistrationCard({ event, onEventUpdate, onReconcil
   const user = useAuthStore((state) => state.user);
   const eligible = memberCanAct({ status, sessionChanging: changing, user });
   const visitor = !user && status === "idle" && !changing;
+  const technicalAdmin = isTechnicalAdmin({ status, sessionChanging: changing, user });
   const identity = identityKey({ status, sessionGeneration: generation, sessionChanging: changing, user });
   return (
     <RegistrationControls
@@ -248,6 +261,7 @@ export default function EventRegistrationCard({ event, onEventUpdate, onReconcil
       seriesReady={seriesReady}
       eligible={eligible}
       visitor={visitor}
+      technicalAdmin={technicalAdmin}
     />
   );
 }

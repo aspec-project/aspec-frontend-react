@@ -1,17 +1,34 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
   Menu,
   X,
   ChevronDown,
   User,
-  Pencil,
   LogOut,
   Settings,
+  LayoutGrid,
+  UserCog,
 } from "lucide-react";
 import { useAuthStore } from '../../store/authStore'
+import { getAccountMenuSections } from '../../utils/accountMenu'
 import MemberAvatar from '../member/MemberAvatar'
 
+/* O "†" vem do CSS para não entrar no texto (nome acessível) da ligação. */
+const accountMenuIcons = {
+  'public-profile': <User size={14} aria-hidden="true" />,
+  'edit-profile': <Settings size={14} aria-hidden="true" />,
+  'prayer-cards': <span aria-hidden="true" className="inline-flex w-3.5 justify-center before:content-['†']" />,
+  'admin-dashboard': <LayoutGrid size={14} aria-hidden="true" />,
+  account: <UserCog size={14} aria-hidden="true" />,
+}
+
+const accountMenuItemClass = "w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-slate-50 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#315a79]"
+
+/**
+ * Cabeçalho público com a navegação principal e o menu de conta do utilizador autenticado.
+ * @returns {JSX.Element}
+ */
 export default function Header() {
   /*
    * Obtém o utilizador autenticado diretamente da store global.
@@ -41,24 +58,31 @@ export default function Header() {
     user?.memberProfile?.logo_url ??
     ''
 
-  /*
-   * Normaliza o nome do papel devolvido pela API para podermos
-   * decidir que opções do Header mostrar a cada utilizador.
-   */
-  const roleName = user?.role?.name?.toLowerCase() ?? ''
-  const isMember = roleName === 'member'
-  const isAdmin = roleName === 'admin'
-  /* O diretório identifica cada empresa pelo ID do perfil, não pelo da conta. */
-  const memberProfileId = user?.member_profile?.id ?? user?.memberProfile?.id ?? ''
-  const publicProfilePath = memberProfileId
-    ? `/membros/${encodeURIComponent(memberProfileId)}`
-    : '/membros'
+  const accountMenuSections = getAccountMenuSections(user)
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const mobileButtonRef = useRef(null);
   const accountButtonRef = useRef(null);
+  const accountMenuRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!userMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!accountMenuRef.current?.contains(event.target)) setUserMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [userMenuOpen]);
+
+  /* Sem relatedTarget não fecha: no Safari clicar numa ligação não lhe dá foco. */
+  const handleAccountMenuBlur = (event) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget && !accountMenuRef.current?.contains(nextTarget)) setUserMenuOpen(false);
+  };
 
   const closeMenus = () => {
     setMobileOpen(false);
@@ -163,7 +187,7 @@ export default function Header() {
             )}
 
             {user && (
-              <div className="relative">
+              <div ref={accountMenuRef} onBlur={handleAccountMenuBlur} className="relative">
                 <button
                   ref={accountButtonRef}
                   type="button"
@@ -183,50 +207,31 @@ export default function Header() {
                 </button>
 
                 {userMenuOpen && (
-                  <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-48 bg-card text-foreground rounded-lg shadow-xl border border-border py-1 z-50">
-                  {isMember && (
-                    <>
-                      {/* A vista pública é separada da área privada de edição. */}
-                      <button
-                        onClick={() => {
-                          navigate(publicProfilePath)
-                          setUserMenuOpen(false)
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                      >
-                        <User size={14} /> O meu perfil
-                      </button>
-                      <button
-                        onClick={() => {
-                          navigate('/perfil')
-                          setUserMenuOpen(false)
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                      >
-                        <Pencil size={14} /> Editar perfil
-                      </button>
-                    </>
-                  )}
-
-                    {isAdmin && (
-                      <button
-                        onClick={() => {
-                          navigate('/admin')
-                          setUserMenuOpen(false)
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 cursor-pointer"
-                      >
-                        <Settings size={14} /> Administração
-                      </button>
-                    )}
-                    <hr className="my-1 border-border" />
+                  <div id="public-account-menu" className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50">
+                    {accountMenuSections.map((section, index) => (
+                      <div key={section[0].id}>
+                        {index > 0 && <hr className="my-1 border-slate-200" />}
+                        {section.map((item) => (
+                          <Link
+                            key={item.id}
+                            to={item.to}
+                            onClick={() => setUserMenuOpen(false)}
+                            className={`${accountMenuItemClass} ${item.tone === 'admin' ? 'text-[#8a7043] font-medium' : 'text-[#0d1f35]'}`}
+                          >
+                            {accountMenuIcons[item.id]}
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    ))}
+                    {accountMenuSections.length > 0 && <hr className="my-1 border-slate-200" />}
                     <button
                       type="button"
                       onClick={handleLogout}
                       disabled={isLoggingOut}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <LogOut size={14} />
+                      <LogOut size={14} aria-hidden="true" />
                       {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
                     </button>
                   </div>
@@ -306,35 +311,16 @@ export default function Header() {
             */}
             {user && (
               <>
-                {isMember && (
-                  <>
-                    {/* O perfil público e a área privada têm destinos distintos. */}
-                    <Link
-                      to={publicProfilePath}
-                      onClick={() => setMobileOpen(false)}
-                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
-                    >
-                      O meu perfil
-                    </Link>
-                    <Link
-                      to="/perfil"
-                      onClick={() => setMobileOpen(false)}
-                      className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
-                    >
-                      Editar perfil
-                    </Link>
-                  </>
-                )}
-
-                {isAdmin && (
+                {accountMenuSections.flat().map((item) => (
                   <Link
-                    to="/admin"
+                    key={item.id}
+                    to={item.to}
                     onClick={() => setMobileOpen(false)}
                     className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
                   >
-                    Administração
+                    {item.label}
                   </Link>
-                )}
+                ))}
 
                 <button
                   type="button"

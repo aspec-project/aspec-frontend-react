@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getPublicMemberProfile, isMemberProfileId } from '../services/members'
 import { useAuthStore } from '../store/authStore'
+import { canActAsMember } from '../utils/memberAccess'
 import PublicMemberProfile from '../components/members/PublicMemberProfile'
 import PageTitle from '../components/PageTitle'
 
@@ -12,7 +13,7 @@ export default function PublicMemberProfilePage() {
   const sessionGeneration = useAuthStore((state) => state.sessionGeneration)
   const showLockedContacts = !user && ['idle', 'error'].includes(sessionStatus)
   const allowContacts = sessionStatus === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
-  const allowReview = allowContacts && user?.role?.name === 'Member'
+  const allowReview = allowContacts && canActAsMember(user)
   const allowComments = allowContacts && !!user?.id
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)

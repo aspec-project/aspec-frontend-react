@@ -128,7 +128,7 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByText('912345678')
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
+    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'yes')
     expect(screen.getByText(fullAddress)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     const map = screen.getByTitle('Mapa da localização do membro')
@@ -799,5 +799,15 @@ describe('Perfil público de membro', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expectPrivateLocationHidden()
+  })
+
+  it.each([
+    ['admin técnico', null, 'no'],
+    ['admin com perfil', { id: otherId, name: 'Admin', business_name: 'Santos Lda' }, 'yes'],
+  ])('decide a avaliação do %s pelo perfil de membro', async (_label, memberProfile, allowed) => {
+    useAuthStore.setState({ user: { ...active, role: { name: 'Admin' }, member_profile: memberProfile }, status: 'authenticated' })
+    show()
+    await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', allowed)
   })
 })

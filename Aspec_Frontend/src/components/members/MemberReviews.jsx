@@ -4,6 +4,7 @@ import { deleteMemberReview, getMemberReviewPage, isMemberProfileId, saveMemberR
 import { getMemberProfile } from '../../services/memberProfile'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
 import { useAuthStore } from '../../store/authStore'
+import { canActAsMember, canReportReviews } from '../../utils/memberAccess'
 import SelectMenu from '../ui/SelectMenu'
 import RatingStars from './RatingStars'
 import ReportReviewDialog from './ReportReviewDialog'
@@ -132,7 +133,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
   const mutation = useRef(null)
   const summaryCallback = useRef(onSummaryChange)
   useEffect(() => { summaryCallback.current = onSummaryChange }, [onSummaryChange])
-  const permittedRole = allowReview && user?.role?.name === 'Member'
+  const permittedRole = allowReview && canActAsMember(user)
   const canWrite = permittedRole && ownProfile !== null && ownProfile.id !== memberId
   const current = result?.page === page && result.sort === sort && result.ratingFilter === ratingFilter && result.retry === retry ? result : null
   const data = current?.status === 'success' ? current.data : null
@@ -274,7 +275,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
       {!current && <p role="status" className="mt-5 text-sm text-gray-600">A carregar avaliações...</p>}
       {current?.status === 'error' && <div role="alert" className="mt-5 text-sm text-gray-600"><p>Não foi possível carregar as avaliações. {notice ? 'A alteração foi concluída, mas a lista e o resumo ainda não foram atualizados.' : 'Tente novamente.'}</p><button type="button" className={`${buttonClass} mt-3 border border-gray-300`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button></div>}
       {mine && <ul className="mt-5"><ReviewCard review={mine} mine editable={canWrite && !busy && !!data} onEdit={openForm} /></ul>}
-      {data && (data.items.length > 0 ? <ul className={mine ? '' : 'mt-1'}>{data.items.map((review) => <ReviewCard key={review.id} review={review} onReport={user?.role?.name === 'Member' ? setReportedReview : undefined} />)}</ul> : <p className="mt-5 text-sm text-gray-600">{ratingFilter ? 'Não existem outras avaliações com esta classificação.' : mine ? 'Ainda não existem outras avaliações.' : 'Ainda não existem avaliações.'}</p>)}
+      {data && (data.items.length > 0 ? <ul className={mine ? '' : 'mt-1'}>{data.items.map((review) => <ReviewCard key={review.id} review={review} onReport={canReportReviews(user) ? setReportedReview : undefined} />)}</ul> : <p className="mt-5 text-sm text-gray-600">{ratingFilter ? 'Não existem outras avaliações com esta classificação.' : mine ? 'Ainda não existem outras avaliações.' : 'Ainda não existem avaliações.'}</p>)}
         {pagination && pagination.total > 0 && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
           <p className="text-xs text-gray-500">{(page - 1) * 5 + 1}–{Math.min(page * 5, pagination.total)} de {pagination.total} outras avaliações</p>
           {pagination.last_page > 1 && <nav aria-label="Paginação das avaliações" className="flex max-w-full flex-wrap items-center gap-1">

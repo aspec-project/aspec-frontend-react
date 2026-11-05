@@ -3,6 +3,7 @@ import { Copy, ExternalLink, Lock, Video } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { formatRegistrationDeadline } from "../../utils/eventFormatting";
 import { getOnlineMeetingUrl } from "../../utils/eventAccess";
+import { canActAsMember } from "../../utils/memberAccess";
 
 // Estrutura e temporização reutilizadas seletivamente do stash da ASPEC-258.
 export default function EventOnlineAccess({ event, onRefresh }) {
@@ -11,7 +12,7 @@ export default function EventOnlineAccess({ event, onRefresh }) {
   const [copyStatus, setCopyStatus] = useState("");
   const deadline = formatRegistrationDeadline(event.registration_deadline);
   const eligible = auth.status === "authenticated" && !auth.sessionChanging && !!auth.user?.id &&
-    ["Member", "Admin"].includes(auth.user.role?.name) && auth.user.account_status?.name === "Active";
+    canActAsMember(auth.user);
   const url = getOnlineMeetingUrl(event, auth, clock);
   const passed = !!deadline && clock > Date.parse(event.registration_deadline);
 

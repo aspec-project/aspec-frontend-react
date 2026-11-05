@@ -8,6 +8,8 @@ import { normalizeError } from '../services/api'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { updateMemberProfile } from '../services/memberProfile'
+import { useAuthStore } from '../store/authStore'
+import { hasMemberProfile } from '../utils/memberAccess'
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
@@ -77,22 +79,27 @@ function NotificationPreferenceToggle({
   )
 }
 
-/*
+/**
  * Página da aba “Informações de conta”.
  *
  * O email e telefone são dados pessoais da conta. Os contactos comerciais
- * ficam exclusivamente na página geral do perfil.
+ * ficam exclusivamente na página geral do perfil. Numa conta sem perfil de
+ * membro (admin técnico), mostra o email e o telefone da conta só para leitura.
+ * @returns {JSX.Element}
  */
 export default function AccountInformationPage() {
   const { profile, reloadProfile } = useOutletContext()
+  const user = useAuthStore((state) => state.user)
+  const hasProfile = hasMemberProfile(user)
+  const shownData = hasProfile ? profile : user
   const getRequestContext = useSessionRequest()
   const personalSavingRef = useRef(false)
   const notificationSavingRef = useRef(false)
 
-  const [savedEmail, setSavedEmail] = useState(profile.email ?? '')
+  const [savedEmail, setSavedEmail] = useState(profile?.email ?? user?.email ?? '')
   const [personalData, setPersonalData] = useState({
-    email: profile.email ?? '',
-    phone: profile.phone ?? '',
+    email: profile?.email ?? user?.email ?? '',
+    phone: profile?.phone ?? user?.phone ?? '',
     currentPassword: '',
   })
   const [isEditingPersonalData, setIsEditingPersonalData] = useState(false)
@@ -351,9 +358,15 @@ export default function AccountInformationPage() {
               Consulta e atualiza os dados pessoais associados à tua conta
               ASPEC.
             </p>
+
+            {!hasProfile && (
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Esta conta de administração não tem perfil de membro: o email e o telefone não podem ser alterados nesta página.
+              </p>
+            )}
           </div>
 
-          {!isEditingPersonalData && (
+          {hasProfile && !isEditingPersonalData && (
             <button
               type="button"
               onClick={() => setIsEditingPersonalData(true)}
@@ -365,7 +378,7 @@ export default function AccountInformationPage() {
           )}
         </div>
 
-        {!isEditingPersonalData ? (
+        {!hasProfile || !isEditingPersonalData ? (
           <dl className="mt-7 grid gap-5 sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-5">
               <dt className="flex items-center gap-2 text-sm font-semibold text-[#0d1f35]">
@@ -373,7 +386,7 @@ export default function AccountInformationPage() {
                 Email pessoal
               </dt>
               <dd className="mt-3 break-all text-sm text-slate-600">
-                {profile.email ?? 'Não indicado'}
+                {shownData?.email ?? 'Não indicado'}
               </dd>
             </div>
 
@@ -383,7 +396,7 @@ export default function AccountInformationPage() {
                 Telefone pessoal
               </dt>
               <dd className="mt-3 text-sm text-slate-600">
-                {profile.phone ?? 'Não indicado'}
+                {shownData?.phone ?? 'Não indicado'}
               </dd>
             </div>
           </dl>
