@@ -6,6 +6,7 @@ import EventRegistrationCard from "./EventRegistrationCard";
 import EventOnlineAccess from "./EventOnlineAccess";
 import EventTypeBadges from "./EventTypeBadges";
 import EventSessions from "./EventSessions";
+import EventPrayerCardBlock from "./EventPrayerCardBlock";
 
 function HeaderInformation({ icon: Icon, label, children }) {
   return (
@@ -126,6 +127,7 @@ export default function EventDetail({ event, onEventUpdate, onReconcile, onRefre
           )}
         </section>
         <EventRegistrationCard key={event.id} event={event} onEventUpdate={onEventUpdate} onReconcile={onReconcile} seriesReady={!event.series_id || sessionsStatus === "ready"} />
+        <EventPrayerCardBlock event={event} />
         </div>
       </div>
     </article>
