@@ -54,6 +54,8 @@ export async function getEventDetail(id, signal) {
     name: event.name.trim(),
     is_online: typeof event.is_online === "boolean" ? event.is_online : null,
     description: text(event.description),
+    prayer_cards_enabled: typeof event.prayer_cards_enabled === "boolean" ? event.prayer_cards_enabled : null,
+    prayer_verse: text(event.prayer_verse),
     event_date: text(event.event_date),
     event_start_time: text(event.event_start_time),
     event_end_time: text(event.event_end_time),
