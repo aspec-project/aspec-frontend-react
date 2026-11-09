@@ -177,7 +177,7 @@ describe('Sinalizar avaliação através do contrato real', () => {
     ['visitante', null, 'idle'],
     ['Member Inactive', { ...member, account_status: { name: 'Inactive' } }, 'authenticated'],
     ['sessão por confirmar', member, 'loading'],
-    ['Admin sem contrato de autorização para sinalizar', { ...member, role: { name: 'Admin' } }, 'authenticated'],
+    ['Admin técnico sem perfil de membro', { ...member, role: { name: 'Admin' }, member_profile: null }, 'authenticated'],
   ])('não disponibiliza a ação a %s', async (_, user, status) => {
     useAuthStore.setState({ user, status })
     show()

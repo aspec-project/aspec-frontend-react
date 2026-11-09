@@ -65,7 +65,6 @@ describe('getAdminReviews', () => {
         ...review,
         email: 'autor@example.pt',
         user_id: 'u1',
-        reports: [{ id: 'rp1', reason: 'other' }],
         reviewer: { business_name: 'Casa Moderna Decorações', email: 'casa@example.pt' },
         reviewed: { business_name: 'Padaria São João', id: 'p1' },
       }],
@@ -82,8 +81,20 @@ describe('getAdminReviews', () => {
       reviewer: { business_name: 'Casa Moderna Decorações' },
       reviewed: { business_name: 'Padaria São João' },
       flagging_sources: ['automatic'],
+      reports: [],
       created_at: '2025-01-10T10:15:00+00:00',
     }])
+  })
+
+  it('devolve os reports só com os campos conhecidos e sem identificar quem reportou', async () => {
+    const report = { id: 'rp1', source: 'member', reason: 'other', comment: 'Texto completo do comentário.', created_at: '2025-01-11T10:15:00+00:00' }
+    mockGet(body({
+      items: [{ ...review, reports: [{ ...report, reporter_profile_id: 'p9', business_name: 'Quem reportou' }, { ...report, id: 'rp2', source: 'automatic', reason: 'language_filter', comment: null }] }],
+    }))
+
+    const result = await getAdminReviews({ status: 'all', page: 1 })
+
+    expect(result.items[0].reports).toEqual([report, { ...report, id: 'rp2', source: 'automatic', reason: 'language_filter', comment: null }])
   })
 
   it('mantém só as origens conhecidas da sinalização, sem repetidos e por ordem', async () => {
@@ -127,6 +138,10 @@ describe('getAdminReviews', () => {
     ['comentário numérico', body({ items: [{ ...review, comment: 3 }] })],
     ['justificação numérica', body({ items: [{ ...review, hidden_reason: 3 }] })],
     ['data que não é ISO', body({ items: [{ ...review, created_at: 'ontem' }] })],
+    ['reports que não são lista', body({ items: [{ ...review, reports: {} }] })],
+    ['report sem id', body({ items: [{ ...review, reports: [{ source: 'member', reason: 'other', comment: null, created_at: '2025-01-11T10:15:00+00:00' }] }] })],
+    ['report com origem desconhecida', body({ items: [{ ...review, reports: [{ id: 'r', source: 'admin', reason: 'other', comment: null, created_at: '2025-01-11T10:15:00+00:00' }] }] })],
+    ['report com comentário numérico', body({ items: [{ ...review, reports: [{ id: 'r', source: 'member', reason: 'other', comment: 3, created_at: '2025-01-11T10:15:00+00:00' }] }] })],
     ['paginação em falta', body({ pagination: undefined })],
     ['contagem negativa', body({ counts: { ...counts, hidden: -1 } })],
   ])('recusa uma resposta com formato inesperado: %s', async (_, response) => {

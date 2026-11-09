@@ -25,7 +25,7 @@ const accountNotices = {
   },
   blocked: {
     title: 'A sua conta está bloqueada',
-    message: 'O acesso à área de membro foi suspenso por um administrador e não é possível entrar. Os motivos foram enviados para o email da sua conta. Se tem dúvidas, contacte a ASPEC através do email geral@aspec.pt.',
+    message: 'O acesso à área de membro foi suspenso por um administrador e não é possível entrar. Os motivos foram enviados para o email da sua conta. Se tem dúvidas, contacte a ASPEC através do email aspec@aspec.pt.',
     className: 'border-[#f6b7bd] bg-[#fee9eb] text-[#b91c1c]',
     Icon: Ban,
   },

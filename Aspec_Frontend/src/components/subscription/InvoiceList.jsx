@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
+import Pagination from '../ui/Pagination'
 import { normalizeError } from '../../services/api'
 import {
   downloadInvoicePdf,
@@ -77,13 +78,6 @@ function getDownloadFilename(invoice) {
     .replace(/^-+|-+$/g, '')
 
   return `fatura-${safeReference || 'documento'}.pdf`
-}
-
-function getPageNumbers(currentPage, lastPage) {
-  const start = Math.max(1, Math.min(currentPage - 2, lastPage - 4))
-  const end = Math.min(lastPage, start + 4)
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 }
 
 /*
@@ -285,48 +279,12 @@ export default function InvoiceList() {
               {firstItem}–{lastItem} de {pagination.total} faturas
             </p>
 
-            {pagination.last_page > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => handlePageChange(pagination.current_page - 1)}
-                  disabled={pagination.current_page === 1}
-                  aria-label="Página anterior"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronLeft size={15} aria-hidden="true" />
-                </button>
-
-                {getPageNumbers(
-                  pagination.current_page,
-                  pagination.last_page,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => handlePageChange(page)}
-                    aria-current={page === pagination.current_page ? 'page' : undefined}
-                    className={`h-8 w-8 rounded-lg text-xs font-medium transition ${
-                      page === pagination.current_page
-                        ? 'bg-[#0d1f35] text-white'
-                        : 'text-[#0d1f35] hover:bg-[#f5f3ee]'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => handlePageChange(pagination.current_page + 1)}
-                  disabled={pagination.current_page === pagination.last_page}
-                  aria-label="Página seguinte"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronRight size={15} aria-hidden="true" />
-                </button>
-              </div>
-            )}
+            <Pagination
+              currentPage={pagination.current_page}
+              lastPage={pagination.last_page}
+              onChange={handlePageChange}
+              label="Paginação das faturas"
+            />
           </footer>
         </>
       )}

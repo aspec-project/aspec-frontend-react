@@ -1,5 +1,5 @@
 import { CalendarDays, CalendarClock, Clock, Info, MapPin, Users, Video } from "lucide-react";
-import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
+import { formatDate, formatRegistrationDeadline, formatTime, isOccupancyCritical, OCCUPANCY_WARNING_COLOR } from "../../utils/eventFormatting";
 import EventLocation from "./EventLocation";
 import EventRegistrantsModal from "./EventRegistrantsModal";
 import EventRegistrationCard from "./EventRegistrationCard";
@@ -26,8 +26,9 @@ export default function EventDetail({ event, onEventUpdate, onReconcile, onRefre
   const endTime = formatTime(event.event_end_time);
   const deadline = formatRegistrationDeadline(event.registration_deadline);
   const available = event.available_spots;
-  const fewSpots = available > 0 && event.max_attendees > 0 && available <= event.max_attendees * 0.2;
   const hasOccupancy = event.max_attendees > 0 && event.registrations_count !== null;
+  const occupancyCritical = hasOccupancy && isOccupancyCritical(event.max_attendees, event.registrations_count);
+  const fewSpots = available > 0 && occupancyCritical;
   const occupancy = hasOccupancy ? Math.min(100, Math.round(event.registrations_count / event.max_attendees * 100)) : null;
 
   return (
@@ -109,7 +110,7 @@ export default function EventDetail({ event, onEventUpdate, onReconcile, onRefre
           </div>
           {hasOccupancy ? (
             <div role="progressbar" aria-label="Ocupação do evento" aria-valuemin={0} aria-valuemax={100} aria-valuenow={occupancy} aria-valuetext={`${occupancy}% de ocupação`} className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-              <div className="h-full rounded-full bg-[#8A7043]" style={{ width: `${occupancy}%` }} />
+              <div className="h-full rounded-full" style={{ width: `${occupancy}%`, backgroundColor: occupancyCritical ? OCCUPANCY_WARNING_COLOR : "#8A7043" }} />
             </div>
           ) : event.max_attendees === null || event.registrations_count === null ? (
             <p className="mt-2 text-xs text-gray-500">{event.max_attendees === null ? "Lotação por confirmar" : "Ocupação por confirmar"}</p>

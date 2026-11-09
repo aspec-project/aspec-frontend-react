@@ -760,7 +760,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
 
     const nav = pagination()
     expect(nav).not.toBeNull()
-    expect(within(nav).getByText('Página 1 de 3')).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Página 1', current: 'page' })).toBeInTheDocument()
     expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled()
     expect(getDashboardPendingApplications).not.toHaveBeenCalled()
 
@@ -782,12 +782,12 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     await act(async () => { page.resolve(pageOf(2)) })
 
     await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires']))
-    expect(within(paginationNav()).getByText('Página 2 de 3')).toBeInTheDocument()
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
 
     await goToPage(user, 'Página anterior')
 
     await waitFor(() => expect(rowNames()).toEqual(['Filipa Rodrigues', 'Tiago Mendes', 'Carla Nunes']))
-    expect(within(paginationNav()).getByText('Página 1 de 3')).toBeInTheDocument()
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 1', current: 'page' })).toBeInTheDocument()
     expect(getAdminDashboard).toHaveBeenCalledTimes(1)
     expect(getDashboardPendingApplications).toHaveBeenCalledTimes(1)
   })
@@ -795,7 +795,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
   it.each([
     [3, applications, null],
     [0, [], null],
-    [4, applications, 'Página 1 de 2'],
+    [4, applications, 'Página 1'],
   ])('com %i candidaturas a paginação aparece só quando há mais de uma página', async (total, pendingApplications, text) => {
     getAdminDashboard.mockResolvedValue(withTotal(total, { pending_applications: pendingApplications }))
     show()
@@ -804,7 +804,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     if (text === null) {
       expect(pagination()).toBeNull()
     } else {
-      expect(within(paginationNav()).getByText(text)).toBeInTheDocument()
+      expect(within(paginationNav()).getByRole('button', { name: text, current: 'page' })).toBeInTheDocument()
     }
   })
 
@@ -852,7 +852,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     expect(approveUser).toHaveBeenCalledWith('p2b')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar João Pires' })).toHaveFocus())
     expect(rowNames()).toEqual(['Rui Lopes', 'João Pires', 'Inês Costa'])
-    expect(within(paginationNav()).getByText('Página 2 de 2')).toBeInTheDocument()
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
     expect(getAdminDashboard).toHaveBeenCalledTimes(2)
     expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 2])
   })
@@ -879,7 +879,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar Rui Lopes' })).toHaveFocus())
     expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires'])
-    expect(within(paginationNav()).getByText('Página 2 de 2')).toBeInTheDocument()
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
     expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 3, 3, 2])
     expect(document.body).not.toHaveFocus()
   })

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Link2, Lock, Mail, MapPin, Phone } from 'lucide-react'
+import { Globe, Link2, Mail, MapPin, Phone } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
 import { groupBusinessHours } from '../../utils/businessHours'
@@ -91,14 +91,14 @@ function ContactLink({ href, label, Icon, accessibleName = label }) {
 function Contacts({ member, allowContacts, showLockedContacts }) {
   if (showLockedContacts) {
     return (
-      <section aria-label="Contactos reservados" className={`${sidebarClass} flex items-center justify-center`}>
-        <div className="flex w-full max-w-xs flex-col items-center text-center text-sm leading-relaxed text-gray-600">
-          <Lock size={24} className="mb-3 text-[#8a7043]" aria-hidden="true" />
-          <p>Os contactos estão disponíveis para membros ASPEC ativos.</p>
-          <div className="mt-4 flex w-full flex-col gap-3">
-            <Link className="rounded-lg bg-[#0d1f35] px-4 py-2 text-center font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4" to="/login">Entrar</Link>
-            <Link className="rounded-lg border border-gray-300 px-4 py-2 text-center font-semibold text-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-4" to="/registo">Candidatar-me</Link>
-          </div>
+      <section aria-label="Contactos reservados" className={sidebarClass}>
+        <h2 className="text-base font-semibold text-[#0d1f35]">Contactos e avaliações</h2>
+        <div className="mt-4 rounded-lg border border-[#E5DFD3] bg-[#F6F4EF] p-4">
+          <p className="text-sm leading-6 text-gray-600">
+            Para ver os contactos e as avaliações deste membro, ou para o avaliar, é necessário ser membro ativo da ASPEC.
+          </p>
+          <Link to="/login" className="mt-5 inline-block w-full rounded-lg bg-[#0D1F35] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79]">Entrar como membro</Link>
+          <Link to="/registo" className="mt-3 inline-block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-[#0D1F35] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79]">Candidatar-me a membro</Link>
         </div>
       </section>
     )

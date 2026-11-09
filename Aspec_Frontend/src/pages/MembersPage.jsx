@@ -6,10 +6,12 @@ import { getMembers } from '../services/members'
 import { getLocations, getSectors } from '../services/referenceLists'
 import { normalizeError } from '../services/api'
 import MemberCard from '../components/members/MemberCard'
+import ListPagination from '../components/ui/ListPagination'
 import MemberFilters, { directoryButtonClass } from '../components/members/MemberFilters'
 import { useAuthStore } from '../store/authStore'
 
 const initialFilters = { search: '', sector_id: '', location_id: '', min_rating: '', page: 1, per_page: 12 }
+const PER_PAGE_OPTIONS = [12, 24, 48]
 const emptyReferences = { sectors: [], locations: [], ready: false }
 const directoryErrorMessage = 'Não foi possível carregar o diretório. Tente novamente.'
 
@@ -123,11 +125,17 @@ export default function MembersPage() {
             <p role="status" className="mb-5 text-sm text-gray-600">{result.pagination.total} {result.pagination.total === 1 ? 'membro encontrado' : 'membros encontrados'}</p>
             {result.items.length === 0 ? <p className="py-12 text-center text-gray-600">Não foram encontrados membros para esta pesquisa.</p> : <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">{result.items.map((member) => <MemberCard key={member.id} member={member} />)}</div>}
           </>}
-          {result && !error && <nav aria-label="Paginação do diretório" className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <button type="button" className={directoryButtonClass} disabled={loading || result.pagination.current_page <= 1} onClick={() => { beginRequest(); setFilters((current) => ({ ...current, page: current.page - 1 })) }}>Anterior</button>
-              <span className="text-sm text-gray-700">Página {result.pagination.current_page} de {result.pagination.last_page}</span>
-              <button type="button" className={directoryButtonClass} disabled={loading || result.pagination.current_page >= result.pagination.last_page} onClick={() => { beginRequest(); setFilters((current) => ({ ...current, page: current.page + 1 })) }}>Seguinte</button>
-            </nav>}
+          {result && !error && <ListPagination
+              currentPage={result.pagination.current_page}
+              lastPage={result.pagination.last_page}
+              total={result.pagination.total}
+              perPage={filters.per_page}
+              perPageOptions={PER_PAGE_OPTIONS}
+              disabled={loading}
+              onPageChange={(page) => { beginRequest(); setFilters((current) => ({ ...current, page })) }}
+              onPerPageChange={(value) => { beginRequest(); setFilters((current) => ({ ...current, per_page: value, page: 1 })) }}
+              label="Paginação do diretório"
+            />}
         </section>
       </div>
     </div>

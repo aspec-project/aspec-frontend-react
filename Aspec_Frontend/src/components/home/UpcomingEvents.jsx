@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getEvents, getEventsErrorMessage } from "../../services/events";
+import { softCategoryColor } from "../../utils/eventFormatting";
 import {
   CalendarDays,
   Clock,
@@ -19,29 +20,6 @@ function obterCor(categoria) {
     /^#[0-9a-f]{6}$/i.test(cor)
     ? cor
     : "#0D1F35";
-}
-
-// Escolhe texto branco ou escuro para manter o badge legível.
-function obterCorTexto(cor) {
-  const canais = [1, 3, 5].map((inicio) => {
-    const canal = parseInt(cor.slice(inicio, inicio + 2), 16) / 255;
-
-    return canal <= 0.04045
-      ? canal / 12.92
-      : ((canal + 0.055) / 1.055) ** 2.4;
-  });
-
-  const luminancia =
-    0.2126 * canais[0] +
-    0.7152 * canais[1] +
-    0.0722 * canais[2];
-
-  const contrasteBranco = 1.05 / (luminancia + 0.05);
-  const contrastePreto = (luminancia + 0.05) / 0.05;
-
-  return contrasteBranco >= contrastePreto
-    ? "#FFFFFF"
-    : "#000000";
 }
 
 function obterInicioEvento(evento) {
@@ -233,8 +211,8 @@ export default function UpcomingEvents() {
                     <span
                       className="self-start rounded-full px-3 py-1 text-xs font-semibold"
                       style={{
-                        backgroundColor: cor,
-                        color: obterCorTexto(cor),
+                        backgroundColor: softCategoryColor(cor),
+                        color: cor,
                       }}
                     >
                       {evento.category?.name || "Evento"}

@@ -47,16 +47,27 @@ export function categoryColor(category) {
     : "#0D1F35";
 }
 
-export function badgeTextColor(color) {
-  const channels = [1, 3, 5].map((index) => {
-    const channel = parseInt(color.slice(index, index + 2), 16) / 255;
+/** Cor da barra de lotação quando restam poucas vagas; nenhuma cor de categoria é vermelha. */
+export const OCCUPANCY_WARNING_COLOR = "#B91C1C";
 
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-
-  return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05
-    ? "#FFFFFF"
-    : "#000000";
+/**
+ * Versão suave da cor da categoria (12 % de opacidade), para o fundo dos badges.
+ * @param {string} color Cor no formato #RRGGBB.
+ * @returns {string}
+ */
+export function softCategoryColor(color) {
+  return `${color}1F`;
 }
 
+/**
+ * Indica se a barra de lotação deve ficar a vermelho. Eventos com 10 lugares ou menos: quando metade
+ * está ocupada. Restantes: quando sobram 5 vagas ou menos.
+ * @param {number} maxAttendees Lugares do evento.
+ * @param {number} registrationsCount Inscrições atuais.
+ * @returns {boolean}
+ */
+export function isOccupancyCritical(maxAttendees, registrationsCount) {
+  return maxAttendees <= 10
+    ? registrationsCount * 2 >= maxAttendees
+    : maxAttendees - registrationsCount <= 5;
+}

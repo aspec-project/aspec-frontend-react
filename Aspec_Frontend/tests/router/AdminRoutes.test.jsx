@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
 import { getAdminDashboard } from '../../src/services/adminDashboard'
-import { getAdminEventCategories } from '../../src/services/adminEventCategories'
+import { getAdminEventCategories, getAdminEventCategoryPalette } from '../../src/services/adminEventCategories'
 import { getAdminEvent, getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
@@ -43,6 +43,7 @@ vi.mock('../../src/services/adminEvents', () => ({
 }))
 vi.mock('../../src/services/adminEventCategories', () => ({
   getAdminEventCategories: vi.fn(),
+  getAdminEventCategoryPalette: vi.fn(),
   createEventCategory: vi.fn(),
   updateEventCategory: vi.fn(),
   deleteEventCategory: vi.fn(),
@@ -119,6 +120,7 @@ describe('Rotas de administração', () => {
       counts: { upcoming: 0, past: 0 },
     })
     getAdminEventCategories.mockResolvedValue([])
+    getAdminEventCategoryPalette.mockResolvedValue([])
     getAdminDashboard.mockResolvedValue({
       stats: {
         active_members: { total: 0, new_this_month: 0 },

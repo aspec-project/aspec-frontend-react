@@ -156,6 +156,37 @@ describe('Moderação de Conteúdos', () => {
     vi.restoreAllMocks()
   })
 
+  it('uma avaliação sinalizada mostra a origem, o motivo e o comentário completo de cada report', async () => {
+    const comment = 'O autor nunca foi cliente: não existe qualquer fatura em nome desta empresa nem contacto registado.'
+    getAdminReviews.mockResolvedValue(list([{
+      ...flagged,
+      reports: [
+        { id: 'rp1', source: 'automatic', reason: 'language_filter', comment: null, created_at: '2025-01-10T10:00:00+00:00' },
+        { id: 'rp2', source: 'member', reason: 'no_business_relationship', comment, created_at: '2025-01-11T10:00:00+00:00' },
+        { id: 'rp3', source: 'member', reason: 'codigo_novo', comment: '<b>sem html</b>', created_at: '2025-01-12T10:00:00+00:00' },
+      ],
+    }]))
+    show()
+    await waitForList()
+
+    const card = cardOf('Casa Moderna Decorações')
+
+    expect(within(card).getByRole('heading', { level: 3, name: 'Sinalizações' })).toBeInTheDocument()
+    expect(within(card).getByText(/Linguagem imprópria \(deteção automática\)/).closest('li')).toHaveTextContent('Automática')
+    expect(within(card).getByText(/Sem relação comercial entre as partes/).closest('li')).toHaveTextContent('Membro')
+    expect(within(card).getByText(comment)).toBeInTheDocument()
+    expect(within(card).getByText(/Motivo não identificado/)).toBeInTheDocument()
+    expect(within(card).getByText('<b>sem html</b>')).toBeInTheDocument()
+  })
+
+  it('sem reports não aparece a secção de sinalizações', async () => {
+    getAdminReviews.mockResolvedValue(list([{ ...flagged, reports: [] }, { ...visible, reports: [] }]))
+    show()
+    await waitForList()
+
+    expect(screen.queryByRole('heading', { level: 3, name: 'Sinalizações' })).not.toBeInTheDocument()
+  })
+
   it('mostra o carregamento e depois os cartões', async () => {
     const pending = deferred()
     getAdminReviews.mockReturnValueOnce(pending.promise)

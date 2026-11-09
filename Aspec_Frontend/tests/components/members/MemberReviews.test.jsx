@@ -105,11 +105,11 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = adapter
     render(<MemberReviews memberId={id} />)
     await screen.findByText('Autor página 1')
-    expect(screen.getByRole('button', { name: 'Avaliações anteriores' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Avaliações seguintes' }))
+    expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Página seguinte' }))
     await screen.findByText('Autor página 2')
     expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('button', { name: 'Avaliações seguintes' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Página seguinte' })).toBeDisabled()
     expect(adapter.mock.calls.map(([config]) => config.params.page)).toEqual([1, 1, 2])
     expect(screen.getByText('Distribuição por estrelas')).toBeInTheDocument()
   })
@@ -151,7 +151,7 @@ describe('Avaliações públicas de membros', () => {
       : new Promise((resolve) => pending.push({ config, resolve }))
     const view = render(<MemberReviews memberId={id} />)
     await screen.findByText('Santos & Filhos')
-    const next = screen.getByRole('button', { name: 'Avaliações seguintes' })
+    const next = screen.getByRole('button', { name: 'Página seguinte' })
     next.focus()
     await userEvent.setup().keyboard('{Enter}')
     await waitFor(() => expect(pending).toHaveLength(1))
@@ -174,7 +174,7 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = adapter
     render(<MemberReviews memberId={id} />)
     await screen.findByText('Santos & Filhos')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Avaliações seguintes' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Página seguinte' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page'))
     block = true
     await act(async () => useAuthStore.setState({ user: { id: otherId, role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' }))

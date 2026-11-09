@@ -1,5 +1,6 @@
 import { api } from './api'
 import { clearPublicReferenceCache } from './publicReferenceCache'
+import { isHexColor } from '../utils/color'
 
 const FORMAT_ERROR = 'A resposta dos tipos de evento tem um formato inesperado.'
 
@@ -40,6 +41,29 @@ export async function getAdminEventCategories(signal) {
     color: typeof item.color === 'string' ? item.color : null,
     events_count: Number.isInteger(item.events_count) && item.events_count >= 0 ? item.events_count : null,
   }))
+}
+
+/**
+ * Obtém a paleta fixa de cores dos tipos de evento, pela ordem definida no backend (a fonte de verdade).
+ *
+ * @param {AbortSignal} [signal] Permite cancelar o pedido quando a página é desmontada.
+ * @returns {Promise<{color: string, name: string}[]>} Cores #RRGGBB em maiúsculas, com o nome de cada uma.
+ * @throws {Error} Se a resposta tiver um formato inesperado; os erros do axios são relançados tal como estão.
+ */
+export async function getAdminEventCategoryPalette(signal) {
+  const response = await api.get('/admin/event-categories/palette', { signal })
+  const body = response.data
+  const items = body?.data
+
+  if (
+    body?.success !== true ||
+    !Array.isArray(items) ||
+    items.some((item) => typeof item !== 'object' || item === null || !isHexColor(item.color) || !isFilledString(item.name))
+  ) {
+    throw new Error(FORMAT_ERROR)
+  }
+
+  return items.map(({ color, name }) => ({ color: color.toUpperCase(), name }))
 }
 
 /**

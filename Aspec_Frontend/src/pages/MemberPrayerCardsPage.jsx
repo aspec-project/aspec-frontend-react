@@ -3,10 +3,7 @@ import {
   BookOpen,
   Briefcase,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   Eye,
-  Heart,
   HeartHandshake,
   Mail,
   Phone,
@@ -14,6 +11,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import Pagination from '../components/ui/Pagination'
 import { normalizeError } from '../services/api'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { isSessionCurrent } from '../services/sessionContext'
@@ -72,13 +70,6 @@ function formatPrayerUntil(value) {
 
 function getCacheKey(period, page) {
   return period + ':' + page
-}
-
-function getPageNumbers(currentPage, lastPage) {
-  const start = Math.max(1, Math.min(currentPage - 2, lastPage - 4))
-  const end = Math.min(lastPage, start + 4)
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 }
 
 /*
@@ -285,7 +276,7 @@ function PrayerCardDialog({ card, onClose }) {
         ) : (
           <div className="pr-12 sm:pr-16">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#806537]">
-              ✝ Cartão de oração
+              Cartão de oração
             </p>
             <h2
               id="prayer-card-dialog-title"
@@ -378,7 +369,7 @@ function PrayerCardDialog({ card, onClose }) {
   )
 }
 
-function Pagination({ pagination, onChange }) {
+function PrayerCardsPagination({ pagination, onChange, label }) {
   if (pagination.last_page <= 1) return null
 
   const firstItem = (pagination.current_page - 1) * pagination.per_page + 1
@@ -392,43 +383,12 @@ function Pagination({ pagination, onChange }) {
       <p className="text-sm text-slate-500">
         {firstItem} – {lastItem} de {pagination.total} cartões
       </p>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onChange(pagination.current_page - 1)}
-          disabled={pagination.current_page === 1}
-          aria-label="Página anterior"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <ChevronLeft size={17} aria-hidden="true" />
-        </button>
-        {getPageNumbers(pagination.current_page, pagination.last_page).map(
-          (page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onChange(page)}
-              aria-current={page === pagination.current_page ? 'page' : undefined}
-              className={
-                page === pagination.current_page
-                  ? 'h-8 w-8 rounded-lg bg-[#0d1f35] text-xs font-semibold text-white transition'
-                  : 'h-8 w-8 rounded-lg text-xs font-semibold text-[#0d1f35] transition hover:bg-[#f5f3ee]'
-              }
-            >
-              {page}
-            </button>
-          ),
-        )}
-        <button
-          type="button"
-          onClick={() => onChange(pagination.current_page + 1)}
-          disabled={pagination.current_page === pagination.last_page}
-          aria-label="Página seguinte"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <ChevronRight size={17} aria-hidden="true" />
-        </button>
-      </div>
+      <Pagination
+        currentPage={pagination.current_page}
+        lastPage={pagination.last_page}
+        onChange={onChange}
+        label={label}
+      />
     </footer>
   )
 }
@@ -502,9 +462,10 @@ function PrayerCardsSection({ title, description, state, onSelectCard }) {
               )
             })}
           </ul>
-          <Pagination
+          <PrayerCardsPagination
             pagination={state.result.pagination}
             onChange={state.changePage}
+            label={`Paginação dos cartões: ${title}`}
           />
         </>
       )}
@@ -548,8 +509,7 @@ export default function MemberPrayerCardsPage() {
         onSelectCard={setSelectedCard}
       />
 
-      <p className="flex items-center gap-2 text-xs text-slate-400">
-        <Heart size={14} aria-hidden="true" />
+      <p className="text-xs text-slate-400">
         Os cartões ficam disponíveis durante 6 meses a contar da data do evento.
       </p>
 

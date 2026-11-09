@@ -161,11 +161,14 @@ export default function Footer() {
                   aspec@aspec.pt
                 </a>
               </li>
-              <li className="flex items-center gap-2 text-sm text-gray-400">
-                <Phone size={14} className="text-primary" />
-                <a href="tel:+351210000000" className="hover:text-white transition-colors">
-                  +351 210 000 000
-                </a>
+              <li className="flex items-start gap-2 text-sm text-gray-400">
+                <Phone size={14} className="mt-0.5 shrink-0 text-primary" />
+                <span>
+                  <a href="tel:+351937047868" className="hover:text-white transition-colors">
+                    +351 937 047 868
+                  </a>
+                  <span className="block text-xs text-gray-500">Chamada para rede móvel nacional</span>
+                </span>
               </li>
             </ul>
           </div>

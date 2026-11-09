@@ -96,7 +96,7 @@ function mostrarAgenda() {
 
 async function esperarPagina(page) {
   await screen.findByRole("heading", { name: `Evento da página ${page}` });
-  expect(screen.getByText(`Página ${page} de 3`)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: `Página ${page}` })).toHaveAttribute("aria-current", "page");
 }
 
 async function selectFilter(user, control, value) {
@@ -154,8 +154,8 @@ describe("EventsPage", () => {
     expect(pedidosEventos(adapter)).toHaveLength(1);
     expect(pedidosEventos(adapter)[0].params).toEqual({ page: 1, per_page: 9 });
     expect(screen.getByRole("navigation", { name: "Paginação de eventos" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Seguinte" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeEnabled();
     const card = screen.getByRole("heading", { name: items[0].name }).closest("article");
     expect(within(card).getByRole("link", { name: `Ver evento: ${items[0].name}` }))
       .toHaveAttribute("href", "/eventos/distante");
@@ -188,14 +188,14 @@ describe("EventsPage", () => {
     await selectFilter(user, screen.getByRole("combobox", { name: "Distrito" }), "distrito-b");
     await waitFor(() => expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 1, per_page: 9 }));
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
 
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(3);
-    expect(screen.getByRole("button", { name: "Seguinte" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Anterior" }));
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Página anterior" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).map((config) => config.params.page)).toEqual([1, 1, 1, 2, 3, 2]);
   });
@@ -210,13 +210,13 @@ describe("EventsPage", () => {
     await esperarPagina(1);
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
 
     await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-b");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-b", location_id: "distrito-b", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await selectFilter(user, screen.getByLabelText("Categoria"), "");
     await esperarPagina(1);
@@ -224,12 +224,12 @@ describe("EventsPage", () => {
     expect(screen.getByLabelText("Distrito")).toHaveTextContent("Porto");
     await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-a");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-a", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await selectFilter(user, screen.getByLabelText("Distrito"), "");
     await esperarPagina(1);
@@ -247,7 +247,7 @@ describe("EventsPage", () => {
     await esperarPagina(1);
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
 
     await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
@@ -363,7 +363,7 @@ describe("EventsPage", () => {
     await esperarPagina(1);
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await screen.findByRole("alert");
     falhar = false;
     screen.getByRole("button", { name: "Tentar novamente" }).focus();
@@ -502,7 +502,7 @@ describe("EventsPage", () => {
     await esperarPagina(1);
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "fé", category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
 
@@ -510,7 +510,7 @@ describe("EventsPage", () => {
     await user.click(screen.getByRole("button", { name: "Pesquisar", exact: true }));
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "fé e trabalho", category_id: "categoria-a", location_id: "distrito-b", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     fireEvent.change(pesquisa, { target: { value: "" } });
     await esperarPagina(1);
@@ -519,7 +519,7 @@ describe("EventsPage", () => {
     fireEvent.change(pesquisa, { target: { value: "rede" } });
     await user.click(screen.getByRole("button", { name: "Pesquisar", exact: true }));
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await selectFilter(user, screen.getByLabelText("Categoria"), "");
     await esperarPagina(1);
@@ -527,14 +527,14 @@ describe("EventsPage", () => {
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "rede", location_id: "distrito-b", page: 1, per_page: 9 });
     await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await selectFilter(user, screen.getByLabelText("Distrito"), "");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "rede", category_id: "categoria-b", page: 1, per_page: 9 });
     await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
     await esperarPagina(1);

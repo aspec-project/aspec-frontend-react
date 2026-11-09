@@ -20,10 +20,10 @@ export function canActAsMember(user) {
 }
 
 /**
- * Indica se o utilizador pode sinalizar avaliações (hoje o backend só aceita membros).
+ * Indica se o utilizador pode sinalizar avaliações: as mesmas regras de agir como membro, incluindo admins com perfil.
  * @param {object|null} user Utilizador autenticado da store.
  * @returns {boolean}
  */
 export function canReportReviews(user) {
-  return canActAsMember(user) && user.role.name === 'Member'
+  return canActAsMember(user)
 }
