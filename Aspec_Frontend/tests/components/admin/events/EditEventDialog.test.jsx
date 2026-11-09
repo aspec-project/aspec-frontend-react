@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -224,7 +224,7 @@ function calendar() {
 }
 
 function day(label) {
-  return within(calendar()).getByRole('button', { name: label })
+  return within(calendar()).getByLabelText(label, { selector: 'button' })
 }
 
 async function chooseOption(user, combobox, optionName) {
@@ -237,8 +237,8 @@ function useFakeToday() {
   vi.setSystemTime(new Date(2099, 0, 10, 12))
 }
 
-async function editTitle(user, text = 'Workshop de Liderança — nova data') {
-  await typeInto(user, field.title(), text)
+function editTitle(text = 'Workshop de Liderança — nova data') {
+  change(field.title(), text)
 }
 
 function lastPayload() {
@@ -265,12 +265,17 @@ function apiError(status, message, errors) {
   })
 }
 
-describe('EditEventDialog', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.clearAllMocks()
-  })
+beforeEach(() => {
+  updateAdminEvent.mockReset()
+  geocodeAddress.mockReset()
+})
 
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
+
+describe('EditEventDialog', () => {
   it('abre com os dados do evento, o formato do evento, sem repetição e sem alterações', async () => {
     const user = userEvent.setup({ delay: null })
     show()
@@ -390,7 +395,7 @@ describe('EditEventDialog', () => {
     expect(screen.queryByText(/vão receber um email|vai receber um email/)).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: JUSTIFICATION })).not.toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     expect(updateAdminEvent).not.toHaveBeenCalled()
@@ -415,7 +420,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess } = show(event('e1', 'Workshop de Liderança', { registrations_count: 0 }))
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     const dialog = confirmDialog()
@@ -441,7 +446,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { registrations_count: undefined }))
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     const dialog = confirmDialog()
@@ -455,7 +460,7 @@ describe('EditEventDialog', () => {
   it('Voltar, Escape e o Fechar da confirmação voltam ao formulário sem pedido e a justificação recomeça vazia', async () => {
     const user = userEvent.setup({ delay: null })
     const { onClose } = show()
-    await editTitle(user)
+    editTitle()
 
     await user.click(submitButton())
     await user.type(justificationBox(), 'Mudou a sala.')
@@ -493,7 +498,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onClose, onSuccess } = show()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     await user.type(justificationBox(), '  A sessão passou para a sala 2.  ')
     await user.dblClick(confirmButton('Guardar e notificar'))
@@ -525,7 +530,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, name: 'Workshop de Liderança — nova data' })
@@ -564,7 +569,7 @@ describe('EditEventDialog', () => {
     second.unmount()
 
     show()
-    await typeInto(user, field.address(), 'Rua Nova 1, Porto')
+    change(field.address(), 'Rua Nova 1, Porto')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(`Morada encontrada: ${FOUND.display_name}`)
     await saveAndConfirm(user)
@@ -604,7 +609,7 @@ describe('EditEventDialog', () => {
 
     expect(field.deadline()).toHaveTextContent('14 Jan 2020')
 
-    await editTitle(user)
+    editTitle()
 
     expect(submitButton()).toBeEnabled()
     expect(screen.queryByText(DEADLINE_PAST)).not.toBeInTheDocument()
@@ -667,7 +672,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     await user.type(justificationBox(), 'A sala mudou.')
     await user.click(confirmButton('Guardar e notificar'))
@@ -690,7 +695,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
@@ -707,7 +712,7 @@ describe('EditEventDialog', () => {
 
     updateAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
     const passed = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(passed.onStale).toHaveBeenCalledWith(PASSED))
@@ -716,7 +721,7 @@ describe('EditEventDialog', () => {
 
     updateAdminEvent.mockRejectedValueOnce(apiError(404, 'Recurso não encontrado.'))
     const deleted = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(deleted.onStale).toHaveBeenCalledWith('O evento já não existe. A lista foi atualizada.'))
@@ -749,7 +754,7 @@ describe('EditEventDialog', () => {
     for (const [error, message] of cases) {
       updateAdminEvent.mockRejectedValueOnce(error)
       const view = show()
-      await editTitle(user)
+      editTitle()
       await user.click(submitButton())
       await user.type(justificationBox(), 'A sala mudou.')
       await user.click(confirmButton('Guardar e notificar'))
@@ -776,7 +781,7 @@ describe('EditEventDialog', () => {
     show()
 
     await user.click(formatButton('Online'))
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/nova')
+    change(field.onlineUrl(), 'https://meet.example.pt/nova')
     await chooseOption(user, field.category(), 'Formação')
     await user.click(field.date())
     await user.click(day('22 de janeiro de 2099'))
@@ -821,7 +826,7 @@ describe('EditEventDialog', () => {
     expect(queryLabelled('Morada completa')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Verificar no mapa' })).not.toBeInTheDocument()
 
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/lideranca')
+    change(field.onlineUrl(), 'https://meet.example.pt/lideranca')
 
     expect(submitButton()).toBeEnabled()
 
@@ -850,7 +855,7 @@ describe('EditEventDialog', () => {
     show()
 
     await user.click(formatButton('Online'))
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/lideranca')
+    change(field.onlineUrl(), 'https://meet.example.pt/lideranca')
     await user.click(formatButton('Presencial'))
 
     expect(field.address()).toHaveValue('Rua Castilho 39, 1250-068 Lisboa')
@@ -858,7 +863,7 @@ describe('EditEventDialog', () => {
     expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ is_online: false, latitude: 38.7223, longitude: -9.1533 })
@@ -877,8 +882,8 @@ describe('EditEventDialog', () => {
     expect(screen.getByText(EDIT_GEOCODE_HINT)).toBeInTheDocument()
     expect(screen.queryByText(SAVED_HINT)).not.toBeInTheDocument()
 
-    await user.type(field.venue(), 'Centro de Congressos')
-    await user.type(field.address(), 'Rua Nova 1, Porto')
+    change(field.venue(), 'Centro de Congressos')
+    change(field.address(), 'Rua Nova 1, Porto')
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ is_online: false, venue_name: 'Centro de Congressos', address: 'Rua Nova 1, Porto' })
@@ -889,8 +894,8 @@ describe('EditEventDialog', () => {
 
     show(onlineWorkshop)
     await user.click(formatButton('Presencial'))
-    await user.type(field.venue(), 'Centro de Congressos')
-    await user.type(field.address(), 'Rua Nova 1, Porto')
+    change(field.venue(), 'Centro de Congressos')
+    change(field.address(), 'Rua Nova 1, Porto')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(`Morada encontrada: ${FOUND.display_name}`)
     await saveAndConfirm(user)
@@ -911,9 +916,10 @@ describe('EditEventDialog', () => {
     expect(updateAdminEvent).not.toHaveBeenCalled()
     first.unmount()
 
-    updateAdminEvent.mockImplementation(() => new Promise(() => {}))
+    const pending = deferred()
+    updateAdminEvent.mockImplementationOnce(() => pending.promise)
     const second = show()
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     const button = confirmButton('Guardar e notificar')
 
@@ -921,12 +927,13 @@ describe('EditEventDialog', () => {
     fireEvent.submit(button.closest('form'))
 
     expect(updateAdminEvent).toHaveBeenCalledTimes(1)
+    await act(async () => { pending.resolve({ success: true, message: SUCCESS, data: {} }) })
     second.unmount()
 
     updateAdminEvent.mockReset()
     updateAdminEvent.mockRejectedValueOnce(new CanceledError())
     const third = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(updateAdminEvent).toHaveBeenCalledTimes(1))
@@ -941,10 +948,6 @@ describe('EditEventDialog — sessão de uma série', () => {
   const SERIES_NOTE = 'Sessão 3/8 de uma série. As alterações aplicam-se só a esta sessão.'
   const seriesWorkshop = event('e1', 'Workshop de Liderança', { series: { position: 3, total: 8 } })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('mostra a nota da série sem os campos da repetição e o PUT não leva a recorrência', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
@@ -956,7 +959,7 @@ describe('EditEventDialog — sessão de uma série', () => {
     expect(screen.queryByLabelText(/^Fim/)).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Recorrência' })).not.toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(updateAdminEvent).toHaveBeenCalledTimes(1)
@@ -1004,10 +1007,6 @@ describe('EditEventDialog — mapa da Google', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', 'chave-falsa-418')
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('um evento com place_id mostra o local guardado no mapa e reenvia o place_id ao guardar', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
@@ -1017,7 +1016,7 @@ describe('EditEventDialog — mapa da Google', () => {
     expect(screen.queryByText(/^A mostrar a zona de/)).not.toBeInTheDocument()
     expect(screen.getByText(SAVED_HINT)).toBeInTheDocument()
 
-    await typeInto(user, field.description(), 'Nova descrição pública.')
+    change(field.description(), 'Nova descrição pública.')
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ description: 'Nova descrição pública.', place_id: SAVED_PLACE_ID })
@@ -1041,7 +1040,7 @@ describe('EditEventDialog — mapa da Google', () => {
     first.unmount()
 
     show(withPlaceId)
-    await typeInto(user, field.address(), 'Rua Nova 1, Lisboa')
+    change(field.address(), 'Rua Nova 1, Lisboa')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(/^Morada encontrada:/)
     await saveAndConfirm(user)
@@ -1058,7 +1057,7 @@ describe('EditEventDialog — mapa da Google', () => {
     expect(mapQuery()).toBe('Lisboa, Portugal')
     expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ latitude: 38.7223, longitude: -9.1533 })
@@ -1071,7 +1070,7 @@ describe('EditEventDialog — mapa da Google', () => {
     const user = userEvent.setup({ delay: null })
     show(withPlaceId)
 
-    await editTitle(user)
+    editTitle()
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(/^Local aproximado:/)
 
@@ -1128,11 +1127,6 @@ describe('EditEventDialog — cartões de oração', () => {
   function expectAlert(message) {
     expect(screen.getAllByRole('alert').some((element) => element.textContent.includes(message))).toBe(true)
   }
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.clearAllMocks()
-  })
 
   it('abre com os cartões e o versículo guardados, sem alterações, e um evento sem cartões abre desligado', () => {
     const { unmount } = show(withCards)
@@ -1214,7 +1208,7 @@ describe('EditEventDialog — cartões de oração', () => {
     const user = userEvent.setup({ delay: null })
     show(withCards)
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     expect(confirmDialog()).toHaveAccessibleDescription(NOTICE_22)
@@ -1272,7 +1266,7 @@ describe('EditEventDialog — cartões de oração', () => {
     first.unmount()
 
     show(withCards)
-    await editTitle(user)
+    editTitle()
     change(verse(), 'Salmo 91')
     await user.click(submitButton())
 

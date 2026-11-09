@@ -883,23 +883,34 @@ describe('Gestão de Eventos', () => {
       return within(createDialog()).getByLabelText(new RegExp(`^${escape(text)}\\s*\\*?${ending}$`))
     }
 
-    async function pickDialogDate(user, opener, dayLabel) {
-      await user.click(opener)
-      await user.click(within(screen.getByRole('dialog', { name: /^Escolher / })).getByRole('button', { name: dayLabel }))
+    function pickDialogDate(opener, dayLabel) {
+      fireEvent.click(opener)
+      fireEvent.click(within(screen.getByRole('dialog', { name: /^Escolher / })).getByLabelText(dayLabel, { selector: 'button' }))
     }
 
-    async function fillValidInPerson(user) {
-      await user.type(dialogField('Título do evento'), 'Jantar de Networking Lisboa')
-      await chooseOption(user, dialogField('Tipo de evento'), 'Jantar')
-      await chooseOption(user, dialogField('Delegação / Localidade'), 'Lisboa')
-      await pickDialogDate(user, dialogField('Data'), '20 de novembro de 2026')
-      await user.type(dialogField('Hora de início'), '19:30')
-      await user.type(dialogField('Hora de fim'), '21:30')
-      await pickDialogDate(user, dialogField('Data limite de inscrição'), '18 de novembro de 2026')
-      await user.type(dialogField('Nome do local'), 'Restaurante Estrela do Norte')
-      await user.type(dialogField('Morada completa'), 'Rua das Flores 42')
-      fireEvent.change(dialogField('Capacidade máxima'), { target: { value: '40' } })
-      await user.type(dialogField('Sobre o evento'), 'Encontro mensal de networking entre membros.')
+    function fillValidInPerson() {
+      const dialog = within(createDialog())
+      const change = (label, value) => fireEvent.change(dialogField(label), { target: { value } })
+
+      /*
+       * O preenchimento prepara a criação; a submissão, a confirmação e a devolução do foco
+       * continuam a ser exercitadas com userEvent nos cenários abaixo.
+       */
+      change('Título do evento', 'Jantar de Networking Lisboa')
+      for (const [label, option] of [['Tipo de evento', 'Jantar'], ['Delegação / Localidade', 'Lisboa']]) {
+        fireEvent.click(dialogField(label))
+        fireEvent.click(dialog.getByRole('option', { name: option }))
+      }
+      pickDialogDate(dialogField('Data'), '20 de novembro de 2026')
+      change('Hora de início', '19')
+      fireEvent.change(dialog.getByLabelText('Hora de início, minutos'), { target: { value: '30' } })
+      change('Hora de fim', '21')
+      fireEvent.change(dialog.getByLabelText('Hora de fim, minutos'), { target: { value: '30' } })
+      pickDialogDate(dialogField('Data limite de inscrição'), '18 de novembro de 2026')
+      change('Nome do local', 'Restaurante Estrela do Norte')
+      change('Morada completa', 'Rua das Flores 42')
+      change('Capacidade máxima', '40')
+      change('Sobre o evento', 'Encontro mensal de networking entre membros.')
     }
 
     function successBanner() {
@@ -941,7 +952,7 @@ describe('Gestão de Eventos', () => {
       const callsBefore = getAdminEvents.mock.calls.length
 
       await user.click(createButton())
-      await fillValidInPerson(user)
+      fillValidInPerson()
       await user.click(within(createDialog()).getByRole('button', { name: 'Criar evento' }))
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -971,10 +982,10 @@ describe('Gestão de Eventos', () => {
       const callsBefore = getAdminEvents.mock.calls.length
 
       await user.click(createButton())
-      await fillValidInPerson(user)
+      fillValidInPerson()
       await user.click(within(within(createDialog()).getByRole('group', { name: 'Repetição' })).getByRole('button', { name: 'Recorrente' }))
       await chooseOption(user, dialogField('Frequência'), 'Semanal')
-      await pickDialogDate(user, dialogField('Fim', '(inclusive)'), '27 de novembro de 2026')
+      pickDialogDate(dialogField('Fim', '(inclusive)'), '27 de novembro de 2026')
       fireEvent.change(dialogField('Fechar inscrições antes de cada sessão'), { target: { value: '3' } })
       await user.click(within(createDialog()).getByRole('button', { name: 'Criar série' }))
 
