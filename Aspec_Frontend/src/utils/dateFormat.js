@@ -21,19 +21,29 @@ const lisbonFormatter = new Intl.DateTimeFormat('pt-PT', {
 })
 
 /**
+ * Indica se um valor é uma data e hora ISO 8601 com desvio (ex.: "2025-02-03T08:07:00+00:00" ou "…Z")
+ * com uma data de calendário que existe.
+ *
+ * @param {unknown} value Valor a verificar.
+ * @returns {boolean}
+ */
+export function isIsoDateTime(value) {
+  return typeof value === 'string'
+    && DATE_TIME_PATTERN.test(value)
+    && parseIsoDate(value.slice(0, 10)) !== null
+    && !Number.isNaN(Date.parse(value))
+}
+
+/**
  * Valida uma data e hora ISO 8601 com desvio e devolve as suas partes na hora de Lisboa.
  *
  * @param {unknown} value Data e hora ISO 8601 com desvio.
  * @returns {{day: string, month: string, year: string, hour: string, minute: string}|null} Partes com 2 dígitos (o ano com 4), ou null se for inválida.
  */
 function getLisbonParts(value) {
-  if (typeof value !== 'string' || !DATE_TIME_PATTERN.test(value) || parseIsoDate(value.slice(0, 10)) === null) {
-    return null
-  }
+  if (!isIsoDateTime(value)) return null
 
   const time = Date.parse(value)
-
-  if (Number.isNaN(time)) return null
 
   const parts = Object.fromEntries(
     lisbonFormatter.formatToParts(new Date(time)).map((part) => [part.type, part.value])
@@ -100,6 +110,18 @@ export function formatShortDateTime(value) {
   if (parts === null) return ''
 
   return `${Number(parts.day)} ${MONTH_ABBREVIATIONS[Number(parts.month) - 1]} ${parts.year}, ${parts.hour}:${parts.minute}`
+}
+
+/**
+ * Formata uma data e hora ISO 8601 com desvio como "03/02 às 08:07", na hora de Lisboa, sem o ano.
+ *
+ * @param {unknown} value Data e hora ISO 8601 com desvio.
+ * @returns {string} Dia, mês e hora formatados, ou '' se for inválida.
+ */
+export function formatDayMonthTime(value) {
+  const parts = getLisbonParts(value)
+
+  return parts ? `${parts.day}/${parts.month} às ${parts.hour}:${parts.minute}` : ''
 }
 
 /**

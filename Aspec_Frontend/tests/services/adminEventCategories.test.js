@@ -7,6 +7,7 @@ import {
   createEventCategory,
   deleteEventCategory,
   getAdminEventCategories,
+  getAdminEventCategoryPalette,
   updateEventCategory,
 } from '../../src/services/adminEventCategories'
 
@@ -81,6 +82,34 @@ describe('getAdminEventCategories', () => {
     vi.spyOn(api, 'get').mockRejectedValue(error)
 
     await expect(getAdminEventCategories()).rejects.toBe(error)
+  })
+})
+
+describe('getAdminEventCategoryPalette', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('pede a paleta com o signal e devolve só a cor em maiúsculas e o nome', async () => {
+    const get = mockGet({ success: true, message: 'ok', data: [{ color: '#0d1f35', name: 'Azul-marinho', extra: 1 }] })
+    const signal = new AbortController().signal
+
+    await expect(getAdminEventCategoryPalette(signal)).resolves.toEqual([{ color: '#0D1F35', name: 'Azul-marinho' }])
+    expect(get).toHaveBeenCalledWith('/admin/event-categories/palette', { signal })
+  })
+
+  it.each([
+    ['success falso', { success: false, data: [] }],
+    ['data que não é lista', { success: true, data: {} }],
+    ['item nulo', { success: true, data: [null] }],
+    ['cor inválida', { success: true, data: [{ color: 'red', name: 'Vermelho' }] }],
+    ['nome vazio', { success: true, data: [{ color: '#0D1F35', name: '' }] }],
+  ])('recusa uma resposta com formato inesperado: %s', async (_, body) => {
+    mockGet(body)
+
+    const caught = await getAdminEventCategoryPalette().catch((err) => err)
+
+    expect(caught).toBeInstanceOf(Error)
+    expect(caught).not.toBeInstanceOf(AxiosError)
+    expect(caught.message).toBe(FORMAT_ERROR)
   })
 })
 

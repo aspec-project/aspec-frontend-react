@@ -96,7 +96,14 @@ function mostrarAgenda() {
 
 async function esperarPagina(page) {
   await screen.findByRole("heading", { name: `Evento da página ${page}` });
-  expect(screen.getByText(`Página ${page} de 3`)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: `Página ${page}` })).toHaveAttribute("aria-current", "page");
+}
+
+async function selectFilter(user, control, value) {
+  const labels = { 'categoria-a': categorias[0].name, 'categoria-b': 'Encontro', 'distrito-a': 'Lisboa', 'distrito-b': 'Porto' };
+  await user.click(control);
+  const name = labels[value] ?? (control.id === 'event-category' ? 'Todas as categorias' : 'Todos os distritos');
+  await user.click(within(document.getElementById(control.getAttribute('aria-controls'))).getByRole('option', { name }));
 }
 
 describe("EventsPage", () => {
@@ -147,8 +154,8 @@ describe("EventsPage", () => {
     expect(pedidosEventos(adapter)).toHaveLength(1);
     expect(pedidosEventos(adapter)[0].params).toEqual({ page: 1, per_page: 9 });
     expect(screen.getByRole("navigation", { name: "Paginação de eventos" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Seguinte" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeEnabled();
     const card = screen.getByRole("heading", { name: items[0].name }).closest("article");
     expect(within(card).getByRole("link", { name: `Ver evento: ${items[0].name}` }))
       .toHaveAttribute("href", "/eventos/distante");
@@ -158,12 +165,12 @@ describe("EventsPage", () => {
     const adapter = instalarAdapter();
     mostrarAgenda();
 
-    expect(await screen.findByRole("option", { name: "Conferência" })).toHaveValue("categoria-a");
-    expect(await screen.findByRole("option", { name: "Porto" })).toHaveValue("distrito-b");
+    expect(await screen.findByRole("option", { name: "Conferência", hidden: true })).toHaveAttribute("aria-selected", "false");
+    expect(await screen.findByRole("option", { name: "Porto", hidden: true })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByLabelText("Categoria")).toBe(screen.getByRole("combobox", { name: "Categoria" }));
     expect(screen.getByLabelText("Distrito")).toBe(screen.getByRole("combobox", { name: "Distrito" }));
-    expect(screen.getByRole("option", { name: "Todas as categorias" })).toHaveValue("");
-    expect(screen.getByRole("option", { name: "Todos os distritos" })).toHaveValue("");
+    expect(screen.getByRole("option", { name: "Todas as categorias", hidden: true })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: "Todos os distritos", hidden: true })).toHaveAttribute("aria-selected", "true");
     expect(adapter.mock.calls.filter(([config]) => config.url === "/event-categories")).toHaveLength(1);
     expect(adapter.mock.calls.filter(([config]) => config.url === "/locations")).toHaveLength(1);
   });
@@ -172,23 +179,23 @@ describe("EventsPage", () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Categoria" }), "categoria-a");
+    await selectFilter(user, screen.getByRole("combobox", { name: "Categoria" }), "categoria-a");
     await waitFor(() => expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", page: 1, per_page: 9 }));
     await esperarPagina(1);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Distrito" }), "distrito-b");
+    await selectFilter(user, screen.getByRole("combobox", { name: "Distrito" }), "distrito-b");
     await waitFor(() => expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 1, per_page: 9 }));
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
 
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(3);
-    expect(screen.getByRole("button", { name: "Seguinte" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Anterior" }));
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Página anterior" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).map((config) => config.params.page)).toEqual([1, 1, 1, 2, 3, 2]);
   });
@@ -197,58 +204,58 @@ describe("EventsPage", () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-b");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
 
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-b");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-b");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-b", location_id: "distrito-b", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ location_id: "distrito-b", page: 1, per_page: 9 });
-    expect(screen.getByLabelText("Distrito")).toHaveValue("distrito-b");
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    expect(screen.getByLabelText("Distrito")).toHaveTextContent("Porto");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-a");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-a");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", location_id: "distrito-a", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ category_id: "categoria-a", page: 1, per_page: 9 });
-    expect(screen.getByLabelText("Categoria")).toHaveValue("categoria-a");
+    expect(screen.getByLabelText("Categoria")).toHaveTextContent(categorias[0].name);
   });
 
   it("limpa os dois filtros sem manter a página anterior", async () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-b");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
 
     await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
 
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ page: 1, per_page: 9 });
-    expect(screen.getByLabelText("Categoria")).toHaveValue("");
-    expect(screen.getByLabelText("Distrito")).toHaveValue("");
+    expect(screen.getByLabelText("Categoria")).toHaveTextContent("Todas as categorias");
+    expect(screen.getByLabelText("Distrito")).toHaveTextContent("Todos os distritos");
   });
 
   it("Limpar filtros volta a pedir a página 1 mesmo sem filtros ativos", async () => {
@@ -288,10 +295,10 @@ describe("EventsPage", () => {
       ? respostaPagina([], 1, { total: 0, last_page: 1 })
       : respostaNormal(config));
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
 
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
 
     expect(await screen.findByText("Não foram encontrados eventos para os filtros selecionados.")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -350,13 +357,13 @@ describe("EventsPage", () => {
       ? Promise.reject(erroHttp(config, 500))
       : respostaNormal(config));
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-b");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await screen.findByRole("alert");
     falhar = false;
     screen.getByRole("button", { name: "Tentar novamente" }).focus();
@@ -385,7 +392,7 @@ describe("EventsPage", () => {
 
     await user.click(screen.getByRole("button", { name: botao }));
 
-    expect(await screen.findByRole("option", { name: opcao })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: opcao, hidden: true })).toBeInTheDocument();
     expect(adapter.mock.calls.filter(([config]) => config.url === endpoint)).toHaveLength(2);
     expect(adapter.mock.calls.filter(([config]) => config.url !== endpoint && config.url !== "/events")).toHaveLength(1);
     expect(pedidosEventos(adapter)).toHaveLength(1);
@@ -400,7 +407,7 @@ describe("EventsPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível carregar as categorias. Tente novamente.");
     expect(screen.getByRole("button", { name: "Tentar carregar categorias novamente" })).toBeEnabled();
     expect(screen.getByLabelText("Categoria")).toBeDisabled();
-    expect(await screen.findByRole("option", { name: "Porto" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Porto", hidden: true })).toBeInTheDocument();
   });
 
   it("uma mensagem de erro vazia do catálogo mantém o aviso e o filtro desativado", async () => {
@@ -416,7 +423,7 @@ describe("EventsPage", () => {
     expect(screen.getByLabelText("Categoria")).toBeDisabled();
     expect(screen.getByLabelText("Categoria"))
       .toHaveAttribute("aria-describedby", "event-category-error");
-    expect(await screen.findByRole("option", { name: "Porto" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Porto", hidden: true })).toBeInTheDocument();
   });
 
   it("cancela o pedido antigo e não permite que a resposta atrasada substitua o filtro atual", async () => {
@@ -432,11 +439,11 @@ describe("EventsPage", () => {
       return respostaPagina([criarEvento("atual", "Resultado atual")]);
     });
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await waitFor(() => expect(pedidosEventos(adapter)).toHaveLength(1));
     const signalAntigo = pedidosEventos(adapter)[0].signal;
 
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await screen.findByRole("heading", { name: "Resultado atual" });
     expect(signalAntigo.aborted).toBe(true);
     await act(async () => concluirAntigo());
@@ -485,17 +492,17 @@ describe("EventsPage", () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
     const pesquisa = screen.getByRole("searchbox", { name: "Pesquisar eventos" });
     await user.type(pesquisa, "fé");
     await user.click(screen.getByRole("button", { name: "Pesquisar", exact: true }));
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-a");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-a");
     await esperarPagina(1);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-b");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "fé", category_id: "categoria-a", location_id: "distrito-b", page: 2, per_page: 9 });
 
@@ -503,7 +510,7 @@ describe("EventsPage", () => {
     await user.click(screen.getByRole("button", { name: "Pesquisar", exact: true }));
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "fé e trabalho", category_id: "categoria-a", location_id: "distrito-b", page: 1, per_page: 9 });
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     fireEvent.change(pesquisa, { target: { value: "" } });
     await esperarPagina(1);
@@ -512,29 +519,29 @@ describe("EventsPage", () => {
     fireEvent.change(pesquisa, { target: { value: "rede" } });
     await user.click(screen.getByRole("button", { name: "Pesquisar", exact: true }));
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
-    await user.selectOptions(screen.getByLabelText("Categoria"), "");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "");
     await esperarPagina(1);
     expect(pesquisa).toHaveValue("rede");
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "rede", location_id: "distrito-b", page: 1, per_page: 9 });
-    await user.selectOptions(screen.getByLabelText("Categoria"), "categoria-b");
+    await selectFilter(user, screen.getByLabelText("Categoria"), "categoria-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
-    await user.selectOptions(screen.getByLabelText("Distrito"), "");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "");
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ search: "rede", category_id: "categoria-b", page: 1, per_page: 9 });
-    await user.selectOptions(screen.getByLabelText("Distrito"), "distrito-b");
+    await selectFilter(user, screen.getByLabelText("Distrito"), "distrito-b");
     await esperarPagina(1);
-    await user.click(screen.getByRole("button", { name: "Seguinte" }));
+    await user.click(screen.getByRole("button", { name: "Página seguinte" }));
     await esperarPagina(2);
     await user.click(screen.getByRole("button", { name: "Limpar filtros" }));
     await esperarPagina(1);
     expect(pedidosEventos(adapter).at(-1).params).toEqual({ page: 1, per_page: 9 });
     expect(pesquisa).toHaveValue("");
-    expect(screen.getByLabelText("Categoria")).toHaveValue("");
-    expect(screen.getByLabelText("Distrito")).toHaveValue("");
+    expect(screen.getByLabelText("Categoria")).toHaveTextContent("Todas as categorias");
+    expect(screen.getByLabelText("Distrito")).toHaveTextContent("Todos os distritos");
   });
 
   it("apresenta nove resultados e o total do backend sem pré-carregar a página seguinte", async () => {
@@ -557,7 +564,7 @@ describe("EventsPage", () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();
     mostrarAgenda();
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     await esperarPagina(1);
 
     await user.tab();
@@ -623,7 +630,7 @@ describe("EventsPage", () => {
     const adapter = instalarAdapter();
     render(<StrictMode><MemoryRouter><EventsPage /></MemoryRouter></StrictMode>);
     await esperarPagina(1);
-    await screen.findByRole("option", { name: "Conferência" });
+    await screen.findByRole("option", { name: "Conferência", hidden: true });
     expect(pedidosEventos(adapter)).toHaveLength(1);
     expect(adapter.mock.calls.filter(([config]) => config.url === "/locations")).toHaveLength(1);
     expect(adapter.mock.calls.filter(([config]) => config.url === "/event-categories")).toHaveLength(1);

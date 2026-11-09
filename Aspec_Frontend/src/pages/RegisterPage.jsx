@@ -21,7 +21,7 @@ const STEPS = [
   { label: "Acesso", icon: Lock },
 ];
 
-const inputCls = "w-full px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition";
+const inputCls = "w-full min-w-0 px-4 py-2.5 rounded-xl border text-sm text-black outline-none transition";
 
 export default function RegisterPage({ onNavigate }) {
   const {
@@ -35,12 +35,12 @@ export default function RegisterPage({ onNavigate }) {
   if (submitted) return <SuccessView />;
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#f8f7f2" }}>
+    <div className="min-h-screen flex flex-col lg:flex-row" style={{ backgroundColor: "#f8f7f2" }}>
       
       {/* Sidebar do Registo com o redirecionamento direto para a página inicial */}
       <RegisterSidebar onNavigateHome={goToHome} />
 
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="min-w-0 flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-lg">
           <h2 className="mb-1 text-2xl font-bold" style={{ color: "#0d1f35" }}>
             Candidatura a Membro

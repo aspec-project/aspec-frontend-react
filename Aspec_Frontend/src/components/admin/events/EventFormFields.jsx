@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { CalendarDays, LocateFixed, MapPin, Repeat, Video } from 'lucide-react'
 import EventField from './EventField'
 import EventMapPreview from './EventMapPreview'
+import EventPrayerCards from './EventPrayerCards'
 import EventSeriesPreview from './EventSeriesPreview'
 import DatePicker from '../../ui/DatePicker'
 import SegmentedControl from '../../ui/SegmentedControl'
@@ -23,6 +24,10 @@ const REPETITIONS = [
   { value: false, label: 'Pontual', icon: CalendarDays },
   { value: true, label: 'Recorrente', icon: Repeat },
 ]
+
+/** Labels das horas, usadas na label do campo e no nome das caixas de horas e minutos. */
+const START_LABEL = 'Hora de início'
+const END_LABEL = 'Hora de fim'
 
 /** Campos da série: um erro em qualquer um esconde a pré-visualização e o texto de espera. */
 const SERIES_ERROR_FIELDS = ['frequency', 'seriesEndsOn', 'deadlineDaysBefore']
@@ -58,8 +63,10 @@ function describedBy(id, { hint, counter, error }) {
  * o controlo "Repetição": em Recorrente, a data, as horas e a data limite saem do sítio de sempre e a caixa
  * "Recorrência" (logo a seguir ao tipo e à delegação) junta a frequência, o início, o fim, as horas e o fecho
  * das inscrições em dias; no fundo da caixa aparece a pré-visualização das sessões (1 a 52 sessões, sem erros
- * nos campos da série), nada quando há erros de série, ou um texto de espera. Cada controlo existe uma só
- * vez e tem `name` igual à chave do formulário, para o modal o poder focar.
+ * nos campos da série), nada quando há erros de série, ou um texto de espera. Depois da capacidade, em todos
+ * os formatos e nos dois modos, fica a caixa dos cartões de oração (interruptor e versículo), bloqueada com
+ * `prayerCardsLocked`. Cada controlo existe uma só vez e tem `name` igual à chave do formulário, para o modal
+ * o poder focar.
  *
  * @param {{
  *   values: object,
@@ -68,6 +75,8 @@ function describedBy(id, { hint, counter, error }) {
  *   onFieldChange: (name: string, value: string) => void,
  *   onFormatChange: (isOnline: boolean) => void,
  *   onRepetitionChange?: (isRecurring: boolean) => void,
+ *   onPrayerCardsChange?: (enabled: boolean) => void,
+ *   prayerCardsLocked?: boolean,
  *   seriesSessions?: {dates: string[], tooMany: boolean},
  *   geocode: {status: 'idle'|'saved'|'loading'|'found'|'error', result: object|null, message: string},
  *   onVerifyAddress: () => void,
@@ -78,7 +87,7 @@ function describedBy(id, { hint, counter, error }) {
  * }} props
  * @returns {JSX.Element}
  */
-export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, onRepetitionChange, seriesSessions, geocode, onVerifyAddress, onConfirmLocation, disabled = false, isEditing = false, registrationsCount = null }) {
+export default function EventFormFields({ values, errors, options, onFieldChange, onFormatChange, onRepetitionChange, onPrayerCardsChange, prayerCardsLocked = false, seriesSessions, geocode, onVerifyAddress, onConfirmLocation, disabled = false, isEditing = false, registrationsCount = null }) {
   const prefix = useId()
   const today = getLisbonNow().date
   const selectsDisabled = options.loading || Boolean(options.error)
@@ -168,11 +177,11 @@ export default function EventFormFields({ values, errors, options, onFieldChange
   const zoneName = options.locations.find((location) => location.id === values.locationId)?.name ?? ''
   const timeFields = (
     <>
-      <EventField {...fieldProps('startTime', 'Hora de início')}>
-        <TimeInput {...customProps('startTime')} required />
+      <EventField {...fieldProps('startTime', START_LABEL)}>
+        <TimeInput {...customProps('startTime')} label={START_LABEL} required />
       </EventField>
-      <EventField {...fieldProps('endTime', 'Hora de fim')}>
-        <TimeInput {...customProps('endTime')} required />
+      <EventField {...fieldProps('endTime', END_LABEL)}>
+        <TimeInput {...customProps('endTime')} label={END_LABEL} required />
       </EventField>
     </>
   )
@@ -405,6 +414,15 @@ export default function EventFormFields({ values, errors, options, onFieldChange
           />
         </EventField>
       </div>
+
+      <EventPrayerCards
+        values={values}
+        errors={errors}
+        onToggle={onPrayerCardsChange}
+        onVerseChange={(value) => onFieldChange('prayerVerse', value)}
+        locked={prayerCardsLocked}
+        isRecurring={isRecurring}
+      />
 
       <hr className="border-gray-200" />
 

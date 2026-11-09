@@ -267,6 +267,8 @@ const EDIT_VALUES = {
   maxAttendees: '30',
   description: 'Descrição pública.',
   organizerNotes: 'Notas do organizador.',
+  prayerCardsEnabled: false,
+  prayerVerse: '',
 }
 
 const SAVED_GEOCODE = {
@@ -782,5 +784,136 @@ describe('place_id do Google Maps', () => {
       fieldErrors: { address: 'O identificador do local não é válido.' },
       unmatched: [],
     })
+  })
+})
+
+describe('cartões de oração (ASPEC-436)', () => {
+  const VERSE = 'Salmo 23'
+  const NOT_SENT = { lead: 'Estas alterações não são enviadas por email aos inscritos.', emphasis: '', tail: '', notify: false }
+  const NOTICE_TAIL = ' a avisar que o evento foi alterado.'
+  const NAMES = { categoryId: { c1: 'Workshop' }, locationId: { l1: 'Lisboa' } }
+  const withCards = { ...EDIT_VALUES, prayerCardsEnabled: true, prayerVerse: VERSE }
+
+  function expectNoPrayerKeys(payload) {
+    expect(payload).not.toHaveProperty('prayer_cards_enabled')
+    expect(payload).not.toHaveProperty('prayer_verse')
+  }
+
+  it('começa desligado e, ligado, o versículo da semana entra na lista em falta depois da capacidade', () => {
+    expect(EMPTY_EVENT_FORM.prayerCardsEnabled).toBe(false)
+    expect(EMPTY_EVENT_FORM.prayerVerse).toBe('')
+
+    expect(getMissingEventFields({ ...validInPerson, prayerCardsEnabled: false, prayerVerse: '' })).toEqual([])
+    for (const prayerVerse of ['', '   ']) {
+      expect(getMissingEventFields({ ...validInPerson, prayerCardsEnabled: true, prayerVerse })).toEqual(['versículo da semana'])
+    }
+
+    expect(getMissingEventFields({ ...EMPTY_EVENT_FORM, prayerCardsEnabled: true })).toEqual([
+      'título', 'tipo de evento', 'delegação', 'data', 'hora de início', 'hora de fim',
+      'data limite de inscrição', 'nome do local', 'morada', 'capacidade máxima', 'versículo da semana', 'descrição',
+    ])
+    expect(formatMissingFields(['nome do local', 'morada', 'versículo da semana']))
+      .toBe('Falta preencher: nome do local, morada, versículo da semana.')
+  })
+
+  it('o corpo da criação só leva os cartões quando estão ligados, com o versículo sem espaços nas pontas', () => {
+    expectNoPrayerKeys(buildEventPayload({ ...validInPerson, prayerCardsEnabled: false, prayerVerse: VERSE }, NO_GEOCODE))
+
+    expect(buildEventPayload({ ...validInPerson, prayerCardsEnabled: true, prayerVerse: '  Gálatas 6:2\nLevai…  ' }, NO_GEOCODE))
+      .toMatchObject({ prayer_cards_enabled: true, prayer_verse: 'Gálatas 6:2\nLevai…' })
+
+    const online = buildEventPayload({ ...validOnline, prayerCardsEnabled: true, prayerVerse: VERSE }, NO_GEOCODE)
+    expect(online).toMatchObject({ is_online: true, prayer_cards_enabled: true, prayer_verse: VERSE })
+    expect(online).not.toHaveProperty('address')
+
+    const series = buildEventPayload({
+      ...validInPerson,
+      isRecurring: true,
+      frequency: 'weekly',
+      seriesEndsOn: '2099-04-03',
+      deadlineDaysBefore: '3',
+      prayerCardsEnabled: true,
+      prayerVerse: VERSE,
+    }, NO_GEOCODE)
+    expect(series).toMatchObject({
+      prayer_cards_enabled: true,
+      prayer_verse: VERSE,
+      recurrence: { frequency: 'weekly', ends_on: '2099-04-03', registration_deadline_days_before: 3 },
+    })
+  })
+
+  it('o corpo da edição só leva os cartões quando mudaram em relação ao evento aberto', () => {
+    expectNoPrayerKeys(buildEventUpdatePayload(withCards, SAVED_GEOCODE, ''))
+
+    expectNoPrayerKeys(buildEventUpdatePayload(withCards, SAVED_GEOCODE, '', withCards))
+    expectNoPrayerKeys(buildEventUpdatePayload({ ...withCards, prayerVerse: 'Salmo 23  ' }, SAVED_GEOCODE, '', withCards))
+
+    expect(buildEventUpdatePayload(withCards, SAVED_GEOCODE, '', EDIT_VALUES))
+      .toMatchObject({ prayer_cards_enabled: true, prayer_verse: VERSE })
+
+    expect(buildEventUpdatePayload({ ...withCards, prayerVerse: 'Salmo 91' }, SAVED_GEOCODE, '', withCards))
+      .toMatchObject({ prayer_cards_enabled: true, prayer_verse: 'Salmo 91' })
+
+    const off = buildEventUpdatePayload({ ...withCards, prayerCardsEnabled: false }, SAVED_GEOCODE, '', withCards)
+    expect(off).toHaveProperty('prayer_cards_enabled', false)
+    expect(off).not.toHaveProperty('prayer_verse')
+  })
+
+  it('converte os cartões do evento da lista e só aceita o booleano true como ligado', () => {
+    expect(eventToFormValues(event({ prayer_cards_enabled: true, prayer_verse: VERSE })))
+      .toMatchObject({ prayerCardsEnabled: true, prayerVerse: VERSE })
+
+    for (const prayer_cards_enabled of [null, undefined, 1, 'true']) {
+      expect(eventToFormValues(event({ prayer_cards_enabled })).prayerCardsEnabled).toBe(false)
+    }
+    expect(eventToFormValues(event({ prayer_cards_enabled: true, prayer_verse: null })).prayerVerse).toBe('')
+  })
+
+  it('ligar, desligar e mudar o versículo contam como alterações, e o versículo só conta com os cartões ligados', () => {
+    expect(getChangedEventFields(EDIT_VALUES, withCards)).toEqual(['prayerCardsEnabled', 'prayerVerse'])
+    expect(getChangedEventFields(withCards, { ...withCards, prayerCardsEnabled: false })).toEqual(['prayerCardsEnabled'])
+    expect(getChangedEventFields(EDIT_VALUES, { ...EDIT_VALUES, prayerCardsEnabled: false, prayerVerse: VERSE })).toEqual([])
+
+    expect(getChangedEventFields({ ...withCards, prayerVerse: 'Salmo\r\n23' }, { ...withCards, prayerVerse: 'Salmo\n23' })).toEqual([])
+    expect(getChangedEventFields(withCards, { ...withCards, prayerVerse: '  Salmo 23  ' })).toEqual([])
+
+    expect(getChangedEventFields(withCards, { ...withCards, name: 'Outro', prayerVerse: 'Salmo 91' })).toEqual(['name', 'prayerVerse'])
+    expect(getChangedEventFields(EDIT_VALUES, { ...withCards, maxAttendees: '40', description: 'Nova descrição.' }))
+      .toEqual(['maxAttendees', 'prayerCardsEnabled', 'prayerVerse', 'description'])
+  })
+
+  it('a lista de alterações mostra os cartões como Ligados ou Desligados e corta o versículo longo', () => {
+    expect(getEventChangeSummary(EDIT_VALUES, withCards, NAMES)).toEqual([
+      { field: 'prayerCardsEnabled', label: 'Cartões de oração', before: 'Desligados', after: 'Ligados' },
+      { field: 'prayerVerse', label: 'Versículo da semana', before: '(vazio)', after: VERSE },
+    ])
+
+    expect(getEventChangeSummary(withCards, { ...withCards, prayerCardsEnabled: false }, NAMES)).toEqual([
+      { field: 'prayerCardsEnabled', label: 'Cartões de oração', before: 'Ligados', after: 'Desligados' },
+    ])
+
+    const longVerse = 'V'.repeat(120)
+    expect(getEventChangeSummary(withCards, { ...withCards, prayerVerse: longVerse }, NAMES)).toEqual([
+      { field: 'prayerVerse', label: 'Versículo da semana', before: VERSE, after: `${'V'.repeat(80)}…` },
+    ])
+  })
+
+  it('os erros do versículo e da ativação vão para o campo do versículo', () => {
+    expect(mapEventServerErrors({ prayer_verse: ['A'], prayer_cards_enabled: ['B'] }))
+      .toEqual({ fieldErrors: { prayerVerse: 'A' }, unmatched: [] })
+  })
+
+  it('o aviso do email só fala em email quando muda um campo que o backend notifica', () => {
+    for (const fields of [['prayerCardsEnabled', 'prayerVerse'], ['organizerNotes'], ['maxAttendees']]) {
+      expect(getChangeNotice(22, fields)).toEqual(NOT_SENT)
+    }
+
+    expect(getChangeNotice(22, ['maxAttendees', 'name']))
+      .toEqual({ lead: 'Será enviado um email aos ', emphasis: '22 inscritos', tail: NOTICE_TAIL, notify: true })
+    expect(getChangeNotice(null, ['description']))
+      .toEqual({ lead: 'Será enviado um email aos ', emphasis: 'inscritos', tail: NOTICE_TAIL, notify: true })
+    expect(getChangeNotice(0, ['name'])).toMatchObject({ lead: 'Não há inscritos, por isso ninguém será notificado.', notify: false })
+    expect(getChangeNotice(22))
+      .toEqual({ lead: 'Será enviado um email aos ', emphasis: '22 inscritos', tail: NOTICE_TAIL, notify: true })
   })
 })

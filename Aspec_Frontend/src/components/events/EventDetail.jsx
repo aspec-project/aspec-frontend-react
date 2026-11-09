@@ -1,11 +1,12 @@
 import { CalendarDays, CalendarClock, Clock, Info, MapPin, Users, Video } from "lucide-react";
-import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
+import { formatDate, formatRegistrationDeadline, formatTime, isOccupancyCritical, OCCUPANCY_WARNING_COLOR } from "../../utils/eventFormatting";
 import EventLocation from "./EventLocation";
 import EventRegistrantsModal from "./EventRegistrantsModal";
 import EventRegistrationCard from "./EventRegistrationCard";
 import EventOnlineAccess from "./EventOnlineAccess";
 import EventTypeBadges from "./EventTypeBadges";
 import EventSessions from "./EventSessions";
+import EventPrayerCardBlock from "./EventPrayerCardBlock";
 
 function HeaderInformation({ icon: Icon, label, children }) {
   return (
@@ -17,17 +18,18 @@ function HeaderInformation({ icon: Icon, label, children }) {
   );
 }
 
-export default function EventDetail({ event, onEventUpdate, onRefresh, sessions = null, recurrenceLabel = "", onSelectSession }) {
-  const recurring = Array.isArray(sessions);
-  const selectedSession = recurring ? sessions.findIndex((session) => session?.id === event.id) : -1;
-  const dates = recurring ? sessions.map((session) => session?.event_date).filter((date) => formatDate(date) !== "Data por confirmar").sort() : [];
+export default function EventDetail({ event, onEventUpdate, onReconcile, onRefresh, sessions = null, sessionsStatus, sessionsError, onRetrySessions, recurrenceLabel = "", onSelectSession }) {
+  const recurring = !!event.series_id || Array.isArray(sessions);
+  const selectedSession = Array.isArray(sessions) ? sessions.findIndex((session) => session?.id === event.id) : -1;
+  const dates = Array.isArray(sessions) ? sessions.map((session) => session?.event_date).filter((date) => formatDate(date) !== "Data por confirmar").sort() : [];
   const dateLabel = dates.length > 1 ? `${formatDate(dates[0])} — ${formatDate(dates[dates.length - 1])}` : formatDate(event.event_date);
   const startTime = formatTime(event.event_start_time);
   const endTime = formatTime(event.event_end_time);
   const deadline = formatRegistrationDeadline(event.registration_deadline);
   const available = event.available_spots;
-  const fewSpots = available > 0 && event.max_attendees > 0 && available <= event.max_attendees * 0.2;
   const hasOccupancy = event.max_attendees > 0 && event.registrations_count !== null;
+  const occupancyCritical = hasOccupancy && isOccupancyCritical(event.max_attendees, event.registrations_count);
+  const fewSpots = available > 0 && occupancyCritical;
   const occupancy = hasOccupancy ? Math.min(100, Math.round(event.registrations_count / event.max_attendees * 100)) : null;
 
   return (
@@ -87,7 +89,7 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
           {event.is_online === true ? <EventOnlineAccess key={`${event.id}:${event.registration_deadline}`} event={event} onRefresh={onRefresh} /> : <EventLocation event={event} />}
-          {recurring && <EventSessions sessions={sessions.map((session) => session?.id === event.id ? { ...session, ...event } : session)} selectedId={event.id} onSelect={onSelectSession} recurrenceLabel={recurrenceLabel} />}
+          {recurring && <EventSessions sessions={sessions?.map((session) => session?.id === event.id ? { ...session, ...event } : session) ?? null} status={sessionsStatus} error={sessionsError} onRetry={onRetrySessions} selectedId={event.id} onSelect={onSelectSession} recurrenceLabel={recurrenceLabel} />}
           <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm" aria-labelledby="event-description">
             <h2 id="event-description" className="text-base font-semibold">Sobre o evento</h2>
             <p className="mt-4 whitespace-pre-line break-words text-sm leading-6 text-gray-600">{event.description || "Descrição não disponível."}</p>
@@ -109,7 +111,7 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
           </div>
           {hasOccupancy ? (
             <div role="progressbar" aria-label="Ocupação do evento" aria-valuemin={0} aria-valuemax={100} aria-valuenow={occupancy} aria-valuetext={`${occupancy}% de ocupação`} className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-              <div className="h-full rounded-full bg-[#8A7043]" style={{ width: `${occupancy}%` }} />
+              <div className="h-full rounded-full" style={{ width: `${occupancy}%`, backgroundColor: occupancyCritical ? OCCUPANCY_WARNING_COLOR : "#8A7043" }} />
             </div>
           ) : event.max_attendees === null || event.registrations_count === null ? (
             <p className="mt-2 text-xs text-gray-500">{event.max_attendees === null ? "Lotação por confirmar" : "Ocupação por confirmar"}</p>
@@ -125,7 +127,8 @@ export default function EventDetail({ event, onEventUpdate, onRefresh, sessions 
             </p>
           )}
         </section>
-        <EventRegistrationCard key={event.id} event={event} onEventUpdate={onEventUpdate} />
+        <EventRegistrationCard key={event.id} event={event} onEventUpdate={onEventUpdate} onReconcile={onReconcile} seriesReady={!event.series_id || sessionsStatus === "ready"} />
+        <EventPrayerCardBlock event={event} />
         </div>
       </div>
     </article>

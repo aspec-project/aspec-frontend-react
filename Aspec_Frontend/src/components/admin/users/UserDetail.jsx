@@ -76,7 +76,7 @@ function ExternalLink({ href }) {
   }
 
   return (
-    <a href={safe} target="_blank" rel="noopener noreferrer" className="break-all text-[#0d1f35] underline">
+    <a href={safe} target="_blank" rel="noopener noreferrer" className="break-all text-[#0d1f35] hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]">
       {href}
     </a>
   )
@@ -119,8 +119,9 @@ function ContactList({ profile }) {
 }
 
 /**
- * Detalhe de um utilizador do backoffice em cartões: Conta, Contactos e redes, Avaliações,
- * Congregação, Sobre o negócio, Horário de atendimento e Imagens (logótipo primeiro).
+ * Detalhe de um utilizador do backoffice: cartões em três colunas (Conta e Congregação ·
+ * Contactos e redes e Sobre o negócio · Avaliações e Horário de atendimento) e Imagens a toda
+ * a largura (logótipo primeiro).
  * Sem perfil de membro (ex.: admins) mostra só a Conta e o aviso de que não há perfil.
  * O cabeçalho com o nome e as ações fica na banda da página (UserDetailHeader).
  *
@@ -171,42 +172,48 @@ export default function UserDetail({ user, busy = false }) {
   return (
     <div aria-busy={busy} className={`space-y-6 transition-opacity ${busy ? 'opacity-60' : ''}`}>
       <div className="grid items-start gap-6 lg:grid-cols-3">
-        {account}
+        <div className="space-y-6">
+          {account}
 
-        <DetailCard title="Contactos e redes" icon={Globe}>
-          <ContactList profile={profile} />
-        </DetailCard>
+          <DetailCard title="Congregação" icon={Church}>
+            <FieldList fields={[['Congregação', profile.congregation], ['Cargo', profile.role_in_congregation]]} />
+          </DetailCard>
+        </div>
 
-        <DetailCard title="Avaliações" icon={Star}>
-          <UserReviewCounts counts={user.review_counts} />
-        </DetailCard>
+        <div className="space-y-6">
+          <DetailCard title="Contactos e redes" icon={Globe}>
+            <ContactList profile={profile} />
+          </DetailCard>
 
-        <DetailCard title="Congregação" icon={Church}>
-          <FieldList fields={[['Congregação', profile.congregation], ['Cargo', profile.role_in_congregation]]} />
-        </DetailCard>
+          <DetailCard title="Sobre o negócio" icon={Briefcase}>
+            {isEmpty(profile.description) ? (
+              <p className="mt-4 text-sm text-gray-600">Sem descrição.</p>
+            ) : (
+              <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{profile.description}</p>
+            )}
+          </DetailCard>
+        </div>
 
-        <DetailCard title="Sobre o negócio" icon={Briefcase}>
-          {isEmpty(profile.description) ? (
-            <p className="mt-4 text-sm text-gray-600">Sem descrição.</p>
-          ) : (
-            <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{profile.description}</p>
-          )}
-        </DetailCard>
+        <div className="space-y-6">
+          <DetailCard title="Avaliações" icon={Star}>
+            <UserReviewCounts counts={user.review_counts} />
+          </DetailCard>
 
-        <DetailCard title="Horário de atendimento" icon={Clock}>
-          {hours.length > 0 ? (
-            <dl className="mt-4 divide-y divide-gray-100 text-sm">
-              {hours.map((group) => (
-                <div key={group.label} className="flex justify-between gap-4 py-3">
-                  <dt className="text-gray-600">{group.label}</dt>
-                  <dd className={group.closed ? 'font-medium text-red-600' : 'font-medium text-gray-800'}>{group.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p className="mt-4 text-sm text-gray-600">Sem horário definido.</p>
-          )}
-        </DetailCard>
+          <DetailCard title="Horário de atendimento" icon={Clock}>
+            {hours.length > 0 ? (
+              <dl className="mt-4 divide-y divide-gray-100 text-sm">
+                {hours.map((group) => (
+                  <div key={group.label} className="flex justify-between gap-4 py-3">
+                    <dt className="text-gray-600">{group.label}</dt>
+                    <dd className={group.closed ? 'font-medium text-red-600' : 'font-medium text-gray-800'}>{group.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="mt-4 text-sm text-gray-600">Sem horário definido.</p>
+            )}
+          </DetailCard>
+        </div>
       </div>
 
       <DetailCard title={`Imagens (${images.length})`} icon={Image}>

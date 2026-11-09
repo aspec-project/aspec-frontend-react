@@ -7,6 +7,7 @@ import { isSessionCurrent } from '../../services/sessionContext'
 import useSessionRequest from '../../hooks/useSessionRequest'
 import { getMemberProfile } from '../../services/memberProfile'
 import MemberAvatar from '../member/MemberAvatar'
+import { hasMemberProfile } from '../../utils/memberAccess'
 
 /*
  * As abas correspondem às áreas apresentadas no Figma.
@@ -15,12 +16,13 @@ import MemberAvatar from '../member/MemberAvatar'
  * atualizar a página e partilhar o endereço sem perder o separador atual.
  */
 const memberTabs = [
-  { label: 'Perfil', to: '/perfil', end: true },
-  { label: 'Portefólio', to: '/perfil/portefolio' },
-  { label: 'Inscrições', to: '/perfil/inscricoes' },
-  { label: 'Avaliações', to: '/perfil/avaliacoes' },
-  { label: 'Informações de conta', to: '/perfil/conta' },
-  { label: 'Subscrição', to: '/perfil/subscricao' },
+  { label: 'Perfil', to: '/perfil', end: true, requiresProfile: true },
+  { label: 'Portefólio', to: '/perfil/portefolio', requiresProfile: true },
+  { label: 'Inscrições', to: '/perfil/inscricoes', requiresProfile: true },
+  { label: 'Avaliações', to: '/perfil/avaliacoes', requiresProfile: true },
+  { label: 'Informações de conta', to: '/perfil/conta', requiresProfile: false },
+  { label: 'Subscrição', to: '/perfil/subscricao', requiresProfile: true },
+  { label: 'Cartões de oração', to: '/perfil/cartoes-oracao', requiresProfile: true },
 ]
 
 /*
@@ -37,24 +39,31 @@ function formatAccountStatus(statusName) {
   return statusLabels[statusName] ?? statusName ?? 'Membro'
 }
 
-/*
+/**
  * Layout comum da área privada do membro.
  *
  * Além das abas, carrega o perfil uma vez e disponibiliza-o às páginas
  * internas através do Outlet. Assim, Perfil, Portefólio e Subscrição
  * apresentam sempre o mesmo resumo no topo, como no Figma.
+ * Contas sem perfil de membro (admin técnico) só veem "Informações de conta".
+ * @returns {JSX.Element}
  */
 export default function MemberAreaLayout() {
   const user = useAuthStore((state) => state.user)
+  const hasProfile = hasMemberProfile(user)
   const getRequestContext = useSessionRequest()
   const [profile, setProfile] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(hasProfile)
   const [loadError, setLoadError] = useState('')
 
   /*
    * Carrega o perfil necessário para o resumo comum a toda a área do membro.
    */
   useEffect(() => {
+    if (!hasProfile) {
+      return undefined
+    }
+
     const context = getRequestContext()
 
     if (!context) {
@@ -91,7 +100,7 @@ export default function MemberAreaLayout() {
     return () => {
       isMounted = false
     }
-  }, [getRequestContext])
+  }, [getRequestContext, hasProfile])
 
   /*
    * As páginas de edição usam esta função depois de guardar, para que o
@@ -122,7 +131,10 @@ export default function MemberAreaLayout() {
     'O meu perfil'
 
   const sectorName = profile?.sector?.name
-  const accountStatus = formatAccountStatus(user?.account_status?.name)
+  const accountStatus = hasProfile
+    ? formatAccountStatus(user?.account_status?.name)
+    : 'Conta de administração'
+  const visibleTabs = memberTabs.filter((tab) => hasProfile || !tab.requiresProfile)
   /* A rota pública recebe o identificador do perfil de membro, não o da conta. */
   const publicProfilePath = profile?.id
     ? `/membros/${encodeURIComponent(profile.id)}`
@@ -152,13 +164,15 @@ export default function MemberAreaLayout() {
               </div>
             </div>
 
-            <Link
-              to={publicProfilePath}
-              className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:border-[#0d1f35] hover:bg-slate-50"
-            >
-              <ExternalLink size={16} aria-hidden="true" />
-              Ver perfil público
-            </Link>
+            {hasProfile && (
+              <Link
+                to={publicProfilePath}
+                className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:border-[#0d1f35] hover:bg-slate-50"
+              >
+                <ExternalLink size={16} aria-hidden="true" />
+                Ver perfil público
+              </Link>
+            )}
           </div>
         </div>
 
@@ -168,7 +182,7 @@ export default function MemberAreaLayout() {
           aria-label="Secções do perfil"
         >
           <div className="mx-auto flex min-w-max max-w-7xl px-4 sm:px-6 lg:px-8">
-            {memberTabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <NavLink
                 key={tab.to}
                 to={tab.to}

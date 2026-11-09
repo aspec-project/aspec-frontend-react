@@ -17,14 +17,14 @@ const ADMIN_TABS = [
 /**
  * Rotas "página inteira": sem herói nem separadores; a própria página desenha a sua banda e o contentor.
  */
-const FULL_PAGE_ROUTES = ['/admin/utilizadores/:id']
+const FULL_PAGE_ROUTES = ['/admin/utilizadores/:id', '/admin/eventos/:id']
 
 const todayFormatter = new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 /**
  * Layout de todas as páginas /admin: Header, herói escuro com o título da secção, separadores
  * Dashboard · Utilizadores · Eventos · Tipos de evento · Moderação, conteúdo em fundo cinzento e Footer.
- * Nas rotas "página inteira" (ex.: detalhe de um membro) desenha só Header, conteúdo e Footer.
+ * Nas rotas "página inteira" (detalhe de um membro e página de um evento) desenha só Header, conteúdo e Footer.
  *
  * @returns {JSX.Element}
  */
@@ -52,17 +52,17 @@ export default function AdminLayout() {
     <div className="min-h-screen flex flex-col">
       <Header />
 
-      <section className="bg-white">
+      <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)]">
         <div className="max-w-7xl mx-auto px-6 py-10">
           {isDashboard ? (
             <>
-              <h1 className="text-2xl font-semibold text-[#8a7043]">Área de Administração</h1>
-              <p className="mt-2 text-gray-600">{today}</p>
+              <h1 className="text-2xl font-semibold text-[#c9b87a]">Área de Administração</h1>
+              <p className="mt-2 text-gray-300">{today}</p>
             </>
           ) : (
             <>
-              <p className="uppercase tracking-wider text-[#8a7043] text-sm font-semibold">Área de Administração</p>
-              <h1 className="mt-2 text-2xl font-semibold text-[#0d1f35]">{title}</h1>
+              <p className="uppercase tracking-wider text-[#c9b87a] text-sm font-semibold">Área de Administração</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white">{title}</h1>
             </>
           )}
         </div>

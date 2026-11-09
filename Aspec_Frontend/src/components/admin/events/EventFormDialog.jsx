@@ -37,7 +37,9 @@ function namesById(list, current) {
  * devolvido ao elemento que o tinha antes de abrir. Só existe enquanto está aberto, por isso cada abertura
  * começa com o formulário vazio (criação) ou com os dados do evento (edição). Na edição, "Guardar alterações"
  * abre sempre o diálogo "Confirmar alterações?" com a lista do que mudou; com inscritos (ou com o número
- * desconhecido) avisa do email e aceita uma justificação opcional, sem inscritos só pede para guardar.
+ * desconhecido) e algum campo que o backend notifica, avisa do email e aceita uma justificação opcional;
+ * sem inscritos, ou só com campos que não notificam (ex.: capacidade, notas, cartões de oração), só pede para
+ * guardar.
  * Na criação de uma série, "Criar série" abre o diálogo "Criar série de eventos?" com o número de sessões e
  * as datas; "Voltar" ou Escape voltam ao formulário com os valores. Na edição de uma sessão de uma série, uma
  * nota no topo diz que as alterações valem só para essa sessão.
@@ -131,13 +133,13 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
     }
   }
 
-  const notice = getChangeNotice(form.registrationsCount)
   const changes = form.isEditing && form.confirming
     ? getEventChangeSummary(form.initialValues, form.values, {
       categoryId: namesById(options.categories, event?.category),
       locationId: namesById(options.locations, event?.location),
     })
     : []
+  const notice = getChangeNotice(form.registrationsCount, changes.map((change) => change.field))
 
   return (
     <>
@@ -184,6 +186,8 @@ export default function EventFormDialog({ mode, event = null, options, onClose, 
                   onFieldChange={form.setField}
                   onFormatChange={form.setFormat}
                   onRepetitionChange={form.setRepetition}
+                  onPrayerCardsChange={form.setPrayerCardsEnabled}
+                  prayerCardsLocked={form.prayerCardsLocked}
                   seriesSessions={form.seriesSessions}
                   geocode={form.geocode}
                   onVerifyAddress={form.verifyAddress}

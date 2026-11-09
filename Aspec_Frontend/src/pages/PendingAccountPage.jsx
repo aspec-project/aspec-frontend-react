@@ -1,11 +1,14 @@
 import { Clock3, LogIn } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import PublicAccountBrand from '../components/layout/PublicAccountBrand'
 
 /* Confirmação apresentada depois de uma candidatura submetida com sucesso. */
 export default function PendingAccountPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f8f7f2] px-6 py-12">
-      <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
+    <main className="min-h-screen bg-[#f8f7f2]">
+      <PublicAccountBrand />
+      <div className="flex justify-center px-6 pb-12 pt-0">
+        <section className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-[#9b7b45]">
           <Clock3 size={31} aria-hidden="true" />
         </div>
@@ -30,7 +33,8 @@ export default function PendingAccountPage() {
           <LogIn size={17} aria-hidden="true" />
           Voltar ao início de sessão
         </Link>
-      </section>
+        </section>
+      </div>
     </main>
   )
 }

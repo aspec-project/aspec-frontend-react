@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Link2, Lock, MapPin } from 'lucide-react'
+import { Globe, Link2, Mail, MapPin, Phone } from 'lucide-react'
 import RatingStars from './RatingStars'
 import MemberReviews from './MemberReviews'
 import { groupBusinessHours } from '../../utils/businessHours'
+import { buildMapEmbedUrl, getEmbedKey } from '../../utils/googleMapsEmbed'
 import PortfolioImageDialog from './PortfolioImageDialog'
 
 const cardClass = 'rounded-xl border border-gray-100 bg-white p-6 shadow-sm'
@@ -46,7 +47,8 @@ function ProfileImage({ src, title, logo = false, index, onOpen }) {
   )
 }
 
-function Rating({ member }) {
+function Rating({ member, pending = false }) {
+  if (pending) return <p role="status" className="text-center text-sm text-gray-600">A atualizar classificação...</p>
   const hasRating = member.average_rating !== null && member.reviews_count > 0
   return (
     <div className="text-center">
@@ -89,21 +91,21 @@ function ContactLink({ href, label, Icon, accessibleName = label }) {
 function Contacts({ member, allowContacts, showLockedContacts }) {
   if (showLockedContacts) {
     return (
-      <section aria-label="Contactos reservados" className={`${sidebarClass} flex items-center justify-center`}>
-        <div className="flex w-full max-w-xs flex-col items-center text-center text-sm leading-relaxed text-gray-600">
-          <Lock size={24} className="mb-3 text-[#8a7043]" aria-hidden="true" />
-          <p>Os contactos estão disponíveis para membros ASPEC ativos.</p>
-          <div className="mt-4 flex w-full flex-col gap-3">
-            <Link className="rounded-lg bg-[#0d1f35] px-4 py-2 text-center font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4" to="/login">Entrar</Link>
-            <Link className="rounded-lg border border-gray-300 px-4 py-2 text-center font-semibold text-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-4" to="/registo">Candidatar-me</Link>
-          </div>
+      <section aria-label="Contactos reservados" className={sidebarClass}>
+        <h2 className="text-base font-semibold text-[#0d1f35]">Contactos e avaliações</h2>
+        <div className="mt-4 rounded-lg border border-[#E5DFD3] bg-[#F6F4EF] p-4">
+          <p className="text-sm leading-6 text-gray-600">
+            Para ver os contactos e as avaliações deste membro, ou para o avaliar, é necessário ser membro ativo da ASPEC.
+          </p>
+          <Link to="/login" className="mt-5 inline-block w-full rounded-lg bg-[#0D1F35] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79]">Entrar como membro</Link>
+          <Link to="/registo" className="mt-3 inline-block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-[#0D1F35] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79]">Candidatar-me a membro</Link>
         </div>
       </section>
     )
   }
   const contacts = allowContacts ? member.members_only : null
   if (!contacts) return null
-  const fields = [['Telefone comercial', contacts.commercial_phone], ['Email comercial', contacts.commercial_email]]
+  const fields = [['Telefone comercial', contacts.commercial_phone, Phone], ['Email comercial', contacts.commercial_email, Mail]]
   const visibleFields = fields.filter(([, value]) => value?.trim())
   const socialLinks = contacts.social_links.filter((item) => item.url)
   return (
@@ -124,10 +126,13 @@ function Contacts({ member, allowContacts, showLockedContacts }) {
       {visibleFields.length === 0 && !contacts.website_url && socialLinks.length === 0 && <p className="mt-4 text-sm text-gray-600">Contactos não disponíveis.</p>}
       {visibleFields.length > 0 && (
         <dl className="mt-4 space-y-4">
-          {visibleFields.map(([label, value]) => (
+          {visibleFields.map(([label, value, Icon]) => (
             <div key={label}>
-              <dt className="text-sm font-medium">{label}</dt>
-              <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{value}</dd>
+              <dt className="flex items-start gap-3 text-sm font-medium">
+                <Icon size={16} className="mt-0.5 shrink-0 text-[#8a7043]" aria-hidden="true" />
+                {label}
+              </dt>
+              <dd className="ml-7 mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{value}</dd>
             </div>
           ))}
         </dl>
@@ -138,10 +143,24 @@ function Contacts({ member, allowContacts, showLockedContacts }) {
 
 function LocationCard({ address }) {
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+  const embedUrl = buildMapEmbedUrl(getEmbedKey(), address)
   return (
     <section className={sidebarClass}>
       <h2 className="text-base font-medium leading-normal text-[#0d1f35]">Localização</h2>
-      <div className="mt-4 flex h-32 items-center justify-center rounded-lg bg-gray-100 text-[#8a7043]" aria-hidden="true"><MapPin size={32} /></div>
+      <div className="mt-4 h-[200px] overflow-hidden rounded-lg bg-gray-100">
+        {embedUrl ? (
+          <iframe
+            title="Mapa da localização do membro"
+            src={embedUrl}
+            className="block h-full w-full border-0"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        ) : (
+          <p role="status" className="flex h-full items-center p-4 text-sm text-gray-600">O mapa está indisponível. Pode abrir a localização no Google Maps.</p>
+        )}
+      </div>
       <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{address}</p>
       <a className={`${linkClass} mt-4 inline-block text-sm`} href={mapUrl} target="_blank" rel="noopener noreferrer">Ver no Google Maps</a>
     </section>
@@ -150,6 +169,11 @@ function LocationCard({ address }) {
 
 export default function PublicMemberProfile({ member, allowContacts, showLockedContacts = false, allowReview = false, allowComments = false }) {
   const [selectedImage, setSelectedImage] = useState(null)
+  const [reviewSummary, setReviewSummary] = useState(null)
+  const updateSummary = useCallback((value) => setReviewSummary({ source: member, value }), [member])
+  const summaryMatches = reviewSummary?.source === member
+  const summaryPending = summaryMatches && reviewSummary.value === null
+  const ratedMember = summaryMatches && reviewSummary.value !== null ? { ...member, ...reviewSummary.value } : member
   const closeImage = useCallback(() => setSelectedImage(null), [])
   const title = member.business_name || member.name
   const portfolioImages = member.portfolio.map((item, index) => ({
@@ -160,7 +184,7 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
     contacts?.address?.trim(),
     [contacts?.postal_code?.trim(), contacts?.city?.trim()].filter(Boolean).join(' '),
   ].filter(Boolean).join(', ')
-  const hasRating = member.average_rating !== null && member.reviews_count > 0
+  const hasRating = ratedMember.average_rating !== null && ratedMember.reviews_count > 0
   return (
     <>
     <section className="bg-[#0d1f35] pb-16 pt-10 text-white">
@@ -173,16 +197,16 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
             <div className="flex flex-wrap items-center gap-4 text-sm text-white/80">
               <p className="flex items-center gap-2"><MapPin size={13} aria-hidden="true" className="text-primary" />{member.location.name}, Portugal</p>
               <p className="flex items-center gap-2">
-                <RatingStars rating={hasRating ? member.average_rating : null} size={13} />
-                <span>{hasRating ? `${member.average_rating.toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} (${member.reviews_count} ${member.reviews_count === 1 ? 'avaliação' : 'avaliações'})` : 'Sem avaliações'}</span>
+                {!summaryPending && <RatingStars rating={hasRating ? ratedMember.average_rating : null} size={13} />}
+                <span>{summaryPending ? 'A atualizar classificação...' : hasRating ? `${ratedMember.average_rating.toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} (${ratedMember.reviews_count} ${ratedMember.reviews_count === 1 ? 'avaliação' : 'avaliações'})` : 'Sem avaliações'}</span>
               </p>
             </div>
           </div>
         </div>
       </div>
     </section>
-    <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-3">
-      <div className="space-y-6 lg:col-span-2">
+    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-8 lg:grid-cols-3">
+      <div className="min-w-0 space-y-6 lg:col-span-2">
         <section className={cardClass}>
           <h2 className="text-lg font-medium leading-normal text-[#0d1f35]">Sobre o Negócio</h2>
           <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-600">{member.description?.trim() || 'Descrição não disponível.'}</p>
@@ -206,12 +230,12 @@ export default function PublicMemberProfile({ member, allowContacts, showLockedC
             </div>
           ) : <p className="mt-4 text-sm leading-relaxed text-gray-600">Sem imagens no portefólio.</p>}
         </section>
-        {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} />}
+        {allowComments && <MemberReviews memberId={member.id} allowReview={allowReview} onSummaryChange={updateSummary} />}
       </div>
       <aside className="space-y-6">
         <section className={sidebarClass}>
           <h2 className="mb-4 text-base font-medium leading-normal text-[#0d1f35]">Classificação Global</h2>
-          <Rating member={member} />
+          <Rating member={ratedMember} pending={summaryPending} />
         </section>
         <Contacts member={member} allowContacts={allowContacts} showLockedContacts={showLockedContacts} />
         {address && <LocationCard address={address} />}

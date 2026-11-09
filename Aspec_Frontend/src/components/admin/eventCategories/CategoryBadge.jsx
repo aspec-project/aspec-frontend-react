@@ -1,7 +1,7 @@
 import { getCategoryBadgeColors } from '../../../utils/eventCategories'
 
 /**
- * Badge com o nome de um tipo de evento, tingido na cor do tipo (fundo claro e texto escuro na mesma cor, com
+ * Badge com o nome de um tipo de evento, tingido na cor do tipo (fundo claro e texto na própria cor, com
  * contraste AA). Uma cor inválida usa o azul-marinho e nunca chega ao `style`.
  *
  * @param {{name: string, color: unknown}} props

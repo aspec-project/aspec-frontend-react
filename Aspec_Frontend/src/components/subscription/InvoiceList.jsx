@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
+import Pagination from '../ui/Pagination'
 import { normalizeError } from '../../services/api'
 import {
   downloadInvoicePdf,
@@ -30,6 +31,46 @@ function getInvoiceLabel(invoice) {
   return invoice.number ? `Fatura ${invoice.number}` : 'Fatura emitida'
 }
 
+/*
+ * As datas do período vêm da API sem hora (YYYY-MM-DD). Criá-las em UTC
+ * evita que um fuso horário faça a interface mostrar o dia anterior.
+ */
+function parseDateOnly(value) {
+  if (typeof value !== 'string') return null
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return date
+}
+
+function getInvoicePeriod(invoice) {
+  const start = parseDateOnly(invoice.period_start)
+  const end = parseDateOnly(invoice.period_end)
+
+  if (!start || !end || start > end) return null
+
+  const formatter = new Intl.DateTimeFormat('pt-PT', {
+    timeZone: 'UTC',
+  })
+
+  return `Período: ${formatter.format(start)} – ${formatter.format(end)}`
+}
+
 function getDownloadFilename(invoice) {
   const reference = String(invoice.number ?? invoice.id)
   const safeReference = reference
@@ -37,13 +78,6 @@ function getDownloadFilename(invoice) {
     .replace(/^-+|-+$/g, '')
 
   return `fatura-${safeReference || 'documento'}.pdf`
-}
-
-function getPageNumbers(currentPage, lastPage) {
-  const start = Math.max(1, Math.min(currentPage - 2, lastPage - 4))
-  const end = Math.min(lastPage, start + 4)
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 }
 
 /*
@@ -170,7 +204,7 @@ export default function InvoiceList() {
     <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
       <h2 className="text-base font-semibold text-[#0d1f35]">Faturas</h2>
       <p className="mb-4 mt-1 text-xs text-gray-500">
-        Documentos de cada cobrança mensal.
+        Documentos de cada cobrança.
       </p>
 
       {downloadError && (
@@ -203,11 +237,17 @@ export default function InvoiceList() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b border-gray-50 last:border-0">
-                  <td className="py-1.5 text-[#0d1f35]">
-                    {getInvoiceLabel(invoice)}
-                  </td>
+              {invoices.map((invoice) => {
+                const period = getInvoicePeriod(invoice)
+
+                return (
+                  <tr key={invoice.id} className="border-b border-gray-50 last:border-0">
+                    <td className="py-1.5 text-[#0d1f35]">
+                      <p>{getInvoiceLabel(invoice)}</p>
+                      {period && (
+                        <p className="mt-0.5 text-xs text-gray-500">{period}</p>
+                      )}
+                    </td>
                   <td className="py-1.5">
                     <div className="-mr-2 flex justify-end">
                       {invoice.pdf_available ? (
@@ -228,8 +268,9 @@ export default function InvoiceList() {
                       )}
                     </div>
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
@@ -238,48 +279,12 @@ export default function InvoiceList() {
               {firstItem}–{lastItem} de {pagination.total} faturas
             </p>
 
-            {pagination.last_page > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => handlePageChange(pagination.current_page - 1)}
-                  disabled={pagination.current_page === 1}
-                  aria-label="Página anterior"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronLeft size={15} aria-hidden="true" />
-                </button>
-
-                {getPageNumbers(
-                  pagination.current_page,
-                  pagination.last_page,
-                ).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => handlePageChange(page)}
-                    aria-current={page === pagination.current_page ? 'page' : undefined}
-                    className={`h-8 w-8 rounded-lg text-xs font-medium transition ${
-                      page === pagination.current_page
-                        ? 'bg-[#0d1f35] text-white'
-                        : 'text-[#0d1f35] hover:bg-[#f5f3ee]'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => handlePageChange(pagination.current_page + 1)}
-                  disabled={pagination.current_page === pagination.last_page}
-                  aria-label="Página seguinte"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#0d1f35] transition hover:bg-[#f5f3ee] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ChevronRight size={15} aria-hidden="true" />
-                </button>
-              </div>
-            )}
+            <Pagination
+              currentPage={pagination.current_page}
+              lastPage={pagination.last_page}
+              onChange={handlePageChange}
+              label="Paginação das faturas"
+            />
           </footer>
         </>
       )}

@@ -1,10 +1,12 @@
-import { Download, Pencil, Trash2 } from 'lucide-react'
+import { Download, Eye, Pencil, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { ATTENDEES_EXPORT_TEXTS, DELETE_EVENT_TEXTS, getRegistrationState } from '../../../utils/adminEvents'
 
 const buttonBase = 'flex h-8 w-8 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]'
 
 /**
- * Botões de ícone da coluna "Ações" de um evento: exportar e, nos agendados, editar e apagar. O de exportar a
+ * Ações de um evento na coluna "Ações": a ligação "Ver evento" (👁, sempre ativa, nos dois separadores), que abre
+ * a página do evento, e os botões de exportar e, nos agendados, editar e apagar. O de exportar a
  * lista de presenças fica ativo apenas depois do prazo de inscrição (a mesma regra do badge "Encerradas" e do
  * backend); antes disso aparece desativado com a explicação. O de editar e o de apagar só aparecem nos agendados (um evento passado não se
  * edita nem se apaga).
@@ -24,6 +26,14 @@ export default function EventActions({ event, period, disabled = false, onExport
 
   return (
     <div className="flex items-center gap-2">
+      <Link
+        to={`/admin/eventos/${encodeURIComponent(event.id)}`}
+        aria-label={`Ver evento ${event.name}`}
+        title="Ver evento"
+        className="flex h-8 w-8 items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]"
+      >
+        <Eye size={16} aria-hidden="true" />
+      </Link>
       {available ? (
         <button
           type="button"

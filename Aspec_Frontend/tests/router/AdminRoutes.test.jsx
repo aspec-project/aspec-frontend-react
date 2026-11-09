@@ -4,8 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRouter from '../../src/router/AppRouter'
 import { getAdminDashboard } from '../../src/services/adminDashboard'
-import { getAdminEventCategories } from '../../src/services/adminEventCategories'
-import { getAdminEvents } from '../../src/services/adminEvents'
+import { getAdminEventCategories, getAdminEventCategoryPalette } from '../../src/services/adminEventCategories'
+import { getAdminEvent, getAdminEvents } from '../../src/services/adminEvents'
 import { getAdminUser, getAdminUsers } from '../../src/services/adminUsers'
 import { getEvents } from '../../src/services/events'
 import { useAuthStore } from '../../src/store/authStore'
@@ -22,13 +22,19 @@ vi.mock('../../src/services/adminUsers', () => ({
   anonymizeUser: vi.fn(),
   sendPaymentLink: vi.fn(),
 }))
-vi.mock('../../src/services/adminDashboard', () => ({ getAdminDashboard: vi.fn() }))
+vi.mock('../../src/services/adminDashboard', () => ({
+  getAdminDashboard: vi.fn(),
+  getDashboardPendingApplications: vi.fn(),
+}))
 vi.mock('../../src/services/events', () => ({
   getEvents: vi.fn(),
   getEventsErrorMessage: vi.fn(() => 'Erro'),
 }))
 vi.mock('../../src/services/adminEvents', () => ({
   getAdminEvents: vi.fn(),
+  getAdminEvent: vi.fn(),
+  getPrayerCardsStatus: vi.fn(),
+  distributePrayerCards: vi.fn(),
   exportEventAttendees: vi.fn(),
   createAdminEvent: vi.fn(),
   geocodeAddress: vi.fn(),
@@ -37,9 +43,17 @@ vi.mock('../../src/services/adminEvents', () => ({
 }))
 vi.mock('../../src/services/adminEventCategories', () => ({
   getAdminEventCategories: vi.fn(),
+  getAdminEventCategoryPalette: vi.fn(),
   createEventCategory: vi.fn(),
   updateEventCategory: vi.fn(),
   deleteEventCategory: vi.fn(),
+}))
+const { getAdminReviews } = vi.hoisted(() => ({ getAdminReviews: vi.fn() }))
+vi.mock('../../src/services/adminReviews', () => ({
+  getAdminReviews,
+  hideReview: vi.fn(),
+  showReview: vi.fn(),
+  unflagReview: vi.fn(),
 }))
 vi.mock('../../src/services/referenceLists', () => ({
   getSocialPlatforms: vi.fn(() => Promise.resolve([])),
@@ -70,6 +84,22 @@ const maria = {
   },
 }
 
+const adminEvent = {
+  id: 'ev-1',
+  name: 'Pequeno-Almoço de Oração e Negócios — Porto',
+  category: { id: 'c1', name: 'Pequeno-Almoço', color: '#2E7D32' },
+  location: { id: 'l2', name: 'Porto' },
+  event_date: '2099-02-03',
+  event_start_time: '08:00',
+  event_end_time: '09:30',
+  venue_name: 'Café Majestic',
+  is_online: false,
+  max_attendees: 25,
+  registration_deadline: '2099-02-01T23:59:00+00:00',
+  registrations_count: 18,
+  prayer_cards_enabled: false,
+}
+
 const emptyList = {
   items: [],
   pagination: { current_page: 1, per_page: 12, total: 0, last_page: 1 },
@@ -90,12 +120,15 @@ describe('Rotas de administração', () => {
       counts: { upcoming: 0, past: 0 },
     })
     getAdminEventCategories.mockResolvedValue([])
+    getAdminEventCategoryPalette.mockResolvedValue([])
     getAdminDashboard.mockResolvedValue({
       stats: {
         active_members: { total: 0, new_this_month: 0 },
         pending_applications: { total: 0 },
         events: { this_month: 0, this_week: 0 },
         reviews: { flagged: 0, new_this_week: 0 },
+        overdue_payments: { total: 0, grace: 0, unpaid: 0 },
+        event_registrations: { this_week: 0, events_with_registrations: 0 },
       },
       pending_applications: [],
       recent_reviews: [],
@@ -207,6 +240,23 @@ describe('Rotas de administração', () => {
     expect(getAdminDashboard).not.toHaveBeenCalled()
   })
 
+  it('um admin vê a moderação de conteúdos dentro do layout de administração, sem o placeholder', async () => {
+    getAdminReviews.mockResolvedValue({
+      items: [],
+      pagination: { current_page: 1, per_page: 10, total: 0, last_page: 1 },
+      counts: { all: 0, flagged: 0, visible: 0, hidden: 0 },
+    })
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/moderacao')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Moderação de Conteúdos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Moderação' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('group', { name: 'Filtrar avaliações por estado' })).toBeInTheDocument()
+    expect(screen.queryByText('Esta página será implementada mais tarde.')).not.toBeInTheDocument()
+    expect(getAdminReviews).toHaveBeenCalled()
+  })
+
   it('um admin vai do painel para a lista de utilizadores já filtrada nas pendentes', async () => {
     const user = userEvent.setup()
     useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
@@ -217,5 +267,44 @@ describe('Rotas de administração', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Gestão de Utilizadores' })).toBeInTheDocument()
     await waitFor(() => expect(getAdminUsers).toHaveBeenCalledWith(expect.objectContaining({ subscriptionState: 'pending' }), expect.any(AbortSignal)))
+  })
+
+  it('um admin abre o detalhe de um evento em página inteira e um membro não chega lá', async () => {
+    getAdminEvent.mockResolvedValue(adminEvent)
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    const { unmount } = show('/admin/eventos/ev-1')
+
+    expect(await screen.findByRole('heading', { level: 1, name: adminEvent.name })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Voltar aos eventos' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Secções da administração' })).not.toBeInTheDocument()
+    unmount()
+
+    vi.clearAllMocks()
+    useAuthStore.setState({ user: { id: 'member-1', email: 'membro@aspec.pt', role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos/ev-1')
+
+    await waitFor(() => expect(getEvents).toHaveBeenCalled())
+    expect(screen.queryByRole('heading', { name: adminEvent.name })).not.toBeInTheDocument()
+    expect(getAdminEvent).not.toHaveBeenCalled()
+  })
+
+  it('um admin vai da lista de eventos para o detalhe pelo link Ver evento', async () => {
+    getAdminEvents.mockResolvedValue({
+      items: [adminEvent],
+      pagination: { current_page: 1, per_page: 6, total: 1, last_page: 1 },
+      counts: { upcoming: 1, past: 0 },
+    })
+    getAdminEvent.mockResolvedValue(adminEvent)
+    const user = userEvent.setup({ delay: null })
+    useAuthStore.setState({ user: { id: 'admin-1', email: 'admin@aspec.pt', role: { name: 'Admin' }, account_status: { name: 'Active' } }, status: 'authenticated' })
+
+    show('/admin/eventos')
+
+    await user.click(await screen.findByRole('link', { name: `Ver evento ${adminEvent.name}` }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: adminEvent.name })).toBeInTheDocument()
+    expect(getAdminEvent.mock.calls[0][0]).toBe('ev-1')
   })
 })

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -136,6 +136,18 @@ function queryLabelled(text) {
   return screen.queryByLabelText(new RegExp(`^${escapeRegExp(text)}\\s*\\*?$`))
 }
 
+function hoursBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, horas` })
+}
+
+function minutesBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, minutos` })
+}
+
+function timeValue(label, scope = screen) {
+  return `${hoursBox(label, scope).value}:${minutesBox(label, scope).value}`
+}
+
 const field = {
   title: () => labelled('Título do evento'),
   category: () => labelled('Tipo de evento'),
@@ -212,7 +224,7 @@ function calendar() {
 }
 
 function day(label) {
-  return within(calendar()).getByRole('button', { name: label })
+  return within(calendar()).getByLabelText(label, { selector: 'button' })
 }
 
 async function chooseOption(user, combobox, optionName) {
@@ -225,8 +237,8 @@ function useFakeToday() {
   vi.setSystemTime(new Date(2099, 0, 10, 12))
 }
 
-async function editTitle(user, text = 'Workshop de Liderança — nova data') {
-  await typeInto(user, field.title(), text)
+function editTitle(text = 'Workshop de Liderança — nova data') {
+  change(field.title(), text)
 }
 
 function lastPayload() {
@@ -253,12 +265,17 @@ function apiError(status, message, errors) {
   })
 }
 
-describe('EditEventDialog', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.clearAllMocks()
-  })
+beforeEach(() => {
+  updateAdminEvent.mockReset()
+  geocodeAddress.mockReset()
+})
 
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
+
+describe('EditEventDialog', () => {
   it('abre com os dados do evento, o formato do evento, sem repetição e sem alterações', async () => {
     const user = userEvent.setup({ delay: null })
     show()
@@ -272,9 +289,9 @@ describe('EditEventDialog', () => {
     expect(field.location()).toHaveTextContent('Lisboa')
     expect(field.date().tagName).toBe('BUTTON')
     expect(field.date()).toHaveTextContent('21 Jan 2099')
-    expect(field.start()).toHaveAttribute('placeholder', 'hh:mm')
-    expect(field.start()).toHaveValue('08:00')
-    expect(field.end()).toHaveValue('10:00')
+    expect(field.start()).toHaveAttribute('placeholder', '--')
+    expect(timeValue('Hora de início')).toBe('08:00')
+    expect(timeValue('Hora de fim')).toBe('10:00')
     expect(field.deadline().tagName).toBe('BUTTON')
     expect(field.deadline()).toHaveTextContent('19 Jan 2099')
     expect(field.venue()).toHaveValue('Centro de Congressos')
@@ -299,8 +316,8 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
 
-    expect(screen.getAllByRole('textbox')).toContain(field.start())
-    expect(field.start()).toHaveValue('18:45')
+    expect(field.start()).toHaveAttribute('role', 'spinbutton')
+    expect(timeValue('Hora de início')).toBe('18:45')
     expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
 
     await typeInto(user, field.start(), '17:39')
@@ -322,13 +339,30 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00' }))
 
-    expect(screen.getAllByRole('textbox')).toContain(field.end())
+    expect(field.end()).toHaveAttribute('role', 'spinbutton')
     await typeInto(user, field.end(), '8:00')
     await user.tab()
 
-    expect(field.end()).toHaveValue('08:00')
+    expect(timeValue('Hora de fim')).toBe('08:00')
     const error = screen.getByText(END_TIME_ERROR)
     expect(describedIds(field.end())).toContain(error.id)
+    expect(submitButton()).toBeDisabled()
+  })
+
+  it('as setas nos minutos contam como alteração e voltar à hora guardada desfaz a alteração', async () => {
+    const user = userEvent.setup({ delay: null })
+    show(event('e1', 'Workshop de Liderança', { event_start_time: '18:45:00', event_end_time: '20:00:00' }))
+
+    await user.click(minutesBox('Hora de início'))
+    await user.keyboard('{ArrowUp}')
+
+    expect(timeValue('Hora de início')).toBe('18:46')
+    expect(submitButton()).toBeEnabled()
+
+    await user.keyboard('{ArrowDown}')
+
+    expect(timeValue('Hora de início')).toBe('18:45')
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
   })
 
@@ -361,7 +395,7 @@ describe('EditEventDialog', () => {
     expect(screen.queryByText(/vão receber um email|vai receber um email/)).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: JUSTIFICATION })).not.toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     expect(updateAdminEvent).not.toHaveBeenCalled()
@@ -386,7 +420,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess } = show(event('e1', 'Workshop de Liderança', { registrations_count: 0 }))
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     const dialog = confirmDialog()
@@ -412,7 +446,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show(event('e1', 'Workshop de Liderança', { registrations_count: undefined }))
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
 
     const dialog = confirmDialog()
@@ -426,7 +460,7 @@ describe('EditEventDialog', () => {
   it('Voltar, Escape e o Fechar da confirmação voltam ao formulário sem pedido e a justificação recomeça vazia', async () => {
     const user = userEvent.setup({ delay: null })
     const { onClose } = show()
-    await editTitle(user)
+    editTitle()
 
     await user.click(submitButton())
     await user.type(justificationBox(), 'Mudou a sala.')
@@ -464,7 +498,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onClose, onSuccess } = show()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     await user.type(justificationBox(), '  A sessão passou para a sala 2.  ')
     await user.dblClick(confirmButton('Guardar e notificar'))
@@ -496,7 +530,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, name: 'Workshop de Liderança — nova data' })
@@ -535,7 +569,7 @@ describe('EditEventDialog', () => {
     second.unmount()
 
     show()
-    await typeInto(user, field.address(), 'Rua Nova 1, Porto')
+    change(field.address(), 'Rua Nova 1, Porto')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(`Morada encontrada: ${FOUND.display_name}`)
     await saveAndConfirm(user)
@@ -575,7 +609,7 @@ describe('EditEventDialog', () => {
 
     expect(field.deadline()).toHaveTextContent('14 Jan 2020')
 
-    await editTitle(user)
+    editTitle()
 
     expect(submitButton()).toBeEnabled()
     expect(screen.queryByText(DEADLINE_PAST)).not.toBeInTheDocument()
@@ -638,7 +672,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     await user.type(justificationBox(), 'A sala mudou.')
     await user.click(confirmButton('Guardar e notificar'))
@@ -661,7 +695,7 @@ describe('EditEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     const { onSuccess, onStale } = show()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
@@ -678,7 +712,7 @@ describe('EditEventDialog', () => {
 
     updateAdminEvent.mockRejectedValueOnce(apiError(409, PASSED))
     const passed = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(passed.onStale).toHaveBeenCalledWith(PASSED))
@@ -687,7 +721,7 @@ describe('EditEventDialog', () => {
 
     updateAdminEvent.mockRejectedValueOnce(apiError(404, 'Recurso não encontrado.'))
     const deleted = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(deleted.onStale).toHaveBeenCalledWith('O evento já não existe. A lista foi atualizada.'))
@@ -720,7 +754,7 @@ describe('EditEventDialog', () => {
     for (const [error, message] of cases) {
       updateAdminEvent.mockRejectedValueOnce(error)
       const view = show()
-      await editTitle(user)
+      editTitle()
       await user.click(submitButton())
       await user.type(justificationBox(), 'A sala mudou.')
       await user.click(confirmButton('Guardar e notificar'))
@@ -747,7 +781,7 @@ describe('EditEventDialog', () => {
     show()
 
     await user.click(formatButton('Online'))
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/nova')
+    change(field.onlineUrl(), 'https://meet.example.pt/nova')
     await chooseOption(user, field.category(), 'Formação')
     await user.click(field.date())
     await user.click(day('22 de janeiro de 2099'))
@@ -792,7 +826,7 @@ describe('EditEventDialog', () => {
     expect(queryLabelled('Morada completa')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Verificar no mapa' })).not.toBeInTheDocument()
 
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/lideranca')
+    change(field.onlineUrl(), 'https://meet.example.pt/lideranca')
 
     expect(submitButton()).toBeEnabled()
 
@@ -821,7 +855,7 @@ describe('EditEventDialog', () => {
     show()
 
     await user.click(formatButton('Online'))
-    await user.type(field.onlineUrl(), 'https://meet.example.pt/lideranca')
+    change(field.onlineUrl(), 'https://meet.example.pt/lideranca')
     await user.click(formatButton('Presencial'))
 
     expect(field.address()).toHaveValue('Rua Castilho 39, 1250-068 Lisboa')
@@ -829,7 +863,7 @@ describe('EditEventDialog', () => {
     expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
     expect(submitButton()).toBeDisabled()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ is_online: false, latitude: 38.7223, longitude: -9.1533 })
@@ -848,8 +882,8 @@ describe('EditEventDialog', () => {
     expect(screen.getByText(EDIT_GEOCODE_HINT)).toBeInTheDocument()
     expect(screen.queryByText(SAVED_HINT)).not.toBeInTheDocument()
 
-    await user.type(field.venue(), 'Centro de Congressos')
-    await user.type(field.address(), 'Rua Nova 1, Porto')
+    change(field.venue(), 'Centro de Congressos')
+    change(field.address(), 'Rua Nova 1, Porto')
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ is_online: false, venue_name: 'Centro de Congressos', address: 'Rua Nova 1, Porto' })
@@ -860,8 +894,8 @@ describe('EditEventDialog', () => {
 
     show(onlineWorkshop)
     await user.click(formatButton('Presencial'))
-    await user.type(field.venue(), 'Centro de Congressos')
-    await user.type(field.address(), 'Rua Nova 1, Porto')
+    change(field.venue(), 'Centro de Congressos')
+    change(field.address(), 'Rua Nova 1, Porto')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(`Morada encontrada: ${FOUND.display_name}`)
     await saveAndConfirm(user)
@@ -882,9 +916,10 @@ describe('EditEventDialog', () => {
     expect(updateAdminEvent).not.toHaveBeenCalled()
     first.unmount()
 
-    updateAdminEvent.mockImplementation(() => new Promise(() => {}))
+    const pending = deferred()
+    updateAdminEvent.mockImplementationOnce(() => pending.promise)
     const second = show()
-    await editTitle(user)
+    editTitle()
     await user.click(submitButton())
     const button = confirmButton('Guardar e notificar')
 
@@ -892,12 +927,13 @@ describe('EditEventDialog', () => {
     fireEvent.submit(button.closest('form'))
 
     expect(updateAdminEvent).toHaveBeenCalledTimes(1)
+    await act(async () => { pending.resolve({ success: true, message: SUCCESS, data: {} }) })
     second.unmount()
 
     updateAdminEvent.mockReset()
     updateAdminEvent.mockRejectedValueOnce(new CanceledError())
     const third = show()
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     await waitFor(() => expect(updateAdminEvent).toHaveBeenCalledTimes(1))
@@ -912,10 +948,6 @@ describe('EditEventDialog — sessão de uma série', () => {
   const SERIES_NOTE = 'Sessão 3/8 de uma série. As alterações aplicam-se só a esta sessão.'
   const seriesWorkshop = event('e1', 'Workshop de Liderança', { series: { position: 3, total: 8 } })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('mostra a nota da série sem os campos da repetição e o PUT não leva a recorrência', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
@@ -927,7 +959,7 @@ describe('EditEventDialog — sessão de uma série', () => {
     expect(screen.queryByLabelText(/^Fim/)).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Recorrência' })).not.toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(updateAdminEvent).toHaveBeenCalledTimes(1)
@@ -975,10 +1007,6 @@ describe('EditEventDialog — mapa da Google', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', 'chave-falsa-418')
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('um evento com place_id mostra o local guardado no mapa e reenvia o place_id ao guardar', async () => {
     updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
@@ -988,7 +1016,7 @@ describe('EditEventDialog — mapa da Google', () => {
     expect(screen.queryByText(/^A mostrar a zona de/)).not.toBeInTheDocument()
     expect(screen.getByText(SAVED_HINT)).toBeInTheDocument()
 
-    await typeInto(user, field.description(), 'Nova descrição pública.')
+    change(field.description(), 'Nova descrição pública.')
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ description: 'Nova descrição pública.', place_id: SAVED_PLACE_ID })
@@ -1012,7 +1040,7 @@ describe('EditEventDialog — mapa da Google', () => {
     first.unmount()
 
     show(withPlaceId)
-    await typeInto(user, field.address(), 'Rua Nova 1, Lisboa')
+    change(field.address(), 'Rua Nova 1, Lisboa')
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(/^Morada encontrada:/)
     await saveAndConfirm(user)
@@ -1029,7 +1057,7 @@ describe('EditEventDialog — mapa da Google', () => {
     expect(mapQuery()).toBe('Lisboa, Portugal')
     expect(screen.getByText('A mostrar a zona de Lisboa')).toBeInTheDocument()
 
-    await editTitle(user)
+    editTitle()
     await saveAndConfirm(user)
 
     expect(lastPayload()).toMatchObject({ latitude: 38.7223, longitude: -9.1533 })
@@ -1042,7 +1070,7 @@ describe('EditEventDialog — mapa da Google', () => {
     const user = userEvent.setup({ delay: null })
     show(withPlaceId)
 
-    await editTitle(user)
+    editTitle()
     await user.click(screen.getByRole('button', { name: 'Verificar no mapa' }))
     await screen.findByText(/^Local aproximado:/)
 
@@ -1061,5 +1089,193 @@ describe('EditEventDialog — mapa da Google', () => {
 
     expect(lastPayload()).toMatchObject({ place_id: APPROXIMATE_PLACE_ID })
     expectNoCoordinates(lastPayload())
+  })
+})
+
+describe('EditEventDialog — cartões de oração', () => {
+  const PRAYER_TITLE = 'Cartões de oração neste evento'
+  const NOT_SENT = 'Estas alterações não são enviadas por email aos inscritos.'
+  const LOCKED_NOTE = 'Já há cartões preenchidos neste evento: não é possível desligar os cartões nem mudar o versículo, a data ou a hora de início.'
+  const LOCK_ERROR = 'Não é possível alterar os cartões de oração, a data ou a hora depois de existirem cartões preenchidos.'
+  const withCards = event('e1', 'Workshop de Liderança', { prayer_cards_enabled: true, prayer_verse: 'Salmo 23', prayer_cards_locked: false })
+  const lockedCards = { ...withCards, prayer_cards_count: 3, prayer_cards_locked: true }
+
+  function prayerSwitch() {
+    return screen.getByRole('switch', { name: PRAYER_TITLE })
+  }
+
+  function prayerBox() {
+    return screen.getByRole('group', { name: PRAYER_TITLE })
+  }
+
+  function verse() {
+    return screen.getByRole('textbox', { name: /^Versículo da semana/ })
+  }
+
+  function editDialog() {
+    return screen.getByRole('dialog', { name: 'Editar Evento' })
+  }
+
+  function follows(first, second) {
+    return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+  }
+
+  function describedTexts(element) {
+    return describedIds(element).map((id) => document.getElementById(id)?.textContent.trim())
+  }
+
+  function expectAlert(message) {
+    expect(screen.getAllByRole('alert').some((element) => element.textContent.includes(message))).toBe(true)
+  }
+
+  it('abre com os cartões e o versículo guardados, sem alterações, e um evento sem cartões abre desligado', () => {
+    const { unmount } = show(withCards)
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'true')
+    expect(verse()).toHaveValue('Salmo 23')
+    expect(screen.getByText(NO_CHANGES)).toBeInTheDocument()
+    expect(follows(field.capacity(), prayerBox())).toBe(true)
+    expect(follows(prayerBox(), field.description())).toBe(true)
+    unmount()
+
+    show()
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('ligar os cartões pede o versículo, lista as duas alterações, avisa que não vai email e envia a ativação', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+
+    await user.click(prayerSwitch())
+
+    expect(screen.getByText('Falta preencher: versículo da semana.')).toBeInTheDocument()
+
+    change(verse(), 'Salmo 23')
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(2)
+    expectChange(items[0], 'Cartões de oração', 'Desligados', 'Ligados')
+    expectChange(items[1], 'Versículo da semana', '(vazio)', 'Salmo 23')
+    expect(confirmDialog()).toHaveAccessibleDescription(NOT_SENT)
+    expect(headingIcon('save')).not.toBeNull()
+    expect(within(confirmDialog()).queryByRole('textbox')).not.toBeInTheDocument()
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+  })
+
+  it('mudar só o versículo lista uma linha e envia o versículo novo com a ativação', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    change(verse(), 'Salmo 91')
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(1)
+    expectChange(items[0], 'Versículo da semana', 'Salmo 23', 'Salmo 91')
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(lastPayload()).toMatchObject({ prayer_cards_enabled: true, prayer_verse: 'Salmo 91' })
+  })
+
+  it('desligar os cartões lista só a ativação e envia prayer_cards_enabled false sem o versículo', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    await user.click(prayerSwitch())
+    await user.click(submitButton())
+
+    const items = changeItems()
+    expect(items).toHaveLength(1)
+    expectChange(items[0], 'Cartões de oração', 'Ligados', 'Desligados')
+
+    await user.click(confirmButton('Guardar'))
+
+    expect(lastPayload()).toHaveProperty('prayer_cards_enabled', false)
+    expect(lastPayload()).not.toHaveProperty('prayer_verse')
+  })
+
+  it('mudar só o título de um evento com cartões não envia as chaves dos cartões e avisa os inscritos', async () => {
+    updateAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    editTitle()
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOTICE_22)
+
+    await user.click(confirmButton('Guardar e notificar'))
+
+    expect(updateAdminEvent).toHaveBeenCalledWith('e1', { ...IN_PERSON_PAYLOAD, name: 'Workshop de Liderança — nova data' })
+  })
+
+  it('com cartões preenchidos bloqueia a ativação e o versículo e mostra o 422 de bloqueio na caixa e no topo', async () => {
+    useFakeToday()
+    updateAdminEvent.mockRejectedValueOnce(apiError(422, INVALID, { prayer_verse: [LOCK_ERROR] }))
+    const user = userEvent.setup({ delay: null })
+    show(lockedCards)
+
+    expect(prayerSwitch()).toBeDisabled()
+    expect(verse()).toBeDisabled()
+    expect(screen.getByText(LOCKED_NOTE)).toBeInTheDocument()
+
+    await user.click(field.date())
+    await user.click(day('22 de janeiro de 2099'))
+    await saveAndConfirm(user)
+
+    await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
+    expect(await within(prayerBox()).findByText(LOCK_ERROR)).toBeInTheDocument()
+    expectAlert(LOCK_ERROR)
+    await waitFor(() => expect(editDialog()).toContainElement(document.activeElement))
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('se o servidor bloquear ao desligar, o erro aparece no texto da caixa, na descrição do interruptor e no topo', async () => {
+    updateAdminEvent.mockRejectedValueOnce(apiError(422, INVALID, { prayer_verse: [LOCK_ERROR] }))
+    const user = userEvent.setup({ delay: null })
+    show(withCards)
+
+    await user.click(prayerSwitch())
+    await saveAndConfirm(user)
+
+    await waitFor(() => expect(queryConfirmDialog()).not.toBeInTheDocument())
+    expect(await within(prayerBox()).findByText(LOCK_ERROR)).toBeInTheDocument()
+    expect(describedTexts(prayerSwitch())).toContain(LOCK_ERROR)
+    expectAlert(LOCK_ERROR)
+  })
+
+  it('o aviso do email segue os campos que o backend notifica', async () => {
+    const user = userEvent.setup({ delay: null })
+    const first = show()
+
+    change(field.notes(), 'Novas notas.')
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOT_SENT)
+    expect(confirmButton('Guardar')).toBeEnabled()
+    expect(within(confirmDialog()).queryByRole('button', { name: 'Guardar e notificar' })).not.toBeInTheDocument()
+    first.unmount()
+
+    show(withCards)
+    editTitle()
+    change(verse(), 'Salmo 91')
+    await user.click(submitButton())
+
+    expect(confirmDialog()).toHaveAccessibleDescription(NOTICE_22)
+    expect(justificationBox()).toBeInTheDocument()
+    expect(confirmButton('Guardar e notificar')).toBeEnabled()
+    const items = changeItems()
+    expect(items).toHaveLength(2)
+    expectChange(items[0], 'Título', 'Workshop de Liderança', 'Workshop de Liderança — nova data')
+    expectChange(items[1], 'Versículo da semana', 'Salmo 23', 'Salmo 91')
   })
 })

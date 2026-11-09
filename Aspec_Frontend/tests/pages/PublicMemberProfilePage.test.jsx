@@ -32,10 +32,12 @@ const portfolioForNavigation = [
 const response = (config, data = profile) => ({ data: { success: true, message: 'Perfil', data }, config, status: 200, statusText: '', headers: {} })
 const active = { id, role: { name: 'Member' }, account_status: { name: 'Active' } }
 const fullAddress = 'Morada privada, 1000-100 Cidade privada'
+const embedKey = 'test-maps-embed-key'
 const expectPrivateLocationHidden = () => {
   for (const value of ['Morada privada', '1000-100', 'Cidade privada']) expect(document.body).not.toHaveTextContent(value)
   expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+  expect(document.querySelector('iframe')).toBeNull()
 }
 const show = (memberId = id) => render(<MemoryRouter initialEntries={[`/membros/${memberId}`]}><Routes><Route path="/membros/:id" element={<PublicMemberProfilePage />} /></Routes></MemoryRouter>)
 function fail(config, status) { return Promise.reject(new AxiosError('Erro', AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config), status })) }
@@ -43,11 +45,12 @@ function fail(config, status) { return Promise.reject(new AxiosError('Erro', Axi
 describe('Perfil público de membro', () => {
   let original
   beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', embedKey)
     original = api.defaults.adapter
     useAuthStore.setState({ user: null, status: 'idle' })
     api.defaults.adapter = (config) => Promise.resolve(response(config))
   })
-  afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
+  afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
   it('aceita o horário da API em português e mostra segunda-feira aberta no perfil', async () => {
     show()
@@ -66,8 +69,8 @@ describe('Perfil público de membro', () => {
     ['membro ainda a confirmar', active, 'loading', false],
     ['logout em curso', active, 'logging-out', false],
     ['membro ativo', active, 'authenticated', true],
-    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', true],
-    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', true],
+    ['membro pendente', { ...active, account_status: { name: 'Pending' } }, 'authenticated', false],
+    ['administrador inativo', { ...active, role: { name: 'Admin' }, account_status: { name: 'Inactive' } }, 'authenticated', false],
     ['identidade sem ID', { role: { name: 'Member' } }, 'authenticated', false],
   ])('mantém a classificação pública e restringe a lista de comentários: %s', async (_, user, status, visible) => {
     useAuthStore.setState({ user, status })
@@ -105,19 +108,16 @@ describe('Perfil público de membro', () => {
     expect(screen.queryByRole('heading', { name: 'Contactos' })).not.toBeInTheDocument()
     if (!user && ['idle', 'error'].includes(status)) {
       const lockedContacts = screen.getByRole('region', { name: 'Contactos reservados' })
-      expect(lockedContacts).toHaveTextContent('Os contactos estão disponíveis para membros ASPEC ativos.')
-      expect(lockedContacts.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
-      expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-      expect(screen.getByRole('link', { name: 'Candidatar-me' })).toHaveAttribute('href', '/registo')
+      expect(lockedContacts).toHaveTextContent('Para ver os contactos e as avaliações deste membro, ou para o avaliar, é necessário ser membro ativo da ASPEC.')
+      expect(screen.getByRole('link', { name: 'Entrar como membro' })).toHaveAttribute('href', '/login')
+      expect(screen.getByRole('link', { name: 'Candidatar-me a membro' })).toHaveAttribute('href', '/registo')
     } else expect(screen.queryByRole('region', { name: 'Contactos reservados' })).not.toBeInTheDocument()
     expect(screen.getByText('Descrição pública')).toBeInTheDocument()
     expect(screen.getByText('Segunda-feira')).toBeInTheDocument()
     expect(screen.getByText('Terça a Domingo')).toBeInTheDocument()
     expect(screen.getAllByText('Encerrado')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
-    if (status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name)) {
-      expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'no')
-    } else expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Avaliações' })).not.toBeInTheDocument()
     expect(screen.getByText('Baseado em 12 avaliações')).toBeInTheDocument()
     expect(screen.getByText('4,8 (12 avaliações)')).toBeInTheDocument()
   })
@@ -127,9 +127,21 @@ describe('Perfil público de membro', () => {
     show()
     await screen.findByText('912345678')
     expect(screen.getByText('comercial@example.test')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', role === 'Member' ? 'yes' : 'no')
+    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', 'yes')
     expect(screen.getByText(fullAddress)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
+    const map = screen.getByTitle('Mapa da localização do membro')
+    const embedUrl = new URL(map.src)
+    expect(embedUrl.origin + embedUrl.pathname).toBe('https://www.google.com/maps/embed/v1/place')
+    expect(embedUrl.searchParams.get('q')).toBe(fullAddress)
+    expect(embedUrl.searchParams.get('key')).toBe(embedKey)
+    expect(embedUrl.searchParams.get('language')).toBe('pt-PT')
+    expect(embedUrl.searchParams.get('region')).toBe('PT')
+    expect(map).toHaveAttribute('loading', 'lazy')
+    expect(map).toHaveAttribute('referrerpolicy', 'strict-origin-when-cross-origin')
+    expect(map).toHaveAttribute('allowfullscreen')
+    expect(map).toHaveClass('h-full', 'w-full', 'border-0')
+    expect(map.parentElement).toHaveClass('h-[200px]', 'overflow-hidden', 'rounded-lg')
     for (const value of ['privado@example.test', 'legado@example.test', '999999999', 'Contacto legado', 'Morada legada', '999111222', 'Contacto antigo']) expect(screen.queryByText(value)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByRole('link', { name: 'Rede social' })).toHaveAttribute('href', 'https://social.test/')
@@ -147,8 +159,7 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, { ...profile, members_only: null }))
     show()
     const lockedContacts = await screen.findByRole('region', { name: 'Contactos reservados' })
-    expect(lockedContacts).toHaveTextContent('Os contactos estão disponíveis para membros ASPEC ativos.')
-    expect(lockedContacts.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(lockedContacts).toHaveTextContent('Para ver os contactos e as avaliações deste membro, ou para o avaliar, é necessário ser membro ativo da ASPEC.')
     expect(lockedContacts.querySelectorAll('a')).toHaveLength(2)
     expect(screen.queryByRole('link', { name: 'Visitar website' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Rede social' })).not.toBeInTheDocument()
@@ -398,8 +409,22 @@ describe('Perfil público de membro', () => {
     expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
-    expect(document.querySelector('iframe')).toBeNull()
+    const embedUrl = new URL(screen.getByTitle('Mapa da localização do membro').src)
+    expect(embedUrl.searchParams.get('q')).toBe(fullAddress)
+    expect(embedUrl.searchParams.get('key')).toBe(embedKey)
+    expect([...embedUrl.searchParams.keys()]).toEqual(['key', 'q', 'language', 'region'])
+    expect(embedUrl.hash).toBe('')
     expect(screen.queryByRole('img', { name: /mapa/i })).not.toBeInTheDocument()
+  })
+
+  it.each([undefined, '', '   '])('mantém a morada e o link sem mapa vazio quando falta a chave: %s', async (key) => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', key)
+    useAuthStore.setState({ user: active, status: 'authenticated' })
+    show()
+    await screen.findByText(fullAddress)
+    expect(screen.getByRole('status')).toHaveTextContent('O mapa está indisponível. Pode abrir a localização no Google Maps.')
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Ver no Google Maps' })).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`)
   })
 
   it.each([undefined, null, '', '   '])('não mostra cartão de mapa quando todas as partes estão vazias: %s', async (address) => {
@@ -409,6 +434,7 @@ describe('Perfil público de membro', () => {
     await screen.findByRole('heading', { name: profile.business_name })
     expect(screen.queryByRole('heading', { name: 'Localização' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Ver no Google Maps' })).not.toBeInTheDocument()
+    expect(document.querySelector('iframe')).toBeNull()
   })
 
   it.each([
@@ -430,7 +456,8 @@ describe('Perfil público de membro', () => {
     show()
     const link = await screen.findByRole('link', { name: 'Ver no Google Maps' })
     const card = link.closest('section')
-    expect(card.querySelector('p').textContent).toBe(expected)
+    expect(within(card).getByText(expected)).toBeInTheDocument()
+    expect(new URL(within(card).getByTitle('Mapa da localização do membro').src).searchParams.get('q')).toBe(expected)
     expect(link).toHaveAttribute('href', `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(expected)}`)
   })
 
@@ -770,5 +797,15 @@ describe('Perfil público de membro', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar o perfil')
     expect(screen.queryByText('912345678')).not.toBeInTheDocument()
     expectPrivateLocationHidden()
+  })
+
+  it.each([
+    ['admin técnico', null, 'no'],
+    ['admin com perfil', { id: otherId, name: 'Admin', business_name: 'Santos Lda' }, 'yes'],
+  ])('decide a avaliação do %s pelo perfil de membro', async (_label, memberProfile, allowed) => {
+    useAuthStore.setState({ user: { ...active, role: { name: 'Admin' }, member_profile: memberProfile }, status: 'authenticated' })
+    show()
+    await screen.findByText('912345678')
+    expect(screen.getByRole('heading', { name: 'Avaliações' }).closest('section')).toHaveAttribute('data-review-allowed', allowed)
   })
 })

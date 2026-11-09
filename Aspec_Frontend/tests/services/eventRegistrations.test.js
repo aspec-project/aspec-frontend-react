@@ -18,6 +18,39 @@ describe("Contrato de inscrições", () => {
     expect(remove).toHaveBeenCalledWith(`/events/${id}/registrations`, expect.objectContaining({ sessionGeneration: getSessionContext().generation }));
     expect(remove.mock.calls[0][1]).not.toHaveProperty("data");
   });
+  it("envia o âmbito confirmado e aceita a resposta agregada com a sessão selecionada", async () => {
+    const followingId = "019512a1-9998-7123-8123-123456789abc";
+    const post = vi.spyOn(api, "post").mockResolvedValue({ status: 201, data: { success: true, data: { registrations: [
+      { id, event_instance_id: id }, { id: followingId, event_instance_id: followingId },
+    ] } } });
+    await changeEventRegistration(id, "register", undefined, getSessionContext(), "this_and_following");
+    expect(post).toHaveBeenCalledWith(`/events/${id}/registrations`, { scope: "this_and_following" }, expect.objectContaining({ sessionGeneration: getSessionContext().generation }));
+  });
+  it.each([
+    [], [{ id, event_instance_id: "019512a1-9998-7123-8123-123456789abc" }],
+    [{ id, event_instance_id: id }, { id, event_instance_id: id }],
+    [{ id: "inválido", event_instance_id: id }],
+    [{ id, event_instance_id: "inválido" }],
+    null,
+  ])("rejeita uma resposta agregada vazia, incoerente ou inválida: %j", async (registrations) => {
+    vi.spyOn(api, "post").mockResolvedValue({ status: 201, data: { success: true, data: { registrations } } });
+    await expect(changeEventRegistration(id, "register", undefined, getSessionContext(), "this_and_following")).rejects.toThrow("confirmar");
+  });
+  it("não aceita resposta individual para um pedido em grupo nem repete um conflito", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValueOnce({ status: 201, data: { success: true, data: { id, event_instance_id: id } } });
+    await expect(changeEventRegistration(id, "register", undefined, getSessionContext(), "this_and_following")).rejects.toThrow();
+    const conflict = { response: { status: 409, data: { message: "O evento atingiu a lotação máxima." } } };
+    post.mockRejectedValueOnce(conflict);
+    await expect(changeEventRegistration(id, "register", undefined, getSessionContext(), "this_and_following")).rejects.toBe(conflict);
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+  it.each([["register", "this"], ["cancel", "this_and_following"]])("rejeita âmbito não suportado para %s", async (action, scope) => {
+    const post = vi.spyOn(api, "post");
+    const remove = vi.spyOn(api, "delete");
+    await expect(changeEventRegistration(id, action, undefined, getSessionContext(), scope)).rejects.toThrow("contexto");
+    expect(post).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
   it("rejeita ID e ação inválidos sem enviar pedido", async () => {
     const post = vi.spyOn(api, "post");
     await expect(changeEventRegistration("../auth/me", "register")).rejects.toThrow();

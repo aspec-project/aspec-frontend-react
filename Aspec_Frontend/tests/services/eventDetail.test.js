@@ -6,7 +6,7 @@ import { getOnlineMeetingUrl } from "../../src/utils/eventAccess";
 
 const id = "019512a1-9999-7123-8123-123456789abc";
 const event = {
-  id, name: "Encontro ASPEC", description: "Descrição pública", category: { name: "Encontro", color: "#8A7043" },
+  id, series_id: null, name: "Encontro ASPEC", description: "Descrição pública", category: { name: "Encontro", color: "#8A7043" },
   location: { name: "Lisboa" }, event_date: "2030-10-15", event_start_time: "10:00", event_end_time: "12:00",
   max_attendees: 20, registrations_count: 12, available_spots: 8, organizer_notes: "Chegar cedo.",
   address: "", latitude: null, longitude: null, place_id: "",
@@ -23,7 +23,7 @@ describe("Contrato do detalhe do evento", () => {
     api.get.mockResolvedValue({ data: { success: true, data: { ...event, online_url: "https://private.test/secret", secret: "privado", is_registered: true, address: "Rua", latitude: 38, longitude: -9 } } });
     const result = await getEventDetail(id, controller.signal);
     expect(api.get).toHaveBeenCalledWith(`/events/${id}`, { signal: controller.signal });
-    expect(result).toEqual({ ...event, is_online: null, venue_name: "", address: "Rua", latitude: 38, longitude: -9, is_registered: true });
+    expect(result).toEqual({ ...event, is_online: null, venue_name: "", address: "Rua", latitude: 38, longitude: -9, is_registered: true, prayer_cards_enabled: null, prayer_verse: "" });
     for (const field of ["online_url", "secret"]) expect(result).not.toHaveProperty(field);
   });
 
@@ -31,6 +31,24 @@ describe("Contrato do detalhe do evento", () => {
     api.get.mockResolvedValue({ data: { success: true, data: { ...event, max_attendees: 0, registrations_count: 0, available_spots: null } } });
     const result = await getEventDetail(id);
     expect(result).toMatchObject({ max_attendees: 0, registrations_count: 0, available_spots: null });
+  });
+
+  it.each([true, false])("preserva a configuração de oração publicada pelo backend: %s", async (prayer_cards_enabled) => {
+    api.get.mockResolvedValue({ data: { success: true, data: { ...event, prayer_cards_enabled, prayer_verse: "Orai uns pelos outros." } } });
+    expect(await getEventDetail(id)).toMatchObject({ prayer_cards_enabled, prayer_verse: "Orai uns pelos outros." });
+  });
+
+  it.each([undefined, null, "true", 1])("não ativa cartões com flags ausentes ou inválidas: %s", async (prayer_cards_enabled) => {
+    api.get.mockResolvedValue({ data: { success: true, data: { ...event, prayer_cards_enabled, prayer_verse: {} } } });
+    expect(await getEventDetail(id)).toMatchObject({ prayer_cards_enabled: null, prayer_verse: "" });
+  });
+
+  it("preserva o UUID real da série e rejeita relações inválidas", async () => {
+    const series_id = "019512a1-9998-7123-8123-123456789abc";
+    api.get.mockResolvedValueOnce({ data: { success: true, data: { ...event, series_id } } });
+    expect(await getEventDetail(id)).toHaveProperty("series_id", series_id);
+    api.get.mockResolvedValueOnce({ data: { success: true, data: { ...event, series_id: "série-inválida" } } });
+    await expect(getEventDetail(id)).rejects.toThrow("formato inesperado");
   });
 
   it.each(["", "outro", "../auth/me", undefined])("rejeita ID inválido sem pedido: %s", async (value) => {

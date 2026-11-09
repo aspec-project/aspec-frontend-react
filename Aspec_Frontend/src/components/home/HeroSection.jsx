@@ -31,7 +31,7 @@ export default function HeroSection() {
               }}
             >
               Networking com{" "}
-              <span style={{ color: "#8a7043" }}>Propósito</span> e<br />
+              <span style={{ color: "#8a7043" }}>Propósito</span> e{" "}
               <span style={{ color: "#8a7043" }}>Confiança</span>
             </h1>
 

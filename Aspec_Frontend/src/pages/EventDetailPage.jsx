@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import EventDetail from "../components/events/EventDetail";
 import PageTitle from "../components/PageTitle";
-import { getEventDetail, getEventDetailErrorMessage, isEventId } from "../services/events";
+import { getEventDetail, getEventDetailErrorMessage, getEventSessions, isEventId } from "../services/events";
 import { useAuthStore } from "../store/authStore";
 import { validEventSessions } from "../utils/eventSessions";
 
-// A lista é um modelo interno: um futuro adapter terá de confirmar que cada
-// id corresponde a uma instância consultável em /events/:id. A rota atual não
-// fornece sessões nem lê campos de série presumidos da API.
 export default function EventDetailPage({ sessions = null, recurrenceLabel = "" }) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,6 +17,8 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState(null);
   const [sessionSummaries, setSessionSummaries] = useState(null);
+  const [seriesResult, setSeriesResult] = useState(null);
+  const [seriesAttempt, setSeriesAttempt] = useState(0);
   const identity = JSON.stringify([sessionGeneration, sessionStatus, sessionChanging, user?.id, user?.role?.name, user?.account_status?.name]);
   const rememberSession = useCallback((event) => {
     // Só metadados do seletor: nenhum URL privado fica guardado entre sessões.
@@ -27,12 +26,41 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
     setSessionSummaries((previous) => ({ identity, items: { ...(previous?.identity === identity ? previous.items : {}), [event.id]: summary } }));
   }, [identity]);
   const refresh = useCallback(() => setAttempt((value) => value + 1), []);
-  function selectSession(sessionId) {
-    if (sessionId !== id && validEventSessions(sessions) && sessions.some((session) => session.id === sessionId)) {
-      navigate(`/eventos/${encodeURIComponent(sessionId)}`);
-    }
-  }
   const key = JSON.stringify([id, sessionGeneration, sessionStatus, sessionChanging, user?.id, user?.role?.name, user?.account_status?.name, attempt]);
+  const activeKey = useRef(key);
+  useEffect(() => {
+    activeKey.current = key;
+    return () => { activeKey.current = null; };
+  }, [key]);
+  const current = result?.key === key ? result : null;
+  const seriesId = current?.event?.series_id;
+  const seriesKey = JSON.stringify([key, seriesId, seriesAttempt]);
+
+  useEffect(() => {
+    if (!seriesId || sessions !== null) return;
+    const controller = new AbortController();
+    queueMicrotask(async () => {
+      try {
+        const items = await getEventSessions(seriesId, controller.signal);
+        if (!controller.signal.aborted) setSeriesResult({ key: seriesKey, items });
+      } catch {
+        if (!controller.signal.aborted) setSeriesResult({ key: seriesKey, error: true });
+      }
+    });
+    return () => controller.abort();
+  }, [seriesId, seriesKey, sessions]);
+
+  /* A publicação conjunta evita libertar mutações com parte da série antiga. */
+  async function reconcile(signal) {
+    const event = await getEventDetail(id, signal);
+    const items = event.series_id && sessions === null
+      ? await getEventSessions(event.series_id, signal)
+      : null;
+    if (signal.aborted || activeKey.current !== key) throw new Error("O contexto do evento mudou.");
+    setResult({ key, event });
+    if (items !== null) setSeriesResult({ key: JSON.stringify([key, event.series_id, seriesAttempt]), items });
+    if (sessions !== null) rememberSession(event);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,11 +84,19 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
    * A identidade, o evento e a tentativa fazem parte do contexto da resposta.
    * Dados anteriores desaparecem antes de o próximo pedido terminar.
    */
-  const current = result?.key === key ? result : null;
   if (result !== null && current === null) setResult(null);
   const notFound = !isEventId(id) || current?.notFound;
   if (sessionSummaries !== null && sessionSummaries.identity !== identity) setSessionSummaries(null);
-  const currentSessions = Array.isArray(sessions) ? sessions.map((session) => ({ ...session, ...(sessionSummaries?.identity === identity ? sessionSummaries.items[session?.id] : {}) })) : null;
+  const series = seriesResult?.key === seriesKey ? seriesResult : null;
+  const currentSessions = Array.isArray(sessions)
+    ? sessions.map((session) => ({ ...session, ...(sessionSummaries?.identity === identity ? sessionSummaries.items[session?.id] : {}) }))
+    : series?.items ?? null;
+  const sessionsStatus = sessions !== null ? undefined : series?.error ? "error" : !series ? "loading" : currentSessions.length ? "ready" : "empty";
+  function selectSession(sessionId) {
+    if (sessionId !== id && validEventSessions(currentSessions) && currentSessions.some((session) => session.id === sessionId)) {
+      navigate(`/eventos/${encodeURIComponent(sessionId)}`);
+    }
+  }
 
   return (
     <div className="min-h-[65vh] bg-gray-50 text-[#0D1F35]">
@@ -93,7 +129,7 @@ export default function EventDetailPage({ sessions = null, recurrenceLabel = "" 
             <button type="button" onClick={() => setAttempt((value) => value + 1)} className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-700">Tentar novamente</button>
           </div>
         </div>
-      ) : <EventDetail key={key} event={current.event} sessions={currentSessions} recurrenceLabel={recurrenceLabel} onSelectSession={selectSession} onRefresh={refresh} onEventUpdate={(event) => {
+      ) : <EventDetail key={key} event={current.event} sessions={currentSessions} sessionsStatus={sessionsStatus} sessionsError={series?.error} onRetrySessions={() => setSeriesAttempt((value) => value + 1)} recurrenceLabel={recurrenceLabel} onSelectSession={selectSession} onRefresh={refresh} onReconcile={reconcile} onEventUpdate={(event) => {
         setResult((previous) => previous?.key === key ? { ...previous, event } : previous);
         if (sessions !== null) rememberSession(event);
       }} />}

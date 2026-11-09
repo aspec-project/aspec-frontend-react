@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
   CalendarDays,
-  Clock3,
   ExternalLink,
-  MapPin,
-  TicketCheck,
-  Users,
   XCircle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { normalizeError } from '../services/api'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import Pagination from '../components/ui/Pagination'
 import {
   changeEventRegistration,
   getMyEventRegistrations,
@@ -17,6 +15,8 @@ import {
 } from '../services/eventRegistrations'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
+
+const REGISTRATIONS_PER_SECTION = 4
 
 function formatEventDate(value) {
   if (!value) {
@@ -30,24 +30,6 @@ function formatEventDate(value) {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-    timeZone: 'Europe/Lisbon',
-  }).format(date)
-}
-
-function formatDeadline(value) {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return null
-  }
-
-  return new Intl.DateTimeFormat('pt-PT', {
-    dateStyle: 'long',
-    timeStyle: 'short',
     timeZone: 'Europe/Lisbon',
   }).format(date)
 }
@@ -77,150 +59,52 @@ function canCancelRegistration(event) {
   )
 }
 
-function EventRegistrationCard({
+function EventRegistrationRow({
   registration,
   isCancelling,
   onCancel,
 }) {
   const event = registration.event
   const cancellationAvailable = canCancelRegistration(event)
-  const deadline = formatDeadline(event.registration_deadline)
-  const eventLocation = event.is_online
-    ? 'Evento online'
-    : [event.venue_name, event.address, event.location?.name]
-        .filter(Boolean)
-        .join(' · ')
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-            {event.category?.name && (
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-[#806537]">
-                {event.category.name}
-              </span>
-            )}
-
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
-              Inscrito
-            </span>
-          </div>
-
-          <h2 className="mt-4 text-xl font-bold text-[#0d1f35]">
-            {event.name}
-          </h2>
-
-          {event.description?.trim() && (
-            <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
-              {event.description}
-            </p>
-          )}
-        </div>
-
-        <Link
-          to={`/eventos/${encodeURIComponent(event.id)}`}
-          className="inline-flex w-fit items-center justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:bg-slate-100"
-        >
-          Ver evento
-        </Link>
+    <li className="flex min-h-24 items-center gap-4 px-5 py-4 sm:px-6">
+      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-100 text-[#0d1f35]">
+        <CalendarDays size={22} aria-hidden="true" />
       </div>
 
-      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
-        <div className="flex gap-3 rounded-xl bg-slate-50 p-4">
-          <CalendarDays
-            size={18}
-            className="mt-0.5 shrink-0 text-[#9b7b45]"
-            aria-hidden="true"
-          />
-          <div>
-            <dt className="text-slate-500">Data</dt>
-            <dd className="mt-1 font-semibold text-[#0d1f35]">
-              {formatEventDate(event.event_date)}
-            </dd>
-          </div>
-        </div>
-
-        <div className="flex gap-3 rounded-xl bg-slate-50 p-4">
-          <Clock3
-            size={18}
-            className="mt-0.5 shrink-0 text-[#9b7b45]"
-            aria-hidden="true"
-          />
-          <div>
-            <dt className="text-slate-500">Horário</dt>
-            <dd className="mt-1 font-semibold text-[#0d1f35]">
-              {event.event_start_time}
-              {event.event_end_time ? ` — ${event.event_end_time}` : ''}
-            </dd>
-          </div>
-        </div>
-
-        <div className="flex gap-3 rounded-xl bg-slate-50 p-4 sm:col-span-2">
-          <MapPin
-            size={18}
-            className="mt-0.5 shrink-0 text-[#9b7b45]"
-            aria-hidden="true"
-          />
-          <div>
-            <dt className="text-slate-500">Local</dt>
-            <dd className="mt-1 font-semibold text-[#0d1f35]">
-              {eventLocation || 'Local por definir'}
-            </dd>
-          </div>
-        </div>
-
-        {event.registrations_count !== null &&
-          event.registrations_count !== undefined &&
-          event.max_attendees && (
-            <div className="flex gap-3 rounded-xl bg-slate-50 p-4 sm:col-span-2">
-              <Users
-                size={18}
-                className="mt-0.5 shrink-0 text-[#9b7b45]"
-                aria-hidden="true"
-              />
-              <div>
-                <dt className="text-slate-500">Participantes</dt>
-                <dd className="mt-1 font-semibold text-[#0d1f35]">
-                  {event.registrations_count} de {event.max_attendees}
-                </dd>
-              </div>
-            </div>
-          )}
-      </dl>
-
-      {event.online_url && (
-        <a
-          href={event.online_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0d1f35] underline decoration-[#9b7b45] decoration-2 underline-offset-4"
-        >
-          <ExternalLink size={16} aria-hidden="true" />
-          Entrar no evento online
-        </a>
-      )}
-
-      <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-5 text-slate-500">
-          {cancellationAvailable && deadline
-            ? `Pode cancelar a inscrição até ${deadline}.`
-            : 'O prazo para cancelar esta inscrição terminou.'}
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate text-base font-semibold text-[#0d1f35] sm:text-lg">
+          {event.name}
+        </h3>
+        <p className="mt-0.5 text-sm text-slate-500">
+          {formatEventDate(event.event_date)}
         </p>
+      </div>
 
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <Link
+          to={`/eventos/${encodeURIComponent(event.id)}`}
+          aria-label={`Ver detalhes de ${event.name}`}
+          title="Ver detalhes do evento"
+          className="grid h-10 w-10 place-items-center rounded-lg text-[#0d1f35] transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79]"
+        >
+          <ExternalLink size={20} aria-hidden="true" />
+        </Link>
         {cancellationAvailable && (
           <button
             type="button"
             onClick={() => onCancel(registration)}
             disabled={isCancelling}
-            className="inline-flex w-fit items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label={`Cancelar inscrição em ${event.name}`}
+            title="Cancelar inscrição"
+            className="grid h-10 w-10 place-items-center rounded-lg text-rose-600 transition hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <XCircle size={17} aria-hidden="true" />
-            {isCancelling ? 'A cancelar...' : 'Cancelar inscrição'}
+            <XCircle size={20} aria-hidden="true" />
           </button>
         )}
       </div>
-    </article>
+    </li>
   )
 }
 
@@ -235,7 +119,10 @@ export default function MemberRegistrationsPage() {
   const [status, setStatus] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [cancellingRegistrationId, setCancellingRegistrationId] = useState(null)
+  const [registrationToCancel, setRegistrationToCancel] = useState(null)
   const [referenceTime, setReferenceTime] = useState(0)
+  const [upcomingPage, setUpcomingPage] = useState(1)
+  const [pastPage, setPastPage] = useState(1)
 
   useEffect(() => {
     const context = getRequestContext()
@@ -281,16 +168,19 @@ export default function MemberRegistrationsPage() {
     }
   }, [getRequestContext, reloadKey])
 
-  async function handleCancel(registration) {
-    const event = registration.event
+  function requestCancellation(registration) {
+    setStatus(null)
+    setRegistrationToCancel(registration)
+  }
 
-    if (
-      !window.confirm(
-        `Pretende cancelar a inscrição no evento “${event.name}”?`,
-      )
-    ) {
+  async function handleCancel() {
+    const registration = registrationToCancel
+
+    if (!registration) {
       return
     }
+
+    const event = registration.event
 
     const context = getRequestContext()
 
@@ -317,6 +207,9 @@ export default function MemberRegistrationsPage() {
         type: 'success',
         message: 'Inscrição cancelada com sucesso.',
       })
+      setRegistrationToCancel(null)
+      setUpcomingPage(1)
+      setPastPage(1)
       setReloadKey((currentKey) => currentKey + 1)
     } catch (error) {
       if (!isSessionCurrent(context)) {
@@ -327,6 +220,7 @@ export default function MemberRegistrationsPage() {
         type: 'error',
         message: getRegistrationErrorMessage(error),
       })
+      setRegistrationToCancel(null)
     } finally {
       if (isSessionCurrent(context)) {
         setCancellingRegistrationId(null)
@@ -342,28 +236,34 @@ export default function MemberRegistrationsPage() {
     (registration) =>
       getEventStartTimestamp(registration.event) < referenceTime,
   )
+  const visibleUpcomingRegistrations = upcomingRegistrations.slice(
+    (upcomingPage - 1) * REGISTRATIONS_PER_SECTION,
+    upcomingPage * REGISTRATIONS_PER_SECTION,
+  )
+  const visiblePastRegistrations = pastRegistrations.slice(
+    (pastPage - 1) * REGISTRATIONS_PER_SECTION,
+    pastPage * REGISTRATIONS_PER_SECTION,
+  )
+  const upcomingLastPage = Math.max(
+    1,
+    Math.ceil(upcomingRegistrations.length / REGISTRATIONS_PER_SECTION),
+  )
+  const pastLastPage = Math.max(
+    1,
+    Math.ceil(pastRegistrations.length / REGISTRATIONS_PER_SECTION),
+  )
+
+  function retryLoading() {
+    setUpcomingPage(1)
+    setPastPage(1)
+    setReloadKey((currentKey) => currentKey + 1)
+  }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex items-start gap-3">
-          <TicketCheck
-            size={24}
-            className="mt-1 text-[#9b7b45]"
-            aria-hidden="true"
-          />
-
-          <div>
-        <h1 className="text-2xl font-semibold text-[#0d1f35]">
-              As Minhas Inscrições
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Consulte os eventos em que está inscrito e faça a gestão das
-              inscrições enquanto o prazo de cancelamento estiver disponível.
-            </p>
-          </div>
-        </div>
-      </section>
+    <div className="space-y-8">
+      <h1 className="text-2xl font-semibold text-[#0d1f35]">
+        As Minhas Inscrições em Eventos
+      </h1>
 
       {status && (
         <p
@@ -391,7 +291,7 @@ export default function MemberRegistrationsPage() {
           <p className="mt-3 text-sm">{loadError}</p>
           <button
             type="button"
-            onClick={() => setReloadKey((currentKey) => currentKey + 1)}
+            onClick={retryLoading}
             className="mt-5 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-red-100"
           >
             Tentar novamente
@@ -414,46 +314,106 @@ export default function MemberRegistrationsPage() {
           </Link>
         </section>
       ) : (
-        <>
-          {upcomingRegistrations.length > 0 && (
+        <div className="space-y-8">
+          {visibleUpcomingRegistrations.length > 0 && (
             <section>
-              <h2 className="text-xl font-bold text-[#0d1f35]">
+              <h2 className="text-lg font-semibold text-[#0d1f35]">
                 Próximos eventos
               </h2>
-              <div className="mt-4 space-y-4">
-                {upcomingRegistrations.map((registration) => (
-                  <EventRegistrationCard
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <ul className="divide-y divide-slate-100">
+                {visibleUpcomingRegistrations.map((registration) => (
+                  <EventRegistrationRow
                     key={registration.id}
                     registration={registration}
                     isCancelling={
                       cancellingRegistrationId === registration.id
                     }
-                    onCancel={handleCancel}
+                    onCancel={requestCancellation}
                   />
                 ))}
+                </ul>
               </div>
+
+              {upcomingLastPage > 1 && (
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-slate-500">
+                    {(upcomingPage - 1) * REGISTRATIONS_PER_SECTION + 1}–
+                    {Math.min(
+                      upcomingPage * REGISTRATIONS_PER_SECTION,
+                      upcomingRegistrations.length,
+                    )}{' '}
+                    de {upcomingRegistrations.length} inscrições
+                  </p>
+                  <Pagination
+                    currentPage={upcomingPage}
+                    lastPage={upcomingLastPage}
+                    onChange={setUpcomingPage}
+                    label="Paginação dos próximos eventos"
+                  />
+                </div>
+              )}
             </section>
           )}
 
-          {pastRegistrations.length > 0 && (
+          {visiblePastRegistrations.length > 0 && (
             <section>
-              <h2 className="text-xl font-bold text-[#0d1f35]">
+              <h2 className="text-lg font-semibold text-[#0d1f35]">
                 Eventos anteriores
               </h2>
-              <div className="mt-4 space-y-4">
-                {pastRegistrations.map((registration) => (
-                  <EventRegistrationCard
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <ul className="divide-y divide-slate-100">
+                {visiblePastRegistrations.map((registration) => (
+                  <EventRegistrationRow
                     key={registration.id}
                     registration={registration}
                     isCancelling={false}
-                    onCancel={handleCancel}
+                    onCancel={requestCancellation}
                   />
                 ))}
+                </ul>
               </div>
+
+              {pastLastPage > 1 && (
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-slate-500">
+                    {(pastPage - 1) * REGISTRATIONS_PER_SECTION + 1}–
+                    {Math.min(
+                      pastPage * REGISTRATIONS_PER_SECTION,
+                      pastRegistrations.length,
+                    )}{' '}
+                    de {pastRegistrations.length} inscrições
+                  </p>
+                  <Pagination
+                    currentPage={pastPage}
+                    lastPage={pastLastPage}
+                    onChange={setPastPage}
+                    label="Paginação dos eventos anteriores"
+                  />
+                </div>
+              )}
             </section>
           )}
-        </>
+        </div>
       )}
+
+      <ConfirmDialog
+        open={registrationToCancel !== null}
+        title="Cancelar inscrição?"
+        description={
+          registrationToCancel
+            ? `Vai libertar o seu lugar em “${registrationToCancel.event.name}”. Poderá voltar a inscrever-se enquanto houver vagas.`
+            : ''
+        }
+        cancelLabel="Manter inscrição"
+        confirmLabel="Cancelar inscrição"
+        tone="danger"
+        pending={cancellingRegistrationId !== null}
+        showClose
+        size="lg"
+        onCancel={() => setRegistrationToCancel(null)}
+        onConfirm={() => void handleCancel()}
+      />
     </div>
   )
 }

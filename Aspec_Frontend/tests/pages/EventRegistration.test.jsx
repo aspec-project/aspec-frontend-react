@@ -172,7 +172,7 @@ describe("Inscrição no detalhe do evento", () => {
   });
 
   it.each([
-    [{ ...member, role: { name: "Admin" } }, "authenticated", false],
+    [{ ...member, role: { name: "Admin" }, member_profile: null }, "authenticated", false],
     [{ ...member, account_status: { name: "Pending" } }, "authenticated", false],
     [{ ...member, account_status: { name: "Inactive" } }, "authenticated", false],
     [member, "loading", false], [member, "logging-out", true], [member, "authenticated", true],

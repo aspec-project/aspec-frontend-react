@@ -1,4 +1,3 @@
-import logoImg from "../../../public/images/log-branco.png";
 export default function LoginSidebar({ onNavigateHome }) {
   const stats = [
     { num: "320+", label: "Membros" },
@@ -8,7 +7,7 @@ export default function LoginSidebar({ onNavigateHome }) {
 
   return (
     <div
-      className="w-1/2 flex flex-col justify-between p-12 relative overflow-hidden"
+      className="relative flex w-full flex-col justify-between overflow-hidden p-6 md:w-1/2 md:p-12"
       style={{ background: "linear-gradient(135deg, #0d1f35 0%, #060f1a 100%)" }}
     >
       <div
@@ -20,11 +19,11 @@ export default function LoginSidebar({ onNavigateHome }) {
         }}
       />
       <div className="relative z-10">
-        <button type="button" onClick={onNavigateHome} className="cursor-pointer">
-          <img src={logoImg} alt="ASPEC" className="h-10 w-70 object-contain" />
+        <button type="button" onClick={onNavigateHome} className="w-48 max-w-full cursor-pointer md:w-70">
+          <img src="/images/aspec-logo-sf.png" alt="ASPEC" className="h-auto w-full object-contain" />
         </button>
       </div>
-      <div className="relative z-10">
+      <div className="relative z-10 hidden md:block">
         <div className="w-10 h-0.5 mb-8" style={{ backgroundColor: "#8a7043" }} />
         <h2 className="text-white mb-4" style={{ fontSize: "1.75rem" }}>
           Bem-vindo de volta à comunidade ASPEC
@@ -33,7 +32,7 @@ export default function LoginSidebar({ onNavigateHome }) {
           Aceda ao seu perfil profissional, gira as suas inscrições em eventos e conecte-se com a rede de confiança cristã em Portugal.
         </p>
       </div>
-      <div className="relative z-10 flex gap-6">
+      <div className="relative z-10 hidden gap-6 md:flex">
         {stats.map((s) => (
           <div key={s.label}>
             <div className="font-bold" style={{ color: "#8a7043" }}>{s.num}</div>

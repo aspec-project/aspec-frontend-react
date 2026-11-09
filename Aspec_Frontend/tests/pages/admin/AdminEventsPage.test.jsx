@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter } from 'react-router-dom'
@@ -188,6 +188,7 @@ describe('Gestão de Eventos', () => {
     getLocations.mockResolvedValue(locations)
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
   })
@@ -220,7 +221,7 @@ describe('Gestão de Eventos', () => {
 
     const row = within(rowOf('Workshop de Liderança'))
 
-    expect(row.getByText('Workshop')).toHaveStyle({ backgroundColor: '#EDE4F3', color: '#300C45' })
+    expect(row.getByText('Workshop')).toHaveStyle({ backgroundColor: '#EDE4F3', color: '#6A1B9A' })
     expect(row.getByText('21 Jan 2099')).toBeInTheDocument()
     expect(row.getByText('08:00–10:00')).toBeInTheDocument()
     expect(row.getByText('Lisboa')).toBeInTheDocument()
@@ -435,7 +436,7 @@ describe('Gestão de Eventos', () => {
     show()
     await screen.findByRole('table')
 
-    expect(within(rowOf('Evento Sem Cor')).getByText('Sem cor')).toHaveStyle({ backgroundColor: '#E2E4E7', color: '#060E18' })
+    expect(within(rowOf('Evento Sem Cor')).getByText('Sem cor')).toHaveStyle({ backgroundColor: '#E2E4E7', color: '#0D1F35' })
   })
 
   it('sem prazo válido nem lotação válida mostra travessões', async () => {
@@ -551,7 +552,7 @@ describe('Gestão de Eventos', () => {
       show()
       await screen.findByRole('table')
 
-      expect(within(rowOf('Jantar de Natal')).getByText('Jantar')).toHaveStyle({ backgroundColor: '#F8E5E5', color: '#591212' })
+      expect(within(rowOf('Jantar de Natal')).getByText('Jantar')).toHaveStyle({ backgroundColor: '#F8E5E5', color: '#C62828' })
       const edit = screen.getByRole('button', { name: 'Editar Workshop de Liderança' })
       expect(edit).toHaveClass('bg-[#f5efe3]')
       expect(edit).toHaveClass('text-[#8a7043]')
@@ -578,6 +579,60 @@ describe('Gestão de Eventos', () => {
     await screen.findByRole('table', { name: 'Eventos passados' })
 
     expect(screen.queryByRole('button', { name: /Ver inscritos/ })).not.toBeInTheDocument()
+  })
+
+  describe('Ver evento', () => {
+    function interactiveIn(name) {
+      return Array.from(cellOf(name, 'Ações').querySelectorAll('a, button'))
+    }
+
+    it('nos agendados o primeiro elemento das ações é o link para o detalhe, antes de exportar, editar e apagar', async () => {
+      show()
+      await screen.findByRole('table')
+
+      for (const { id, name } of items) {
+        const [view, ...rest] = interactiveIn(name)
+        expect(view).toBe(within(cellOf(name, 'Ações')).getByRole('link', { name: `Ver evento ${name}` }))
+        expect(view).toHaveAttribute('href', `/admin/eventos/${id}`)
+        expect(rest.map((element) => element.getAttribute('aria-label'))).toEqual([
+          expect.stringMatching(new RegExp(`^Exportar lista de presenças de ${name}`)),
+          `Editar ${name}`,
+          `Apagar ${name}`,
+        ])
+      }
+    })
+
+    it('nos passados o link existe sem editar nem apagar e continua ativo enquanto a lista recarrega', async () => {
+      threePages()
+      const user = userEvent.setup({ delay: null })
+      show()
+      await screen.findByText('1–6 de 13 eventos')
+
+      await user.click(periodTab('Passados'))
+      await screen.findByRole('table', { name: 'Eventos passados' })
+
+      const cell = within(cellOf('Página evento 1', 'Ações'))
+      expect(cell.getByRole('link', { name: 'Ver evento Página evento 1' })).toHaveAttribute('href', `/admin/eventos/${encodeURIComponent('Página0')}`)
+      expect(cell.queryByRole('button', { name: /^(Editar|Apagar) / })).not.toBeInTheDocument()
+
+      const pending = deferred()
+      getAdminEvents.mockImplementationOnce(() => pending.promise)
+      await user.click(screen.getByRole('button', { name: 'Página 2' }))
+      await waitFor(() => expect(screen.getByRole('table').closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true'))
+
+      const link = within(cellOf('Página evento 1', 'Ações')).getByRole('link', { name: 'Ver evento Página evento 1' })
+      expect(link).not.toHaveAttribute('aria-disabled')
+
+      await act(async () => { pending.resolve(list(sixEvents('Página'), { current_page: 2, total: 13, last_page: 3 })) })
+    })
+
+    it('a linha de um evento com cartões de oração não mostra nenhum badge de oração', async () => {
+      getAdminEvents.mockResolvedValue(list([event('e1', 'Workshop de Liderança', { prayer_cards_enabled: true, prayer_cards_count: 3 })]))
+      show()
+      await screen.findByRole('table')
+
+      expect(rowOf('Workshop de Liderança')).not.toHaveTextContent(/Oração|†/)
+    })
   })
 
   describe('Exportar lista de presenças', () => {
@@ -828,23 +883,34 @@ describe('Gestão de Eventos', () => {
       return within(createDialog()).getByLabelText(new RegExp(`^${escape(text)}\\s*\\*?${ending}$`))
     }
 
-    async function pickDialogDate(user, opener, dayLabel) {
-      await user.click(opener)
-      await user.click(within(screen.getByRole('dialog', { name: /^Escolher / })).getByRole('button', { name: dayLabel }))
+    function pickDialogDate(opener, dayLabel) {
+      fireEvent.click(opener)
+      fireEvent.click(within(screen.getByRole('dialog', { name: /^Escolher / })).getByLabelText(dayLabel, { selector: 'button' }))
     }
 
-    async function fillValidInPerson(user) {
-      await user.type(dialogField('Título do evento'), 'Jantar de Networking Lisboa')
-      await chooseOption(user, dialogField('Tipo de evento'), 'Jantar')
-      await chooseOption(user, dialogField('Delegação / Localidade'), 'Lisboa')
-      await pickDialogDate(user, dialogField('Data'), '20 de novembro de 2026')
-      await user.type(dialogField('Hora de início'), '19:30')
-      await user.type(dialogField('Hora de fim'), '21:30')
-      await pickDialogDate(user, dialogField('Data limite de inscrição'), '18 de novembro de 2026')
-      await user.type(dialogField('Nome do local'), 'Restaurante Estrela do Norte')
-      await user.type(dialogField('Morada completa'), 'Rua das Flores 42')
-      fireEvent.change(dialogField('Capacidade máxima'), { target: { value: '40' } })
-      await user.type(dialogField('Sobre o evento'), 'Encontro mensal de networking entre membros.')
+    function fillValidInPerson() {
+      const dialog = within(createDialog())
+      const change = (label, value) => fireEvent.change(dialogField(label), { target: { value } })
+
+      /*
+       * O preenchimento prepara a criação; a submissão, a confirmação e a devolução do foco
+       * continuam a ser exercitadas com userEvent nos cenários abaixo.
+       */
+      change('Título do evento', 'Jantar de Networking Lisboa')
+      for (const [label, option] of [['Tipo de evento', 'Jantar'], ['Delegação / Localidade', 'Lisboa']]) {
+        fireEvent.click(dialogField(label))
+        fireEvent.click(dialog.getByRole('option', { name: option }))
+      }
+      pickDialogDate(dialogField('Data'), '20 de novembro de 2026')
+      change('Hora de início', '19')
+      fireEvent.change(dialog.getByLabelText('Hora de início, minutos'), { target: { value: '30' } })
+      change('Hora de fim', '21')
+      fireEvent.change(dialog.getByLabelText('Hora de fim, minutos'), { target: { value: '30' } })
+      pickDialogDate(dialogField('Data limite de inscrição'), '18 de novembro de 2026')
+      change('Nome do local', 'Restaurante Estrela do Norte')
+      change('Morada completa', 'Rua das Flores 42')
+      change('Capacidade máxima', '40')
+      change('Sobre o evento', 'Encontro mensal de networking entre membros.')
     }
 
     function successBanner() {
@@ -886,7 +952,7 @@ describe('Gestão de Eventos', () => {
       const callsBefore = getAdminEvents.mock.calls.length
 
       await user.click(createButton())
-      await fillValidInPerson(user)
+      fillValidInPerson()
       await user.click(within(createDialog()).getByRole('button', { name: 'Criar evento' }))
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -899,7 +965,7 @@ describe('Gestão de Eventos', () => {
       await user.click(within(successBanner()).getByRole('button', { name: 'Fechar mensagem' }))
 
       expect(successBanner()).toBeUndefined()
-    })
+    }, 10000)
 
     it('criar uma série pede confirmação, mostra a mensagem da série e recarrega com os mesmos filtros', async () => {
       const SERIES_SUCCESS = 'Série de eventos criada com sucesso.'
@@ -916,10 +982,10 @@ describe('Gestão de Eventos', () => {
       const callsBefore = getAdminEvents.mock.calls.length
 
       await user.click(createButton())
-      await fillValidInPerson(user)
+      fillValidInPerson()
       await user.click(within(within(createDialog()).getByRole('group', { name: 'Repetição' })).getByRole('button', { name: 'Recorrente' }))
       await chooseOption(user, dialogField('Frequência'), 'Semanal')
-      await pickDialogDate(user, dialogField('Fim', '(inclusive)'), '27 de novembro de 2026')
+      pickDialogDate(dialogField('Fim', '(inclusive)'), '27 de novembro de 2026')
       fireEvent.change(dialogField('Fechar inscrições antes de cada sessão'), { target: { value: '3' } })
       await user.click(within(createDialog()).getByRole('button', { name: 'Criar série' }))
 

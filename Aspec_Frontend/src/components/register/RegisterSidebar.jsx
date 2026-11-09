@@ -1,5 +1,4 @@
 import { CheckCircle } from "lucide-react";
-import logoImg from "../../../public/images/log-branco.png";
 
 export default function RegisterSidebar({ onNavigateHome }) {
   const benefits = [
@@ -11,12 +10,12 @@ export default function RegisterSidebar({ onNavigateHome }) {
 
   return (
     <div
-      className="w-5/12 flex flex-col justify-between p-12 relative overflow-hidden"
+      className="w-full lg:w-5/12 flex flex-col justify-between gap-6 p-6 lg:gap-0 lg:p-12 relative overflow-hidden"
       style={{ background: "linear-gradient(135deg, #0d1f35 0%, #060f1a 100%)" }}
     >
       <div className="relative z-10">
-        <button type="button" onClick={onNavigateHome} className="cursor-pointer">
-          <img src={logoImg} alt="ASPEC" className="h-10 w-70 object-contain" />
+        <button type="button" onClick={onNavigateHome} className="w-70 max-w-full cursor-pointer">
+          <img src="/images/aspec-logo-sf.png" alt="ASPEC" className="h-auto w-full object-contain" />
         </button>
       </div>
 

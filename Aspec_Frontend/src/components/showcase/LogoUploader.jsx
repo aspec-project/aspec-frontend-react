@@ -1,214 +1,237 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ImagePlus, X } from 'lucide-react'
+import { AlertCircle, Check, ImagePlus, Move, ZoomIn } from 'lucide-react'
 
-/*
- * Formatos aceites pelo frontend e pelo backend.
- */
 const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp']
-
-/*
- * Cada logótipo pode ter, no máximo, 5 MB.
- */
 const maximumFileSize = 5 * 1024 * 1024
+const cropSize = 128
+const outputSize = 512
+
+function clamp(value, minimum, maximum) {
+  return Math.min(Math.max(value, minimum), maximum)
+}
+
+function cropFileName(file) {
+  const safeName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-')
+  return `${safeName || 'logotipo'}-recortado.png`
+}
 
 /*
- * Função vazia usada como valor padrão da callback.
+ * O recorte é guardado como uma imagem quadrada. A moldura circular é só a
+ * pré-visualização da forma como o logótipo aparecerá nos avatares da ASPEC.
  */
-function noop() {}
+async function createCroppedLogo(file, imageSize, crop) {
+  const image = new Image()
+  const sourceUrl = URL.createObjectURL(file)
 
-/*
- * initialLogoUrl representa o logótipo já guardado no backend.
- * onLogoChange entrega ao componente pai apenas um novo ficheiro escolhido.
- */
-function LogoUploader({
+  try {
+    await new Promise((resolve, reject) => {
+      image.onload = resolve
+      image.onerror = () => reject(new Error('Não foi possível preparar esta imagem.'))
+      image.src = sourceUrl
+    })
+
+    const baseScale = Math.max(outputSize / image.naturalWidth, outputSize / image.naturalHeight)
+    const scale = baseScale * crop.zoom
+    const drawWidth = image.naturalWidth * scale
+    const drawHeight = image.naturalHeight * scale
+    const maxOffsetX = Math.max(0, (drawWidth - outputSize) / 2)
+    const maxOffsetY = Math.max(0, (drawHeight - outputSize) / 2)
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+
+    if (!context) throw new Error('O seu navegador não permitiu preparar o recorte.')
+
+    canvas.width = outputSize
+    canvas.height = outputSize
+    context.drawImage(
+      image,
+      (outputSize - drawWidth) / 2 + crop.offsetX * maxOffsetX,
+      (outputSize - drawHeight) / 2 + crop.offsetY * maxOffsetY,
+      drawWidth,
+      drawHeight,
+    )
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('Não foi possível criar o recorte do logótipo.')
+
+    return new File([blob], cropFileName(file), { type: 'image/png' })
+  } finally {
+    URL.revokeObjectURL(sourceUrl)
+  }
+}
+
+export default function LogoUploader({
   initialLogoUrl = '',
-  onLogoChange = noop,
+  onLogoChange,
+  isSaving = false,
+  successMessage = '',
 }) {
   const [selectedFile, setSelectedFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(initialLogoUrl)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [imageSize, setImageSize] = useState(null)
+  const [crop, setCrop] = useState({ zoom: 1, offsetX: 0, offsetY: 0 })
+  const [dragStart, setDragStart] = useState(null)
   const [error, setError] = useState('')
-
   const fileInputRef = useRef(null)
-
-  /*
-   * Guarda apenas URLs temporários criados com URL.createObjectURL().
-   * URLs vindos do backend não devem ser libertados desta forma.
-   */
   const objectUrlRef = useRef('')
 
-  /*
-   * Quando o perfil termina de carregar, apresenta o logótipo devolvido
-   * pela API. Não substitui uma seleção nova que o utilizador esteja
-   * a visualizar localmente.
-   */
-  useEffect(() => {
-    if (!selectedFile) {
-      setPreviewUrl(initialLogoUrl)
-    }
-  }, [initialLogoUrl, selectedFile])
-
-  /*
-   * Ao sair da página, libertamos a pré-visualização temporária, se existir.
-   */
-  useEffect(() => {
-    return () => {
-      revokeObjectUrl()
-    }
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
   }, [])
 
-  function revokeObjectUrl() {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current)
-      objectUrlRef.current = ''
-    }
+  function clearObjectUrl() {
+    if (!objectUrlRef.current) return
+    URL.revokeObjectURL(objectUrlRef.current)
+    objectUrlRef.current = ''
   }
 
-  function resetFileInput() {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+  function resetSelection() {
+    clearObjectUrl()
+    setSelectedFile(null)
+    setPreviewUrl('')
+    setImageSize(null)
+    setCrop({ zoom: 1, offsetX: 0, offsetY: 0 })
+    setError('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function handleFileChange(event) {
     const file = event.target.files?.[0]
-
-    // O utilizador pode fechar a janela sem selecionar um ficheiro.
-    if (!file) {
-      return
-    }
+    if (!file) return
 
     if (!acceptedImageTypes.includes(file.type)) {
       setError('Seleciona uma imagem JPG, PNG ou WebP.')
-      resetFileInput()
+      event.target.value = ''
       return
     }
 
     if (file.size > maximumFileSize) {
       setError('O logótipo não pode ultrapassar 5 MB.')
-      resetFileInput()
+      event.target.value = ''
       return
     }
 
-    /*
-     * Se existia uma pré-visualização local anterior, libertamo-la
-     * antes de criar uma nova.
-     */
-    revokeObjectUrl()
-
+    clearObjectUrl()
     const nextPreviewUrl = URL.createObjectURL(file)
-
     objectUrlRef.current = nextPreviewUrl
-
-    setError('')
     setSelectedFile(file)
     setPreviewUrl(nextPreviewUrl)
-
-    // Entrega o novo ficheiro ao formulário pai para ser enviado à API.
-    onLogoChange(file)
-  }
-
-  function handleCancelSelection() {
-    /*
-     * Esta ação cancela apenas uma nova seleção que ainda não foi guardada.
-     * Se já existir um logótipo na API, voltamos a mostrá-lo.
-     */
-    revokeObjectUrl()
-
-    setSelectedFile(null)
-    setPreviewUrl(initialLogoUrl)
+    setImageSize(null)
+    setCrop({ zoom: 1, offsetX: 0, offsetY: 0 })
     setError('')
-    resetFileInput()
-
-    onLogoChange(null)
   }
 
-  const hasLogoPreview = Boolean(previewUrl)
+  function handleImageLoad(event) {
+    const { naturalWidth, naturalHeight } = event.currentTarget
+    setImageSize({ width: naturalWidth, height: naturalHeight })
+  }
+
+  const baseScale = imageSize ? Math.max(cropSize / imageSize.width, cropSize / imageSize.height) : 1
+  const imageWidth = imageSize ? imageSize.width * baseScale * crop.zoom : cropSize
+  const imageHeight = imageSize ? imageSize.height * baseScale * crop.zoom : cropSize
+  const maxOffsetX = Math.max(0, (imageWidth - cropSize) / 2)
+  const maxOffsetY = Math.max(0, (imageHeight - cropSize) / 2)
+
+  function updateCropFromPointer(event) {
+    if (!dragStart || (!maxOffsetX && !maxOffsetY)) return
+    const deltaX = event.clientX - dragStart.x
+    const deltaY = event.clientY - dragStart.y
+    setCrop((currentCrop) => ({
+      ...currentCrop,
+      offsetX: maxOffsetX ? clamp(dragStart.offsetX + deltaX / maxOffsetX, -1, 1) : 0,
+      offsetY: maxOffsetY ? clamp(dragStart.offsetY + deltaY / maxOffsetY, -1, 1) : 0,
+    }))
+  }
+
+  async function handleSave() {
+    if (!selectedFile || !imageSize || isSaving) return
+    setError('')
+
+    try {
+      const croppedFile = await createCroppedLogo(selectedFile, imageSize, crop)
+      await onLogoChange?.(croppedFile)
+      resetSelection()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Não foi possível guardar o logótipo.')
+    }
+  }
+
+  const displayPreviewUrl = selectedFile ? previewUrl : initialLogoUrl
 
   return (
-    <section className="rounded-xl border border-slate-200 p-6">
-      <h2 className="text-xl font-semibold text-[#0d1f35]">
-        Logótipo da empresa
-      </h2>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#9b7b45]/12 text-[#9b7b45]">
+          <ImagePlus size={19} aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold text-[#0d1f35]">Logótipo da empresa</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Escolhe a área da imagem que deve aparecer no logótipo circular da tua empresa.</p>
+        </div>
+      </div>
 
-      <p className="mt-2 text-sm text-slate-600">
-        Adiciona um logótipo para identificar a tua montra digital.
-      </p>
-
-      <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
-        <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
-          {hasLogoPreview ? (
-            <img
-              src={previewUrl}
-              alt={
-                selectedFile
-                  ? `Pré-visualização do logótipo ${selectedFile.name}`
-                  : 'Logótipo atual da empresa'
-              }
-              className="h-full w-full object-contain p-3"
-            />
-          ) : (
-            <div className="px-4 text-center text-sm text-slate-500">
-              <ImagePlus
-                size={28}
-                className="mx-auto mb-2 text-slate-400"
-                aria-hidden="true"
+      <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+        <div
+          className={`relative h-32 w-32 shrink-0 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-[0_0_0_1px_rgb(203_213_225)] ${selectedFile ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
+          onPointerDown={(event) => {
+            if (!selectedFile || !imageSize) return
+            event.currentTarget.setPointerCapture(event.pointerId)
+            setDragStart({ x: event.clientX, y: event.clientY, offsetX: crop.offsetX, offsetY: crop.offsetY })
+          }}
+          onPointerMove={updateCropFromPointer}
+          onPointerUp={() => setDragStart(null)}
+          onPointerCancel={() => setDragStart(null)}
+        >
+          {displayPreviewUrl ? (
+            selectedFile && imageSize ? (
+              <img
+                src={displayPreviewUrl}
+                alt="Pré-visualização do recorte do logótipo"
+                draggable="false"
+                onLoad={handleImageLoad}
+                className="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
+                style={{
+                  width: `${imageWidth}px`,
+                  height: `${imageHeight}px`,
+                  transform: `translate(calc(-50% + ${crop.offsetX * maxOffsetX}px), calc(-50% + ${crop.offsetY * maxOffsetY}px))`,
+                }}
               />
+            ) : (
+              <img src={displayPreviewUrl} alt="Logótipo atual da empresa" onLoad={selectedFile ? handleImageLoad : undefined} className="h-full w-full object-cover" />
+            )
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center px-5 text-center text-sm text-slate-500">
+              <ImagePlus size={30} className="mb-2 text-slate-400" aria-hidden="true" />
               Sem logótipo
             </div>
           )}
         </div>
 
-        <div className="flex-1">
-          <input
-            ref={fileInputRef}
-            id="company-logo"
-            name="logo"
-            type="file"
-            accept={acceptedImageTypes.join(',')}
-            onChange={handleFileChange}
-            className="sr-only"
-            aria-describedby={error ? 'logo-error' : 'logo-help'}
-          />
+        <div className="w-full min-w-0 flex-1">
+          <input ref={fileInputRef} id="company-logo" type="file" accept={acceptedImageTypes.join(',')} onChange={handleFileChange} className="sr-only" />
+          <label htmlFor="company-logo" className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#0d1f35] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#173558] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#0d1f35]">
+            <ImagePlus size={18} aria-hidden="true" />
+            {displayPreviewUrl ? 'Escolher outra imagem' : 'Escolher imagem'}
+          </label>
 
-          <div className="flex flex-wrap gap-3">
-            <label
-              htmlFor="company-logo"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#8a7043] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#705b36] focus-within:ring-2 focus-within:ring-[#8a7043] focus-within:ring-offset-2"
-            >
-              <ImagePlus size={18} aria-hidden="true" />
-              {hasLogoPreview ? 'Substituir logótipo' : 'Escolher logótipo'}
-            </label>
-
-            {selectedFile && (
-              <button
-                type="button"
-                onClick={handleCancelSelection}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
-              >
-                <X size={18} aria-hidden="true" />
-                Cancelar seleção
-              </button>
-            )}
-          </div>
-
-          <p id="logo-help" className="mt-3 text-sm text-slate-500">
-            Formatos aceites: JPG, PNG ou WebP. Tamanho máximo: 5 MB.
-          </p>
-
-          {error && (
-            <p
-              id="logo-error"
-              className="mt-3 flex items-center gap-2 text-sm font-medium text-red-600"
-              role="alert"
-            >
-              <AlertCircle size={18} aria-hidden="true" />
-              {error}
-            </p>
+          {selectedFile ? (
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold text-[#0d1f35]"><Move size={16} className="text-[#9b7b45]" aria-hidden="true" />Arrasta a imagem dentro do círculo para escolher a área visível.</p>
+              <label htmlFor="logo-zoom" className="mt-5 flex items-center gap-2 text-sm font-medium text-[#0d1f35]"><ZoomIn size={16} className="text-[#9b7b45]" aria-hidden="true" />Zoom</label>
+              <input id="logo-zoom" type="range" min="1" max="3" step="0.05" value={crop.zoom} onChange={(event) => setCrop((currentCrop) => ({ ...currentCrop, zoom: Number(event.target.value) }))} className="mt-3 w-full accent-[#9b7b45]" />
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button type="button" onClick={() => void handleSave()} disabled={isSaving || !imageSize} className="inline-flex items-center gap-2 rounded-lg bg-[#9b7b45] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#80643a] disabled:cursor-not-allowed disabled:opacity-60"><Check size={17} aria-hidden="true" />{isSaving ? 'A guardar...' : 'Guardar logótipo'}</button>
+                <button type="button" onClick={resetSelection} disabled={isSaving} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-[#0d1f35] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-slate-500">JPG, PNG ou WebP, até 5 MB.</p>
           )}
+
+          {error ? <p role="alert" className="mt-4 flex items-start gap-2 text-sm font-medium text-red-700"><AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />{error}</p> : null}
+          {successMessage ? <p role="status" className="mt-4 flex items-start gap-2 text-sm font-medium text-emerald-800"><Check size={17} className="shrink-0" aria-hidden="true" />{successMessage}</p> : null}
         </div>
       </div>
     </section>
   )
 }
-
-export default LogoUploader

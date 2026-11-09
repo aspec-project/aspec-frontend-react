@@ -4,8 +4,9 @@ import { getSeriesSessions } from './adminEventSeries'
 import { isValidPlaceId } from './googleMapsEmbed'
 
 /**
- * Valores iniciais do formulário de evento: tudo vazio, formato presencial e repetição pontual. Os campos da
- * série (`frequency`, `seriesEndsOn`, `deadlineDaysBefore`) só se usam na criação de uma série.
+ * Valores iniciais do formulário de evento: tudo vazio, formato presencial, repetição pontual e cartões de
+ * oração desligados. Os campos da série (`frequency`, `seriesEndsOn`, `deadlineDaysBefore`) só se usam na
+ * criação de uma série.
  */
 export const EMPTY_EVENT_FORM = {
   isOnline: false,
@@ -26,6 +27,8 @@ export const EMPTY_EVENT_FORM = {
   frequency: '',
   seriesEndsOn: '',
   deadlineDaysBefore: '',
+  prayerCardsEnabled: false,
+  prayerVerse: '',
 }
 
 /** Limites dos campos, iguais aos do EventInstanceRequest do backend. */
@@ -38,6 +41,7 @@ export const EVENT_FORM_LIMITS = {
   organizerNotes: 2000,
   maxAttendees: 100000,
   justification: 2000,
+  prayerVerse: 500,
 }
 
 /** Mensagens do formulário de evento (as regras partilhadas com o backend usam as frases dele). */
@@ -59,7 +63,7 @@ export const EVENT_FORM_MESSAGES = {
   confirmLocation: 'Confirme a localização no mapa antes de guardar.',
   mapUnavailable: 'Pré-visualização do mapa indisponível.',
   mapTitle: 'Mapa da localização do evento',
-  timeFormat: 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).',
+  timeIncomplete: 'Preencha as horas e os minutos (ex.: 19:30).',
   deadlineDays: 'Indique um número inteiro de dias, a partir de 1.',
   firstDeadlinePast: 'O prazo calculado para a primeira sessão já passou.',
   seriesEndBeforeStart: 'A data de fim tem de ser igual ou posterior à data de início.',
@@ -81,6 +85,17 @@ export const EVENT_EDIT_TEXTS = {
   justificationPlaceholder: 'Se quiser, explique o motivo da alteração.',
 }
 
+/** Textos da caixa dos cartões de oração no formulário de evento. */
+export const PRAYER_CARD_TEXTS = {
+  title: 'Cartões de oração neste evento',
+  explanation: 'Cada participante preenche um cartão no dia do evento. No fim do prazo, os cartões são distribuídos em cadeia, e cada pessoa recebe o de outro participante.',
+  verseLabel: 'Versículo da semana',
+  versePlaceholder: 'Ex.: Não andeis ansiosos por coisa alguma... — Filipenses 4:6',
+  verseHint: 'Aparece em destaque no cartão de cada participante.',
+  locked: 'Já há cartões preenchidos neste evento: não é possível desligar os cartões nem mudar o versículo, a data ou a hora de início.',
+  seriesHint: 'Numa série, todas as sessões ficam com os cartões de oração e este versículo. Pode mudar o versículo de cada sessão ao editá-la.',
+}
+
 /** Atribuição obrigatória dos dados do OpenStreetMap (licença ODbL). */
 export const GEOCODE_ATTRIBUTION = '© OpenStreetMap contributors'
 
@@ -100,6 +115,8 @@ export const EVENT_FIELD_ORDER = [
   'address',
   'onlineUrl',
   'maxAttendees',
+  'prayerCardsEnabled',
+  'prayerVerse',
   'description',
   'organizerNotes',
   'justification',
@@ -114,7 +131,8 @@ const SERIES_FIELDS = ['isRecurring', 'frequency', 'seriesEndsOn', 'deadlineDays
 
 /**
  * Campos obrigatórios pela ordem do formulário. `format` e `repetition` limitam o campo a um formato
- * (presencial/online) ou a uma repetição (pontual/recorrente).
+ * (presencial/online) ou a uma repetição (pontual/recorrente); `prayer` só conta com os cartões de oração
+ * ligados.
  */
 const REQUIRED_FIELDS = [
   { name: 'name', label: 'título' },
@@ -132,6 +150,7 @@ const REQUIRED_FIELDS = [
   { name: 'address', label: 'morada', format: 'inPerson' },
   { name: 'onlineUrl', label: 'link do evento', format: 'online' },
   { name: 'maxAttendees', label: 'capacidade máxima' },
+  { name: 'prayerVerse', label: 'versículo da semana', prayer: true },
   { name: 'description', label: 'descrição' },
 ]
 
@@ -152,6 +171,8 @@ const SERVER_FIELD_MAP = {
   max_attendees: 'maxAttendees',
   description: 'description',
   organizer_notes: 'organizerNotes',
+  prayer_verse: 'prayerVerse',
+  prayer_cards_enabled: 'prayerVerse',
   justification: 'justification',
   'recurrence.frequency': 'frequency',
   'recurrence.ends_on': 'seriesEndsOn',
@@ -196,8 +217,9 @@ export function getLisbonNow(now = new Date()) {
 
 /**
  * Campos obrigatórios por preencher, pela ordem do formulário. Os do local dependem do formato; a data
- * limite de inscrição (pontual) e os campos da série (recorrente) dependem da repetição. Numa série, com a
- * data de início e a de fim em falta, as duas aparecem juntas como "datas de início e fim".
+ * limite de inscrição (pontual) e os campos da série (recorrente) dependem da repetição; o versículo da
+ * semana só é obrigatório com os cartões de oração ligados. Numa série, com a data de início e a de fim em
+ * falta, as duas aparecem juntas como "datas de início e fim".
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @returns {string[]} Nomes dos campos em falta (em minúsculas).
@@ -208,6 +230,7 @@ export function getMissingEventFields(values) {
   const labels = REQUIRED_FIELDS
     .filter((field) => !field.format || field.format === format)
     .filter((field) => !field.repetition || field.repetition === repetition)
+    .filter((field) => !field.prayer || values.prayerCardsEnabled)
     .filter((field) => clean(values[field.name]) === '')
     .map((field) => field.label)
 
@@ -362,7 +385,9 @@ function matchesCurrentAddress(values, geocode) {
  * coordenadas (nunca os dois, o backend recusa-os juntos); num online, nunca seguem a morada, o local, o
  * `place_id` nem as coordenadas. Numa série não segue a chave `registration_deadline` (o backend proíbe-a com a
  * `recurrence`) e segue a `recurrence` com as 3 chaves do contrato; num pontual a chave `recurrence` não
- * existe (o backend usa `has('recurrence')`).
+ * existe (o backend usa `has('recurrence')`). Os cartões de oração só seguem quando estão ligados
+ * (`prayer_cards_enabled: true` e o versículo sem espaços nas pontas); desligados, nenhuma das chaves segue e
+ * o backend fica com os cartões desligados.
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
@@ -407,6 +432,11 @@ export function buildEventPayload(values, geocode) {
 
   if (notes !== '') {
     payload.organizer_notes = notes
+  }
+
+  if (values.prayerCardsEnabled) {
+    payload.prayer_cards_enabled = true
+    payload.prayer_verse = clean(values.prayerVerse)
   }
 
   if (values.isRecurring) {
@@ -474,7 +504,7 @@ function textOrEmpty(value) {
 
 /**
  * Valores iniciais do formulário de edição a partir do evento da lista. O prazo passa à data de Lisboa,
- * seja qual for o desvio que venha no ISO.
+ * seja qual for o desvio que venha no ISO. Os cartões de oração só ficam ligados com o booleano `true`.
  *
  * @param {object} event Evento devolvido por GET /api/admin/events.
  * @returns {typeof EMPTY_EVENT_FORM}
@@ -497,6 +527,8 @@ export function eventToFormValues(event) {
     maxAttendees: Number.isInteger(event.max_attendees) ? String(event.max_attendees) : '',
     description: textOrEmpty(event.description),
     organizerNotes: textOrEmpty(event.organizer_notes),
+    prayerCardsEnabled: event.prayer_cards_enabled === true,
+    prayerVerse: textOrEmpty(event.prayer_verse),
   }
 }
 
@@ -546,7 +578,8 @@ function comparable(name, value) {
 /**
  * Campos que mudaram em relação aos valores iniciais. Mudar o formato conta como alteração e só se comparam
  * os campos de local do formato atual. A justificação não conta (não é um dado do evento), nem os campos da
- * série (só existem na criação).
+ * série (só existem na criação). A ativação dos cartões de oração compara-se como booleano e o versículo só
+ * se compara com os cartões ligados.
  *
  * @param {typeof EMPTY_EVENT_FORM} initialValues Valores iniciais do evento.
  * @param {typeof EMPTY_EVENT_FORM} values Valores atuais do formulário.
@@ -559,6 +592,13 @@ export function getChangedEventFields(initialValues, values) {
   for (const name of EVENT_FIELD_ORDER) {
     if (name === 'justification' || SERIES_FIELDS.includes(name) || hidden.includes(name)) continue
 
+    if (name === 'prayerCardsEnabled') {
+      if (Boolean(initialValues.prayerCardsEnabled) !== Boolean(values.prayerCardsEnabled)) changed.push(name)
+      continue
+    }
+
+    if (name === 'prayerVerse' && !values.prayerCardsEnabled) continue
+
     if (comparable(name, initialValues[name]) !== comparable(name, values[name])) {
       changed.push(name)
     }
@@ -570,15 +610,32 @@ export function getChangedEventFields(initialValues, values) {
 /**
  * Corpo do PUT: o corpo completo da criação, com as notas sempre presentes (null apaga-as; omitir mantinha
  * as antigas), `venue_name: null` nos online (o backend não o limpa) e a justificação só quando preenchida.
+ * As chaves dos cartões de oração só seguem quando a ativação ou o versículo mudaram em relação aos valores
+ * iniciais (sem eles, nunca seguem): ligados `prayer_cards_enabled: true` com o versículo, desligados só
+ * `prayer_cards_enabled: false` (o backend apaga o versículo). Sem as chaves, o backend mantém os cartões.
  *
  * @param {typeof EMPTY_EVENT_FORM} values Valores do formulário.
  * @param {{result: {latitude?: number|null, longitude?: number|null, place_id?: string|null}|null, query: {address: string, locationId: string}|null}} geocode
  *   Verificação da morada (guardada ou feita no modal).
  * @param {string} justification Justificação escrita pelo admin.
+ * @param {typeof EMPTY_EVENT_FORM|null} [initialValues] Valores iniciais do evento aberto.
  * @returns {object} Corpo em snake_case.
  */
-export function buildEventUpdatePayload(values, geocode, justification) {
-  const payload = { ...buildEventPayload(values, geocode), organizer_notes: clean(values.organizerNotes) || null }
+export function buildEventUpdatePayload(values, geocode, justification, initialValues = null) {
+  const payload = {
+    ...buildEventPayload({ ...values, prayerCardsEnabled: false }, geocode),
+    organizer_notes: clean(values.organizerNotes) || null,
+  }
+  const prayerChanged = initialValues !== null && getChangedEventFields(initialValues, values)
+    .some((name) => name === 'prayerCardsEnabled' || name === 'prayerVerse')
+
+  if (prayerChanged) {
+    payload.prayer_cards_enabled = Boolean(values.prayerCardsEnabled)
+
+    if (values.prayerCardsEnabled) {
+      payload.prayer_verse = clean(values.prayerVerse)
+    }
+  }
 
   if (values.isOnline) {
     payload.venue_name = null
@@ -653,6 +710,8 @@ const CHANGE_LABELS = {
   maxAttendees: 'Capacidade máxima',
   description: 'Sobre o evento',
   organizerNotes: 'Notas do organizador',
+  prayerCardsEnabled: 'Cartões de oração',
+  prayerVerse: 'Versículo da semana',
 }
 
 /** Número máximo de caracteres de um texto na lista de alterações (antes das reticências). */
@@ -660,7 +719,8 @@ const CHANGE_TEXT_LIMIT = 80
 
 /**
  * Valor de um campo como aparece na lista de alterações: nomes em vez de ids, datas curtas, capacidade sem
- * zeros à esquerda e textos numa só linha, cortados aos 80 caracteres.
+ * zeros à esquerda, cartões de oração como "Ligados"/"Desligados" e textos numa só linha, cortados aos 80
+ * caracteres.
  *
  * @param {string} name Nome do campo.
  * @param {unknown} value Valor do campo.
@@ -669,6 +729,8 @@ const CHANGE_TEXT_LIMIT = 80
  */
 function changeValue(name, value, names) {
   if (name === 'isOnline') return value ? 'Online' : 'Presencial'
+
+  if (name === 'prayerCardsEnabled') return value ? 'Ligados' : 'Desligados'
 
   const text = clean(typeof value === 'string' ? value.replace(/\s+/g, ' ') : value)
 
@@ -702,15 +764,28 @@ export function getEventChangeSummary(initialValues, values, names) {
 }
 
 /**
- * Frase da confirmação sobre o email aos inscritos, partida para a contagem poder ficar a negrito.
+ * Campos do formulário cuja alteração faz o backend enviar email aos inscritos (espelho de
+ * `ATTENDEE_RELEVANT_FIELDS`; as coordenadas e o `place_id` seguem a morada e a delegação).
+ */
+const NOTIFYING_FIELDS = ['isOnline', 'name', 'categoryId', 'locationId', 'eventDate', 'startTime', 'endTime', 'registrationDeadline', 'venueName', 'address', 'onlineUrl', 'description']
+
+/**
+ * Frase da confirmação sobre o email aos inscritos, partida para a contagem poder ficar a negrito. Com a
+ * lista dos campos alterados e nenhum deles na lista dos que notificam (ex.: só a capacidade, as notas ou os
+ * cartões de oração), diz que as alterações não são enviadas por email.
  *
  * @param {unknown} count Número de inscritos (null quando é desconhecido).
+ * @param {string[]} [changedFields] Campos alterados (sem eles, com inscritos, assume que vai email).
  * @returns {{lead: string, emphasis: string, tail: string, notify: boolean}} notify indica se vai um email
  *   (e se faz sentido pedir a justificação).
  */
-export function getChangeNotice(count) {
+export function getChangeNotice(count, changedFields) {
   if (count === 0) {
     return { lead: 'Não há inscritos, por isso ninguém será notificado.', emphasis: '', tail: '', notify: false }
+  }
+
+  if (Array.isArray(changedFields) && !changedFields.some((field) => NOTIFYING_FIELDS.includes(field))) {
+    return { lead: 'Estas alterações não são enviadas por email aos inscritos.', emphasis: '', tail: '', notify: false }
   }
 
   const tail = ' a avisar que o evento foi alterado.'

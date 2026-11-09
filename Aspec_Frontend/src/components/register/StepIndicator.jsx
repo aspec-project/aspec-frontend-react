@@ -26,7 +26,7 @@ export default function StepIndicator({ step, steps }) {
             </div>
             {i < steps.length - 1 && (
               <div
-                className="flex-1 h-0.5 mx-1.5 mt-[-10px]"
+                className="flex-1 h-0.5 mx-0.5 lg:mx-1.5 mt-[-10px]"
                 style={{ backgroundColor: i < step ? "#8a7043" : "#e8eef5" }}
               />
             )}

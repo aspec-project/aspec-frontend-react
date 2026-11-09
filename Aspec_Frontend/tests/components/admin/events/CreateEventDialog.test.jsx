@@ -34,7 +34,7 @@ const END_TIME_ERROR = 'A hora de fim deve ser posterior à hora de início.'
 const NOT_FOUND = 'Não foi possível encontrar esta morada no mapa. Verifique a morada e tente novamente.'
 const UNAVAILABLE = 'O serviço de localização não está disponível de momento. Tente novamente dentro de instantes.'
 const SUCCESS = 'Evento criado com sucesso.'
-const FORMAT_ERROR = 'Indique uma hora entre 00:00 e 23:59 (ex.: 19:30).'
+const INCOMPLETE_ERROR = 'Preencha as horas e os minutos (ex.: 19:30).'
 const APPROXIMATE_TITLE = 'A localização no mapa é aproximada'
 const CONFIRM_LOCATION = 'Confirmar localização'
 const CONFIRM_LOCATION_FOOTER = 'Confirme a localização no mapa antes de guardar.'
@@ -80,6 +80,18 @@ function labelled(text) {
   const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
   return screen.getByLabelText(new RegExp(`^${escaped}\\s*\\*?$`))
+}
+
+function hoursBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, horas` })
+}
+
+function minutesBox(label, scope = screen) {
+  return scope.getByRole('spinbutton', { name: `${label}, minutos` })
+}
+
+function timeValue(label, scope = screen) {
+  return `${hoursBox(label, scope).value}:${minutesBox(label, scope).value}`
 }
 
 const field = {
@@ -136,7 +148,7 @@ function calendar() {
 }
 
 function day(label) {
-  return within(calendar()).getByRole('button', { name: label })
+  return within(calendar()).getByLabelText(label, { selector: 'button' })
 }
 
 function missingText() {
@@ -159,22 +171,34 @@ async function pickDate(user, opener, dayLabel) {
   await user.click(day(dayLabel))
 }
 
-async function fillCommon(user) {
-  await typeInto(user, field.title(), 'Jantar de Networking Lisboa')
-  await chooseOption(user, field.category(), 'Jantar')
-  await chooseOption(user, field.location(), 'Lisboa')
-  await pickDate(user, field.date(), '20 de março de 2099')
-  await typeInto(user, field.start(), '19:30')
-  await typeInto(user, field.end(), '21:30')
-  await pickDate(user, field.deadline(), '18 de março de 2099')
-  change(field.capacity(), '40')
-  await typeInto(user, field.description(), 'Encontro mensal de networking entre membros.')
+function chooseSetupOption(combobox, optionName) {
+  fireEvent.click(combobox)
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
-async function fillValidInPerson(user) {
-  await fillCommon(user)
-  await typeInto(user, field.venue(), 'Restaurante Estrela do Norte')
-  await typeInto(user, field.address(), 'Rua das Flores 42')
+function pickSetupDate(opener, dayLabel) {
+  fireEvent.click(opener)
+  fireEvent.click(day(dayLabel))
+}
+
+function fillCommon() {
+  change(field.title(), 'Jantar de Networking Lisboa')
+  chooseSetupOption(field.category(), 'Jantar')
+  chooseSetupOption(field.location(), 'Lisboa')
+  pickSetupDate(field.date(), '20 de março de 2099')
+  change(field.start(), '19')
+  change(minutesBox('Hora de início'), '30')
+  change(field.end(), '21')
+  change(minutesBox('Hora de fim'), '30')
+  pickSetupDate(field.deadline(), '18 de março de 2099')
+  change(field.capacity(), '40')
+  change(field.description(), 'Encontro mensal de networking entre membros.')
+}
+
+function fillValidInPerson() {
+  fillCommon()
+  change(field.venue(), 'Restaurante Estrela do Norte')
+  change(field.address(), 'Rua das Flores 42')
 }
 
 function mapQuery() {
@@ -229,6 +253,11 @@ function apiError(status, message, errors) {
   })
 }
 
+beforeEach(() => {
+  createAdminEvent.mockReset()
+  geocodeAddress.mockReset()
+})
+
 describe('CreateEventDialog', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -236,7 +265,6 @@ describe('CreateEventDialog', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
   })
 
   it('abre vazio, com o foco no título, formato presencial, repetição pontual e com tudo em falta no rodapé', () => {
@@ -260,9 +288,11 @@ describe('CreateEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show()
 
+    const category = field.category()
+    const location = field.location()
     const expected = [
-      { combobox: field.category, name: 'categoryId', placeholder: 'Selecione o tipo de evento', options: ['Workshop', 'Formação', 'Jantar'] },
-      { combobox: field.location, name: 'locationId', placeholder: 'Selecione a delegação', options: ['Lisboa', 'Porto', 'Braga'] },
+      { combobox: () => category, name: 'categoryId', placeholder: 'Selecione o tipo de evento', options: ['Workshop', 'Formação', 'Jantar'] },
+      { combobox: () => location, name: 'locationId', placeholder: 'Selecione a delegação', options: ['Lisboa', 'Porto', 'Braga'] },
     ]
 
     for (const { combobox, name, placeholder } of expected) {
@@ -345,16 +375,18 @@ describe('CreateEventDialog', () => {
     expect(describedIds(field.deadline())).toContain(screen.getByText(DEADLINE_HINT).id)
   })
 
-  it('as horas são campos de texto ao minuto e uma hora incompleta continua em falta', async () => {
+  it('as horas são caixas de horas e minutos e uma hora incompleta continua em falta', async () => {
     const user = userEvent.setup({ delay: null })
     show()
 
-    for (const [element, name] of [[field.start(), 'startTime'], [field.end(), 'endTime']]) {
-      expect(screen.getAllByRole('textbox')).toContain(element)
+    for (const [label, element, name] of [['Hora de início', field.start(), 'startTime'], ['Hora de fim', field.end(), 'endTime']]) {
+      expect(element).toHaveAttribute('role', 'spinbutton')
+      expect(element).toBe(hoursBox(label))
       expect(element).toHaveValue('')
-      expect(element).toHaveAttribute('placeholder', 'hh:mm')
       expect(element).toHaveAttribute('name', name)
+      expect(element).toHaveAttribute('placeholder', '--')
       expect(element).toHaveAttribute('aria-required', 'true')
+      expect(minutesBox(label)).toHaveAttribute('aria-required', 'true')
     }
 
     await user.type(field.start(), '17:39')
@@ -363,23 +395,24 @@ describe('CreateEventDialog', () => {
     expect(missingText()).not.toHaveTextContent('hora de início')
     expect(missingText()).not.toHaveTextContent('hora de fim')
 
-    await fillValidInPerson(user)
+    fillValidInPerson()
     await typeInto(user, field.start(), '17:39')
     await typeInto(user, field.end(), '17:00')
 
     const error = screen.getByText(END_TIME_ERROR)
-    expect(describedIds(field.end())).toContain(error.id)
+    expect(describedIds(hoursBox('Hora de fim'))).toContain(error.id)
     expect(submitButton()).toBeDisabled()
 
-    await typeInto(user, field.start(), '17:3')
+    await user.click(minutesBox('Hora de início'))
+    await user.keyboard('{Backspace}')
 
     expect(missingText()).toHaveTextContent('hora de início')
-    expect(screen.queryByText(FORMAT_ERROR)).not.toBeInTheDocument()
+    expect(screen.queryByText(INCOMPLETE_ERROR)).not.toBeInTheDocument()
 
     await user.tab()
 
-    expect(screen.getByText(FORMAT_ERROR)).toBeInTheDocument()
-  })
+    expect(screen.getByText(INCOMPLETE_ERROR)).toBeInTheDocument()
+  }, 10000)
 
   it('as listas abertas do tipo e da delegação têm nome próprio', async () => {
     const user = userEvent.setup({ delay: null })
@@ -412,7 +445,7 @@ describe('CreateEventDialog', () => {
 
     expect(screen.getByText(/^Falta preencher:/)).not.toHaveTextContent('título')
 
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     expect(screen.queryByText(/Falta preencher/)).not.toBeInTheDocument()
     expect(submitButton()).toBeEnabled()
@@ -442,7 +475,7 @@ describe('CreateEventDialog', () => {
   it('mostra os erros do browser junto ao campo e desativa o envio', async () => {
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await typeInto(user, field.end(), '19:00')
 
@@ -457,14 +490,14 @@ describe('CreateEventDialog', () => {
 
     expect(screen.getByText('O prazo de inscrição tem de ser anterior ou igual ao início do evento.')).toBeInTheDocument()
     expect(field.deadline()).toHaveAttribute('aria-invalid', 'true')
-  })
+  }, 10000)
 
   it('cria um presencial sem verificação com o payload exato e bloqueia o modal durante o pedido', async () => {
     const pending = deferred()
     createAdminEvent.mockImplementationOnce(() => pending.promise)
     const user = userEvent.setup({ delay: null })
     const { onClose, onSuccess } = show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -488,7 +521,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await typeInto(user, field.start(), '17:39')
     await typeInto(user, field.end(), '19:28')
@@ -498,16 +531,19 @@ describe('CreateEventDialog', () => {
   })
 
   it('dois cliques rápidos em Criar evento fazem um só pedido', async () => {
-    createAdminEvent.mockImplementation(() => new Promise(() => {}))
+    const pending = deferred()
+    createAdminEvent.mockImplementationOnce(() => pending.promise)
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
     const button = submitButton()
 
     await user.dblClick(button)
     fireEvent.submit(button.closest('form'))
 
     expect(createAdminEvent).toHaveBeenCalledTimes(1)
+
+    await act(async () => { pending.resolve({ success: true, message: SUCCESS, data: {} }) })
   })
 
   it('verifica a morada, mostra o resultado só como texto com a atribuição e envia as coordenadas', async () => {
@@ -515,7 +551,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(verifyButton())
 
@@ -534,7 +570,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(verifyButton())
     await screen.findByText(/^Morada encontrada:/)
@@ -580,7 +616,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(verifyButton())
 
@@ -611,7 +647,7 @@ describe('CreateEventDialog', () => {
       .mockRejectedValueOnce(apiError(503, UNAVAILABLE))
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(verifyButton())
 
@@ -626,7 +662,8 @@ describe('CreateEventDialog', () => {
   })
 
   it('Verificar no mapa só fica ativo com morada e desativa-se enquanto verifica', async () => {
-    geocodeAddress.mockImplementation(() => new Promise(() => {}))
+    const pending = deferred()
+    geocodeAddress.mockImplementationOnce(() => pending.promise)
     const user = userEvent.setup({ delay: null })
     show()
 
@@ -642,6 +679,8 @@ describe('CreateEventDialog', () => {
 
     expect(verifyButton()).toBeDisabled()
     expect(screen.getByText('A verificar a morada...')).toBeInTheDocument()
+
+    await act(async () => { pending.resolve(FOUND) })
   })
 
   it('um 422 assinala cada campo sem repetir a mensagem geral e foca o primeiro campo inválido', async () => {
@@ -651,7 +690,7 @@ describe('CreateEventDialog', () => {
     }))
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -681,7 +720,7 @@ describe('CreateEventDialog', () => {
     }))
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -698,6 +737,24 @@ describe('CreateEventDialog', () => {
     expect(screen.queryByText(CATEGORY_ERROR)).not.toBeInTheDocument()
     expect(field.category()).not.toHaveAttribute('aria-invalid')
     expect(screen.getByText(START_ERROR)).toBeInTheDocument()
+  })
+
+  it('um 422 só na hora de início assinala as duas caixas e foca a caixa das horas', async () => {
+    const START_ERROR = 'A hora de início não é válida.'
+    createAdminEvent.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', {
+      event_start_time: [START_ERROR],
+    }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await fillValidInPerson(user)
+
+    await user.click(submitButton())
+
+    const message = await screen.findByText(START_ERROR)
+    expect(hoursBox('Hora de início')).toHaveAttribute('aria-invalid', 'true')
+    expect(minutesBox('Hora de início')).toHaveAttribute('aria-invalid', 'true')
+    expect(describedIds(hoursBox('Hora de início'))).toContain(message.id)
+    await waitFor(() => expect(hoursBox('Hora de início')).toHaveFocus())
   })
 
   it('o Escape fecha só a lista ou o calendário aberto e um segundo Escape fecha o modal', async () => {
@@ -732,7 +789,7 @@ describe('CreateEventDialog', () => {
       .mockRejectedValueOnce(apiError(503, UNAVAILABLE))
     const user = userEvent.setup({ delay: null })
     const { onSuccess } = show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -752,7 +809,7 @@ describe('CreateEventDialog', () => {
     createAdminEvent.mockRejectedValueOnce(apiError(500, 'Erro interno.'))
     const user = userEvent.setup({ delay: null })
     const first = show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -762,7 +819,7 @@ describe('CreateEventDialog', () => {
 
     createAdminEvent.mockRejectedValueOnce(new CanceledError())
     const second = show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
 
     await user.click(submitButton())
 
@@ -788,7 +845,7 @@ describe('CreateEventDialog', () => {
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalledTimes(3)
 
-    await fillValidInPerson(user)
+    fillValidInPerson()
     submitButton().focus()
 
     await user.tab()
@@ -858,7 +915,17 @@ describe('CreateEventDialog', () => {
       sequence.push(document.activeElement)
     }
 
-    expect(sequence).toEqual([field.category(), field.location(), field.date(), field.start(), field.end(), field.deadline(), field.venue()])
+    expect(sequence).toEqual([
+      field.category(),
+      field.location(),
+      field.date(),
+      hoursBox('Hora de início'),
+      minutesBox('Hora de início'),
+      hoursBox('Hora de fim'),
+      minutesBox('Hora de fim'),
+      field.deadline(),
+      field.venue(),
+    ])
   })
 
   it('cria um evento online só com o link e recusa links que não sejam http ou https', async () => {
@@ -866,7 +933,7 @@ describe('CreateEventDialog', () => {
     const user = userEvent.setup({ delay: null })
     show()
     await user.click(formatButton('Online'))
-    await fillCommon(user)
+    fillCommon()
 
     await user.type(field.onlineUrl(), 'ftp://meet.example.com')
 
@@ -874,7 +941,7 @@ describe('CreateEventDialog', () => {
     expect(field.onlineUrl()).toHaveAttribute('aria-invalid', 'true')
     expect(submitButton()).toBeDisabled()
 
-    await typeInto(user, field.onlineUrl(), 'https://meet.example.com/aspec')
+    change(field.onlineUrl(), 'https://meet.example.com/aspec')
     await user.click(submitButton())
 
     expect(createAdminEvent).toHaveBeenCalledWith({
@@ -917,7 +984,7 @@ describe('CreateEventDialog', () => {
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
       const user = userEvent.setup({ delay: null })
       show()
-      await fillValidInPerson(user)
+      fillValidInPerson()
 
       await user.click(verifyButton())
       await screen.findByText(/^Morada encontrada:/)
@@ -937,7 +1004,7 @@ describe('CreateEventDialog', () => {
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
       const user = userEvent.setup({ delay: null })
       show()
-      await fillValidInPerson(user)
+      fillValidInPerson()
 
       await user.click(verifyButton())
       await screen.findByText(APPROXIMATE_TITLE)
@@ -960,7 +1027,7 @@ describe('CreateEventDialog', () => {
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
       const user = userEvent.setup({ delay: null })
       show()
-      await fillValidInPerson(user)
+      fillValidInPerson()
 
       await user.click(verifyButton())
       await user.click(await screen.findByRole('button', { name: CONFIRM_LOCATION }))
@@ -983,7 +1050,7 @@ describe('CreateEventDialog', () => {
       createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
       const user = userEvent.setup({ delay: null })
       show()
-      await fillValidInPerson(user)
+      fillValidInPerson()
 
       await user.click(verifyButton())
       await screen.findByText(/^Morada encontrada:/)
@@ -993,7 +1060,7 @@ describe('CreateEventDialog', () => {
       expect(screen.queryByRole('button', { name: 'Verificar no mapa' })).not.toBeInTheDocument()
       expect(screen.queryByText(APPROXIMATE_TITLE)).not.toBeInTheDocument()
 
-      await user.type(field.onlineUrl(), 'https://meet.example.com/aspec')
+      change(field.onlineUrl(), 'https://meet.example.com/aspec')
       await user.click(submitButton())
 
       const payload = createAdminEvent.mock.calls.at(-1)[0]
@@ -1013,7 +1080,7 @@ describe('CreateEventDialog', () => {
       try {
         const user = userEvent.setup({ delay: null })
         show()
-        await fillValidInPerson(user)
+        fillValidInPerson()
 
         await user.click(verifyButton())
         await screen.findByText(UNAVAILABLE)
@@ -1114,14 +1181,15 @@ describe('CreateEventDialog — série recorrente', () => {
 
   async function pickDateInAnyMonth(user, opener, dayLabel) {
     await user.click(opener)
+    const picker = within(calendar())
 
-    for (let step = 0; step < 24 && !within(calendar()).queryByRole('button', { name: dayLabel }); step += 1) {
-      const shown = within(calendar()).getAllByRole('button', { name: / de \S+ de \d{4}$/ })[0].getAttribute('aria-label') ?? ''
+    for (let step = 0; step < 24 && !picker.queryByLabelText(dayLabel, { selector: 'button' }); step += 1) {
+      const shown = picker.getAllByLabelText(/ de \S+ de \d{4}$/, { selector: 'button' })[0].getAttribute('aria-label') ?? ''
       const direction = monthIndex(dayLabel) < monthIndex(shown) ? 'Mês anterior' : 'Mês seguinte'
-      await user.click(within(calendar()).getByRole('button', { name: direction }))
+      await user.click(picker.getByRole('button', { name: direction }))
     }
 
-    await user.click(day(dayLabel))
+    await user.click(picker.getByLabelText(dayLabel, { selector: 'button' }))
   }
 
   async function chooseRecurring(user) {
@@ -1136,9 +1204,9 @@ describe('CreateEventDialog — série recorrente', () => {
   }
 
   async function fillValidSeries(user, options) {
-    await fillValidInPerson(user)
+    fillValidInPerson()
     await chooseRecurring(user)
-    await fillSeries(user, options)
+    await fillSeries(user, { first: null, ...options })
   }
 
   async function openConfirmation(user, options) {
@@ -1152,7 +1220,6 @@ describe('CreateEventDialog — série recorrente', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
   })
 
   it('Recorrente troca a data limite pelos campos da série, com os hints e o botão Criar série', async () => {
@@ -1246,7 +1313,7 @@ describe('CreateEventDialog — série recorrente', () => {
   it('mostra a pré-visualização das sessões só com a série completa e sem erros', async () => {
     const user = userEvent.setup({ delay: null })
     show()
-    await fillValidInPerson(user)
+    fillValidInPerson()
     await chooseRecurring(user)
     await fillSeries(user, { last: null })
 
@@ -1333,7 +1400,7 @@ describe('CreateEventDialog — série recorrente', () => {
 
   it('durante o pedido a confirmação fica bloqueada e dois cliques fazem um só pedido', async () => {
     const pending = deferred()
-    createAdminEvent.mockImplementation(() => pending.promise)
+    createAdminEvent.mockImplementationOnce(() => pending.promise)
     const user = userEvent.setup({ delay: null })
     const { onClose } = show()
     await openConfirmation(user)
@@ -1348,6 +1415,8 @@ describe('CreateEventDialog — série recorrente', () => {
 
     expect(confirmDialog()).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => { pending.resolve({ success: true, message: SERIES_SUCCESS, data: {} }) })
   }, 15000)
 
   it('Voltar e Escape fecham a confirmação sem pedido, mantêm o modal com os valores e devolvem o foco a Criar série', async () => {
@@ -1436,8 +1505,8 @@ describe('CreateEventDialog — série recorrente', () => {
     const user = userEvent.setup({ delay: null })
     show()
     await user.click(formatButton('Online'))
-    await fillCommon(user)
-    await user.type(field.onlineUrl(), 'https://meet.example.com/aspec')
+    fillCommon()
+    change(field.onlineUrl(), 'https://meet.example.com/aspec')
     await chooseRecurring(user)
     await fillSeries(user)
 
@@ -1488,8 +1557,8 @@ describe('CreateEventDialog — série recorrente', () => {
       const frequency = inside.getByRole('combobox', { name: /^Frequência/ })
       const first = inside.getByLabelText(/^Início\s*\*?\s*\(inclusive\)$/)
       const last = inside.getByLabelText(/^Fim\s*\*?\s*\(inclusive\)$/)
-      const start = inside.getByRole('textbox', { name: /^Hora de início/ })
-      const end = inside.getByRole('textbox', { name: /^Hora de fim/ })
+      const start = hoursBox('Hora de início', inside)
+      const end = hoursBox('Hora de fim', inside)
       const days = inside.getByRole('spinbutton', { name: /^Fechar inscrições antes de cada sessão/ })
 
       expect(first.tagName).toBe('BUTTON')
@@ -1504,8 +1573,8 @@ describe('CreateEventDialog — série recorrente', () => {
       expect(describedTexts).toContain(DAYS_HINT)
       expect(screen.getAllByText('(inclusive)')).toHaveLength(2)
 
-      expect(screen.getAllByLabelText(/^Hora de início/)).toHaveLength(1)
-      expect(screen.getAllByLabelText(/^Hora de fim/)).toHaveLength(1)
+      expect(screen.getAllByRole('spinbutton', { name: /^Hora de início, / })).toHaveLength(2)
+      expect(screen.getAllByRole('spinbutton', { name: /^Hora de fim, / })).toHaveLength(2)
       expect(document.querySelectorAll('[name="eventDate"]')).toHaveLength(1)
       expect(screen.queryByLabelText(/^Data limite de inscrição/)).not.toBeInTheDocument()
       expect(screen.queryByLabelText(/^Data\s*\*?$/)).not.toBeInTheDocument()
@@ -1569,8 +1638,8 @@ describe('CreateEventDialog — série recorrente', () => {
       await chooseRecurring(user)
 
       expect(series.firstDate()).toHaveTextContent('20 Mar 2099')
-      expect(within(recurrenceBox()).getByRole('textbox', { name: /^Hora de início/ })).toHaveValue('19:30')
-      expect(within(recurrenceBox()).getByRole('textbox', { name: /^Hora de fim/ })).toHaveValue('21:30')
+      expect(timeValue('Hora de início', within(recurrenceBox()))).toBe('19:30')
+      expect(timeValue('Hora de fim', within(recurrenceBox()))).toBe('21:30')
 
       await pickDate(user, series.firstDate(), '27 de março de 2099')
       await user.click(repetitionButton('Pontual'))
@@ -1581,7 +1650,7 @@ describe('CreateEventDialog — série recorrente', () => {
     it('com o pontual preenchido, Recorrente só pede a frequência, a data de fim e o fecho das inscrições', async () => {
       const user = userEvent.setup({ delay: null })
       show()
-      await fillValidInPerson(user)
+      fillValidInPerson()
 
       await chooseRecurring(user)
 
@@ -1605,4 +1674,127 @@ describe('CreateEventDialog — série recorrente', () => {
       await waitFor(() => expect(series.frequency()).toHaveFocus())
     }, 15000)
   })
+
+  describe('cartões de oração', () => {
+    it('uma série com os cartões ligados envia a ativação e o versículo num só pedido', async () => {
+      createAdminEvent.mockResolvedValue({ success: true, message: SERIES_SUCCESS, data: {} })
+      const user = userEvent.setup({ delay: null })
+      show()
+      await fillValidSeries(user)
+
+      await user.click(screen.getByRole('switch', { name: 'Cartões de oração neste evento' }))
+      change(screen.getByRole('textbox', { name: /^Versículo da semana/ }), 'Salmo 23')
+      await user.click(seriesSubmitButton())
+      await user.click(confirmButton('Criar 3 sessões'))
+
+      expect(createAdminEvent).toHaveBeenCalledTimes(1)
+      expect(createAdminEvent).toHaveBeenCalledWith({ ...SERIES_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+    }, 15000)
+  })
+})
+
+describe('CreateEventDialog — cartões de oração', () => {
+  const PRAYER_TITLE = 'Cartões de oração neste evento'
+  const MISSING_VERSE = 'Indique o versículo da semana para ativar os cartões de oração.'
+
+  function prayerSwitch() {
+    return screen.getByRole('switch', { name: PRAYER_TITLE })
+  }
+
+  function prayerBox() {
+    return screen.getByRole('group', { name: PRAYER_TITLE })
+  }
+
+  function verse() {
+    return screen.getByRole('textbox', { name: /^Versículo da semana/ })
+  }
+
+  function follows(first, second) {
+    return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2099, 2, 10, 12))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('abre com os cartões desligados entre a capacidade e Sobre o evento, também em Online e em Recorrente', async () => {
+    const user = userEvent.setup({ delay: null })
+    show()
+
+    expect(prayerSwitch()).toHaveAttribute('aria-checked', 'false')
+    expect(follows(field.capacity(), prayerBox())).toBe(true)
+    expect(follows(prayerBox(), field.description())).toBe(true)
+    expect(screen.getByText(ALL_MISSING)).toBeInTheDocument()
+
+    await user.click(formatButton('Online'))
+    expect(prayerSwitch()).toBeInTheDocument()
+
+    await user.click(formatButton('Presencial'))
+    await user.click(repetitionButton('Recorrente'))
+    expect(prayerSwitch()).toBeInTheDocument()
+  })
+
+  it('ligados pedem o versículo no rodapé e o pedido leva a ativação e o versículo sem espaços', async () => {
+    createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+    fillValidInPerson()
+
+    await user.click(prayerSwitch())
+
+    expect(missingText()).toHaveTextContent('Falta preencher: versículo da semana.')
+    expect(submitButton()).toBeDisabled()
+
+    change(verse(), '  Salmo 23  ')
+    await user.click(submitButton())
+
+    expect(createAdminEvent).toHaveBeenCalledTimes(1)
+    expect(createAdminEvent).toHaveBeenCalledWith({ ...IN_PERSON_PAYLOAD, prayer_cards_enabled: true, prayer_verse: 'Salmo 23' })
+  }, 10000)
+
+  it('desligar guarda o versículo escrito, não o pede no rodapé e não o envia', async () => {
+    createAdminEvent.mockResolvedValue({ success: true, message: SUCCESS, data: {} })
+    const user = userEvent.setup({ delay: null })
+    show()
+    fillValidInPerson()
+
+    await user.click(prayerSwitch())
+    change(verse(), 'Salmo 23')
+    await user.click(prayerSwitch())
+
+    expect(screen.queryByText(/Falta preencher/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /^Versículo da semana/ })).not.toBeInTheDocument()
+
+    await user.click(prayerSwitch())
+    expect(verse()).toHaveValue('Salmo 23')
+
+    await user.click(prayerSwitch())
+    await user.click(submitButton())
+
+    expect(createAdminEvent).toHaveBeenCalledWith(IN_PERSON_PAYLOAD)
+  }, 10000)
+
+  it('um 422 do versículo aparece debaixo do campo, foca-o e desaparece ao escrever', async () => {
+    createAdminEvent.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', { prayer_verse: [MISSING_VERSE] }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    fillValidInPerson()
+    await user.click(prayerSwitch())
+    change(verse(), 'Salmo 23')
+
+    await user.click(submitButton())
+
+    const error = await screen.findByText(MISSING_VERSE)
+    expect(verse()).toHaveAttribute('aria-invalid', 'true')
+    expect(describedIds(verse())).toContain(error.id)
+    await waitFor(() => expect(verse()).toHaveFocus())
+
+    change(verse(), 'Salmo 23:1')
+
+    expect(screen.queryByText(MISSING_VERSE)).not.toBeInTheDocument()
+  }, 10000)
 })

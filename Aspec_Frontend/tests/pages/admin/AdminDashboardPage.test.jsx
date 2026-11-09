@@ -1,14 +1,15 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, CanceledError } from 'axios'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminDashboardPage from '../../../src/pages/admin/AdminDashboardPage'
-import { getAdminDashboard } from '../../../src/services/adminDashboard'
+import { getAdminDashboard, getDashboardPendingApplications } from '../../../src/services/adminDashboard'
 import { approveUser, rejectUser } from '../../../src/services/adminUsers'
 
 vi.mock('../../../src/services/adminDashboard', () => ({
   getAdminDashboard: vi.fn(),
+  getDashboardPendingApplications: vi.fn(),
 }))
 
 vi.mock('../../../src/services/adminUsers', () => ({
@@ -30,6 +31,8 @@ const stats = {
   pending_applications: { total: 3 },
   events: { this_month: 8, this_week: 2 },
   reviews: { flagged: 2, new_this_week: 5 },
+  overdue_payments: { total: 7, grace: 4, unpaid: 3 },
+  event_registrations: { this_week: 23, events_with_registrations: 2 },
 }
 
 const zeroStats = {
@@ -37,6 +40,8 @@ const zeroStats = {
   pending_applications: { total: 0 },
   events: { this_month: 0, this_week: 0 },
   reviews: { flagged: 0, new_this_week: 0 },
+  overdue_payments: { total: 0, grace: 0, unpaid: 0 },
+  event_registrations: { this_week: 0, events_with_registrations: 0 },
 }
 
 function application(id, name, business, sector, email, createdAt) {
@@ -119,6 +124,7 @@ function show() {
         <Route path="/admin/utilizadores" element={<UsersProbe />} />
         <Route path="/admin/utilizadores/:id" element={<DetailProbe />} />
         <Route path="/admin/moderacao" element={<p>Página de moderação</p>} />
+        <Route path="/admin/eventos" element={<p>Lista de eventos</p>} />
       </Routes>
     </MemoryRouter>
   )
@@ -161,7 +167,7 @@ describe('Painel do admin', () => {
     expect(getAdminDashboard.mock.calls[0][0]).toBeInstanceOf(AbortSignal)
   })
 
-  it('mostra os quatro cartões de totais por ordem com rótulo, número e linha de baixo', async () => {
+  it('mostra os seis cartões de totais por ordem com rótulo, número e linha de baixo', async () => {
     show()
     await waitForDashboard()
 
@@ -172,9 +178,11 @@ describe('Painel do admin', () => {
       ['Candidaturas Pendentes', '3', 'Requerem ação'],
       ['Eventos este mês', '8', '2 esta semana'],
       ['Avaliações para moderar', '2', '5 novas esta semana'],
+      ['Quotas em atraso', '7', '4 em carência · 3 inativas por falta de pagamento'],
+      ['Inscrições esta semana', '23', 'Em 2 eventos'],
     ]
     const cards = summaryItems()
-    expect(cards).toHaveLength(4)
+    expect(cards).toHaveLength(6)
     expected.forEach(([label, value, hint], index) => {
       const card = within(cards[index])
       expect(card.getByText(label)).toBeInTheDocument()
@@ -287,8 +295,8 @@ describe('Painel do admin', () => {
     expect(within(region('Avaliações Recentes')).getByText('Ainda não há avaliações.')).toBeInTheDocument()
 
     const cards = summaryItems()
-    expect(cards.map((card) => within(card).getByText('0'))).toHaveLength(4)
-    for (const hint of ['+0 este mês', 'Nenhuma por analisar', '0 esta semana', '0 novas esta semana']) {
+    expect(cards.map((card) => within(card).getByText('0'))).toHaveLength(6)
+    for (const hint of ['+0 este mês', 'Nenhuma por analisar', '0 esta semana', '0 novas esta semana', 'Nenhuma em atraso', 'Nenhum evento com inscrições']) {
       expect(screen.getByText(hint)).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Ver todas as candidaturas pendentes' })).toBeInTheDocument()
@@ -394,6 +402,7 @@ describe('Aprovar e recusar no painel', () => {
     getAdminDashboard.mockResolvedValue(dashboard())
   })
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
     vi.resetAllMocks()
     vi.restoreAllMocks()
@@ -651,5 +660,332 @@ describe('Aprovar e recusar no painel', () => {
     expect(message).toHaveTextContent(APPROVED)
     const summary = screen.getByRole('list', { name: 'Resumo' })
     expect(message.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+const PAGINATION = 'Paginação das candidaturas pendentes'
+
+const rui = application('p2a', 'Rui Lopes', 'Lopes Engenharia', 'Engenharia', 'rui.lopes@example.pt', '2026-10-27T10:00:00+00:00')
+const sofia = application('p2b', 'Sofia Martins', 'Martins Arquitetura', 'Arquitetura', 'sofia.martins@example.pt', '2026-10-26T10:00:00+00:00')
+const joao = application('p2c', 'João Pires', 'Pires Contabilidade', 'Contabilidade', 'joao.pires@example.pt', '2026-10-25T10:00:00+00:00')
+const ines = application('p3a', 'Inês Costa', 'Costa Fotografia', 'Fotografia', 'ines.costa@example.pt', '2026-10-24T10:00:00+00:00')
+
+function pageOf(page, { total = 7, items = page === 2 ? [rui, sofia, joao] : [ines] } = {}) {
+  return {
+    items,
+    pagination: { current_page: page, per_page: 3, total, last_page: Math.max(1, Math.ceil(total / 3)) },
+  }
+}
+
+function withTotal(total, data = {}) {
+  return dashboard({ stats: { ...stats, pending_applications: { total } }, ...data })
+}
+
+function pagination() {
+  return screen.queryByRole('navigation', { name: PAGINATION })
+}
+
+function paginationNav() {
+  return screen.getByRole('navigation', { name: PAGINATION })
+}
+
+async function goToPage(user, name) {
+  await user.click(within(paginationNav()).getByRole('button', { name }))
+}
+
+function rowNames() {
+  return itemsOf('Candidaturas Pendentes').map((row) => within(row).getAllByRole('link')[0].textContent)
+}
+
+describe('Painel da 442: cartões, paginação e linhas', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T10:40:00Z'))
+    getAdminDashboard.mockResolvedValue(dashboard())
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+    vi.resetAllMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('os cartões são ligações com destino e nome acessível, exceto Inscrições esta semana', async () => {
+    show()
+    const summary = await waitForDashboard()
+    const links = within(summary)
+
+    const expected = [
+      ['Membros Ativos: 320 (+12 este mês). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
+      ['Candidaturas Pendentes: 3 (Requerem ação). Ver candidaturas pendentes', '/admin/utilizadores?estado=pending'],
+      ['Eventos este mês: 8 (2 esta semana). Ver eventos agendados', '/admin/eventos'],
+      ['Avaliações para moderar: 2 (5 novas esta semana). Ver avaliações sinalizadas', '/admin/moderacao?estado=flagged'],
+      ['Quotas em atraso: 7 (4 em carência, 3 inativas por falta de pagamento). Ver utilizadores em carência', '/admin/utilizadores?estado=grace'],
+    ]
+    for (const [name, href] of expected) {
+      expect(links.getByRole('link', { name })).toHaveAttribute('href', href)
+    }
+
+    const registrations = summaryItems()[5]
+    expect(within(registrations).getByText('Inscrições esta semana')).toBeInTheDocument()
+    expect(within(registrations).queryByRole('link')).toBeNull()
+    expect(links.getAllByRole('link')).toHaveLength(5)
+  })
+
+  it('carregar num cartão abre a lista do destino', async () => {
+    const user = userEvent.setup({ delay: null })
+    const { unmount } = show()
+    await waitForDashboard()
+
+    await user.click(screen.getByRole('link', { name: /^Quotas em atraso:/ }))
+
+    expect(screen.getByText('Lista de utilizadores ?estado=grace')).toBeInTheDocument()
+    unmount()
+
+    show()
+    await waitForDashboard()
+
+    await user.click(screen.getByRole('link', { name: /^Eventos este mês:/ }))
+
+    expect(screen.getByText('Lista de eventos')).toBeInTheDocument()
+  })
+
+  it('pagina as candidaturas de 3 em 3, mantém as linhas enquanto carrega e a página 1 vem do painel', async () => {
+    const page = deferred()
+    getAdminDashboard.mockResolvedValue(withTotal(7))
+    getDashboardPendingApplications.mockImplementation(() => page.promise)
+    const user = userEvent.setup({ delay: null })
+    show()
+    await waitForDashboard()
+
+    const nav = pagination()
+    expect(nav).not.toBeNull()
+    expect(within(nav).getByRole('button', { name: 'Página 1', current: 'page' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Página anterior' })).toBeDisabled()
+    expect(getDashboardPendingApplications).not.toHaveBeenCalled()
+
+    await goToPage(user, 'Página seguinte')
+
+    expect(getDashboardPendingApplications).toHaveBeenCalledTimes(1)
+    expect(getDashboardPendingApplications.mock.calls[0][0]).toBe(2)
+    expect(getDashboardPendingApplications.mock.calls[0][1]).toBeInstanceOf(AbortSignal)
+    expect(rowNames()).toEqual(['Filipa Rodrigues', 'Tiago Mendes', 'Carla Nunes'])
+    expect(itemsOf('Candidaturas Pendentes')[0].closest('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
+    for (const row of itemsOf('Candidaturas Pendentes')) {
+      for (const button of within(row).getAllByRole('button')) {
+        expect(button).toBeDisabled()
+      }
+    }
+    expect(within(paginationNav()).getByRole('button', { name: 'Página anterior' })).toBeDisabled()
+    expect(within(paginationNav()).getByRole('button', { name: 'Página seguinte' })).toBeDisabled()
+
+    await act(async () => { page.resolve(pageOf(2)) })
+
+    await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires']))
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
+
+    await goToPage(user, 'Página anterior')
+
+    await waitFor(() => expect(rowNames()).toEqual(['Filipa Rodrigues', 'Tiago Mendes', 'Carla Nunes']))
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 1', current: 'page' })).toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(1)
+    expect(getDashboardPendingApplications).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [3, applications, null],
+    [0, [], null],
+    [4, applications, 'Página 1'],
+  ])('com %i candidaturas a paginação aparece só quando há mais de uma página', async (total, pendingApplications, text) => {
+    getAdminDashboard.mockResolvedValue(withTotal(total, { pending_applications: pendingApplications }))
+    show()
+    await waitForDashboard()
+
+    if (text === null) {
+      expect(pagination()).toBeNull()
+    } else {
+      expect(within(paginationNav()).getByRole('button', { name: text, current: 'page' })).toBeInTheDocument()
+    }
+  })
+
+  it.each([
+    ['429', () => apiError(429, { success: false, message: TOO_MANY }), TOO_MANY],
+    ['formato inesperado', () => new Error('A resposta do painel tem um formato inesperado.'), 'Não foi possível carregar as candidaturas.'],
+  ])('um erro (%s) ao mudar de página aparece no cartão e recupera com Tentar novamente', async (_case, error, message) => {
+    getAdminDashboard.mockResolvedValue(withTotal(7))
+    getDashboardPendingApplications.mockRejectedValueOnce(error()).mockResolvedValueOnce(pageOf(2))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await waitForDashboard()
+
+    await goToPage(user, 'Página seguinte')
+
+    const applicationsRegion = within(region('Candidaturas Pendentes'))
+    expect(await applicationsRegion.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByRole('list', { name: 'Resumo' })).toBeInTheDocument()
+    expect(region('Avaliações Recentes')).toBeInTheDocument()
+    expect(itemsOf('Avaliações Recentes')).toHaveLength(3)
+
+    await user.click(applicationsRegion.getByRole('button', { name: 'Tentar novamente' }))
+
+    await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires']))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 2])
+  })
+
+  it('aprovar numa página seguinte recarrega o painel e essa página e foca a linha na mesma posição', async () => {
+    approveUser.mockResolvedValue({ message: APPROVED })
+    getAdminDashboard.mockResolvedValueOnce(withTotal(7)).mockResolvedValueOnce(withTotal(6))
+    getDashboardPendingApplications
+      .mockResolvedValueOnce(pageOf(2))
+      .mockResolvedValueOnce(pageOf(2, { total: 6, items: [rui, joao, ines] }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await waitForDashboard()
+
+    await goToPage(user, 'Página seguinte')
+    await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires']))
+
+    const dialog = await openRowAction(user, 'Aprovar Sofia Martins')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    expect(approveUser).toHaveBeenCalledWith('p2b')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar João Pires' })).toHaveFocus())
+    expect(rowNames()).toEqual(['Rui Lopes', 'João Pires', 'Inês Costa'])
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
+    expect(getAdminDashboard).toHaveBeenCalledTimes(2)
+    expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 2])
+  })
+
+  it('se a página deixou de existir depois de aprovar salta para a última e foca a primeira linha', async () => {
+    approveUser.mockResolvedValue({ message: APPROVED })
+    getAdminDashboard.mockResolvedValueOnce(withTotal(7)).mockResolvedValueOnce(withTotal(6))
+    getDashboardPendingApplications
+      .mockResolvedValueOnce(pageOf(2))
+      .mockResolvedValueOnce(pageOf(3))
+      .mockResolvedValueOnce({ items: [], pagination: { current_page: 3, per_page: 3, total: 6, last_page: 2 } })
+      .mockResolvedValueOnce(pageOf(2, { total: 6 }))
+    const user = userEvent.setup({ delay: null })
+    show()
+    await waitForDashboard()
+
+    await goToPage(user, 'Página seguinte')
+    await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires']))
+    await goToPage(user, 'Página seguinte')
+    await waitFor(() => expect(rowNames()).toEqual(['Inês Costa']))
+
+    const dialog = await openRowAction(user, 'Aprovar Inês Costa')
+    await user.click(within(dialog).getByRole('button', { name: 'Aprovar' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar Rui Lopes' })).toHaveFocus())
+    expect(rowNames()).toEqual(['Rui Lopes', 'Sofia Martins', 'João Pires'])
+    expect(within(paginationNav()).getByRole('button', { name: 'Página 2', current: 'page' })).toBeInTheDocument()
+    expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 3, 3, 2])
+    expect(document.body).not.toHaveFocus()
+  })
+
+  it('se a última página fica vazia e só sobra uma volta à página 1 do painel sem novo pedido', async () => {
+    rejectUser.mockResolvedValue({ message: REJECTED, user: null })
+    getAdminDashboard.mockResolvedValueOnce(withTotal(4)).mockResolvedValueOnce(withTotal(3))
+    getDashboardPendingApplications
+      .mockResolvedValueOnce(pageOf(2, { total: 4, items: [rui] }))
+      .mockResolvedValueOnce({ items: [], pagination: { current_page: 2, per_page: 3, total: 3, last_page: 1 } })
+    const user = userEvent.setup({ delay: null })
+    show()
+    await waitForDashboard()
+
+    await goToPage(user, 'Página seguinte')
+    await waitFor(() => expect(rowNames()).toEqual(['Rui Lopes']))
+
+    const dialog = await openRowAction(user, 'Recusar Rui Lopes')
+    await user.click(within(dialog).getByRole('button', { name: 'Recusar' }))
+
+    expect(rejectUser).toHaveBeenCalledWith('p2a', '')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Aprovar Filipa Rodrigues' })).toHaveFocus())
+    expect(rowNames()).toEqual(['Filipa Rodrigues', 'Tiago Mendes', 'Carla Nunes'])
+    expect(pagination()).toBeNull()
+    expect(getDashboardPendingApplications.mock.calls.map((call) => call[0])).toEqual([2, 2])
+  })
+
+  it('a linha da candidatura é uma ligação esticada sem os botões lá dentro', async () => {
+    show()
+    await waitForDashboard()
+
+    const rows = itemsOf('Candidaturas Pendentes')
+    expect(rows).toHaveLength(3)
+    rows.forEach((row, index) => {
+      const links = within(row).getAllByRole('link')
+      expect(links).toHaveLength(1)
+      const [link] = links
+      expect(link).toHaveAttribute('href', `/admin/utilizadores/${applications[index].id}`)
+
+      const buttons = within(row).getAllByRole('button')
+      expect(buttons).toHaveLength(2)
+      for (const button of buttons) {
+        expect(link.contains(button)).toBe(false)
+      }
+
+      expect(row).toHaveClass('relative')
+      expect(link).toHaveClass('after:absolute', 'after:inset-0')
+      expect(buttons[0].parentElement).toHaveClass('relative', 'z-10')
+    })
+  })
+
+  it('as linhas das candidaturas e das avaliações têm a mesma altura mínima', async () => {
+    getAdminDashboard.mockResolvedValue(dashboard({
+      pending_applications: [
+        applications[0],
+        { ...applications[1], id: 'u5', email: 'sem.perfil@example.pt', member_profile: null },
+        applications[2],
+      ],
+    }))
+    show()
+    await waitForDashboard()
+
+    const rows = [...itemsOf('Candidaturas Pendentes'), ...itemsOf('Avaliações Recentes')]
+    expect(rows).toHaveLength(6)
+    for (const row of rows) {
+      expect(row).toHaveClass('min-h-24')
+    }
+  })
+
+  it('ao desmontar com uma página pendente cancela o pedido e ignora a resposta', async () => {
+    const consoleError = vi.spyOn(console, 'error')
+    const page = deferred()
+    getAdminDashboard.mockResolvedValue(withTotal(7))
+    getDashboardPendingApplications.mockImplementation(() => page.promise)
+    const user = userEvent.setup({ delay: null })
+    const { unmount } = show()
+    await waitForDashboard()
+
+    await goToPage(user, 'Página seguinte')
+    const signal = getDashboardPendingApplications.mock.calls[0][1]
+
+    unmount()
+
+    expect(signal.aborted).toBe(true)
+    await act(async () => {
+      page.resolve(pageOf(2))
+      await page.promise
+    })
+    expect(screen.queryByText('Rui Lopes')).not.toBeInTheDocument()
+    expect(consoleError).not.toHaveBeenCalled()
+  })
+
+  it('o cartão Quotas em atraso é âmbar e distinto dos cartões vermelho e dourado', async () => {
+    show()
+    await waitForDashboard()
+
+    const card = screen.getByRole('link', { name: /^Quotas em atraso:/ })
+    expect(card).toHaveClass('border-t-amber-600')
+    const iconBox = card.querySelector('span[aria-hidden="true"]')
+    expect(iconBox).toHaveClass('text-amber-700', 'bg-amber-100')
+    expect(iconBox.querySelectorAll('svg')).toHaveLength(2)
+    for (const element of [card, ...card.querySelectorAll('*')]) {
+      expect(element.getAttribute('class') ?? '').not.toMatch(/orange/)
+    }
+
+    expect(screen.getByRole('link', { name: /^Avaliações para moderar:/ })).toHaveClass('border-t-rose-600')
+    expect(screen.getByRole('link', { name: /^Candidaturas Pendentes:/ })).toHaveClass('border-t-[#8a7043]')
   })
 })

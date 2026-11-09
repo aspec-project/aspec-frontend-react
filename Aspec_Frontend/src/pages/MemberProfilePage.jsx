@@ -14,16 +14,18 @@ import {
 import { useOutletContext } from 'react-router-dom'
 import SocialPlatformIcon from '../components/member/SocialPlatformIcon'
 import BusinessHoursEditor from '../components/showcase/BusinessHoursEditor'
+import LogoUploader from '../components/showcase/LogoUploader'
 import SocialLinksEditor from '../components/showcase/SocialLinksEditor'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { normalizeError } from '../services/api'
-import { updateMemberProfile } from '../services/memberProfile'
+import { updateMemberProfile, uploadMemberLogo } from '../services/memberProfile'
 import {
   getSectors,
   getSocialPlatforms,
   getWeekDays,
 } from '../services/referenceLists'
 import { isSessionCurrent } from '../services/sessionContext'
+import { useAuthStore } from '../store/authStore'
 import { normalizePhone, validateEmail, validatePhone } from '../utils/registerUtils'
 import { createBusinessHours } from '../utils/businessHours'
 import { createSocialLinks } from '../utils/socialLinks'
@@ -197,6 +199,8 @@ export default function MemberProfilePage() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [editStatus, setEditStatus] = useState(null)
   const [savedNotice, setSavedNotice] = useState(null)
+  const [isLogoSaving, setIsLogoSaving] = useState(false)
+  const [logoSuccessMessage, setLogoSuccessMessage] = useState('')
 
   const activeDraft = draft ?? createInitialDraft(profile)
   const displayHours = buildBusinessHours(profile.business_hours ?? [])
@@ -425,9 +429,46 @@ export default function MemberProfilePage() {
       : null
   }
 
+  async function saveLogo(logoFile) {
+    const context = getRequestContext()
+    if (!context || isLogoSaving) {
+      throw new Error('Não foi possível preparar o envio do logótipo.')
+    }
+
+    setIsLogoSaving(true)
+    setLogoSuccessMessage('')
+
+    try {
+      await uploadMemberLogo(logoFile, context)
+      if (!isSessionCurrent(context)) return
+      const updatedProfile = await reloadProfile()
+      if (isSessionCurrent(context)) {
+        /* Atualiza também o avatar do cabeçalho, que usa a sessão global. */
+        await useAuthStore.getState().fetchUser()
+        if (!isSessionCurrent(context)) return ''
+        setLogoSuccessMessage('Logótipo atualizado com sucesso.')
+        return updatedProfile?.logo_url ?? ''
+      }
+
+      return ''
+    } catch (error) {
+      const normalisedError = normalizeError(error)
+      throw new Error(normalisedError.message ?? 'Não foi possível atualizar o logótipo.')
+    } finally {
+      if (isSessionCurrent(context)) setIsLogoSaving(false)
+    }
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
       <div className="space-y-6">
+        <LogoUploader
+          initialLogoUrl={profile.logo_url}
+          onLogoChange={saveLogo}
+          isSaving={isLogoSaving}
+          successMessage={logoSuccessMessage}
+        />
+
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           {editingSection === 'dados-perfil' ? (
             <form onSubmit={(event) => void saveSection(event, 'dados-perfil')}>

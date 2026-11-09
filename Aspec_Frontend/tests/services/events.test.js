@@ -1,7 +1,10 @@
 import { AxiosError, CanceledError } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../src/services/api.js";
-import { getEvents, getEventsCapabilities, getEventsPage } from "../../src/services/events.js";
+import { getEvents, getEventsCapabilities, getEventsPage, getEventSessions } from "../../src/services/events.js";
+import { useAuthStore } from "../../src/store/authStore";
+import { getSessionContext, advanceSession } from "../../src/services/sessionContext";
+import { isFutureEventSession } from "../../src/utils/eventSessions";
 
 function respostaApi(data, config, status = 200) {
   return { data, config, status, statusText: "", headers: {} };
@@ -238,5 +241,131 @@ describe("getEventsPage", () => {
     await resultado;
 
     expect(adapter).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Sessões reais de uma série", () => {
+  const seriesId = "019512a1-9999-7123-8123-123456789abc";
+  const session = (number) => ({
+    id: `019512a1-9998-7123-8123-${String(number).padStart(12, "0")}`,
+    series_id: seriesId, event_date: `2030-10-${String(number).padStart(2, "0")}`,
+    event_start_time: "10:00", event_end_time: "12:00",
+    registration_deadline: "2030-09-30T23:59:00+01:00",
+    registration_open: true, is_registered: false,
+    max_attendees: 20, registrations_count: 2, available_spots: 18,
+  });
+  const page = (items, current = 1, total = items.length) => ({ success: true, data: {
+    items, pagination: { current_page: current, per_page: 9, total, last_page: Math.max(1, Math.ceil(total / 9)) },
+  } });
+  let originalAuth;
+  beforeEach(() => { originalAuth = useAuthStore.getState(); useAuthStore.setState({ sessionChanging: false }); });
+  afterEach(() => { useAuthStore.setState(originalAuth, true); vi.restoreAllMocks(); });
+
+  it("obtém todas as páginas, conserva passadas e ordena por data e hora sem guardar URLs privados", async () => {
+    const events = Array.from({ length: 10 }, (_, index) => session(10 - index));
+    events[9] = { ...events[9], event_date: "2020-01-01", online_url: "https://privado.test/reuniao", secret: "privado" };
+    const get = vi.spyOn(api, "get")
+      .mockResolvedValueOnce({ data: page(events.slice(0, 9), 1, 10) })
+      .mockResolvedValueOnce({ data: page(events.slice(9), 2, 10) });
+    const result = await getEventSessions(seriesId);
+    expect(result.map(({ id }) => id)).toEqual(events.toReversed().map(({ id }) => id));
+    expect(result[0].event_date).toBe("2020-01-01");
+    expect(result[0]).not.toHaveProperty("online_url");
+    expect(result[0]).not.toHaveProperty("secret");
+    expect(get.mock.calls.map(([, config]) => config.params)).toEqual([
+      { series_id: seriesId, page: 1, per_page: 9 }, { series_id: seriesId, page: 2, per_page: 9 },
+    ]);
+    expect(get.mock.calls[0][1].sessionGeneration).toBe(getSessionContext().generation);
+  });
+
+  it("desempata datas pela hora sem depender da ordem recebida", async () => {
+    const first = { ...session(1), event_start_time: "14:00" };
+    const second = { ...session(2), event_date: first.event_date, event_start_time: "09:00" };
+    vi.spyOn(api, "get").mockResolvedValue({ data: page([first, second]) });
+    expect((await getEventSessions(seriesId)).map(({ id }) => id)).toEqual([second.id, first.id]);
+  });
+
+  it("devolve uma série vazia apenas perante paginação válida", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: page([]) });
+    expect(await getEventSessions(seriesId)).toEqual([]);
+  });
+
+  it.each([
+    [session(1), session(1)],
+    [{ ...session(1), series_id: "019512a1-8888-7123-8123-123456789abc" }],
+    [{ ...session(1), id: "../auth/me" }],
+    [{ ...session(1), event_date: "2030-02-30" }],
+    [{ ...session(1), event_start_time: "25:00" }],
+  ])("rejeita sessões duplicadas, de outra série ou sem data válida: %j", async (...items) => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: page(items) });
+    await expect(getEventSessions(seriesId)).rejects.toThrow("formato inesperado");
+  });
+
+  it("rejeita repetição de uma sessão entre páginas", async () => {
+    const events = Array.from({ length: 9 }, (_, index) => session(index + 1));
+    vi.spyOn(api, "get").mockResolvedValueOnce({ data: page(events, 1, 10) })
+      .mockResolvedValueOnce({ data: page([events[0]], 2, 10) });
+    await expect(getEventSessions(seriesId)).rejects.toThrow("formato inesperado");
+  });
+
+  it.each([
+    { current_page: 2 }, { per_page: 100 }, { total: 10, last_page: 2 },
+    { last_page: 0 }, { total: 1.5 },
+  ])("rejeita paginação inválida e não devolve uma lista parcial: %j", async (pagination) => {
+    const response = page([session(1)]);
+    Object.assign(response.data.pagination, pagination);
+    const get = vi.spyOn(api, "get").mockResolvedValue({ data: response });
+    await expect(getEventSessions(seriesId)).rejects.toThrow("paginação");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejeita alterações à paginação durante a leitura", async () => {
+    const events = Array.from({ length: 9 }, (_, index) => session(index + 1));
+    vi.spyOn(api, "get").mockResolvedValueOnce({ data: page(events, 1, 10) })
+      .mockResolvedValueOnce({ data: page([session(10), session(11)], 2, 11) });
+    await expect(getEventSessions(seriesId)).rejects.toThrow("paginação");
+  });
+
+  it("propaga falhas posteriores sem assumir que a primeira página é a série completa", async () => {
+    const events = Array.from({ length: 9 }, (_, index) => session(index + 1));
+    const failure = { response: { status: 419 } };
+    vi.spyOn(api, "get").mockResolvedValueOnce({ data: page(events, 1, 10) }).mockRejectedValueOnce(failure);
+    await expect(getEventSessions(seriesId)).rejects.toBe(failure);
+  });
+
+  it("rejeita identidade antiga durante um pedido sem iniciar a página seguinte", async () => {
+    const get = vi.spyOn(api, "get").mockImplementationOnce(async () => {
+      useAuthStore.setState({ user: { id: "outra-identidade", role: { name: "Member" } } });
+      return { data: page(Array.from({ length: 9 }, (_, index) => session(index + 1)), 1, 10) };
+    });
+    await expect(getEventSessions(seriesId)).rejects.toThrow("contexto");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("não envia pedidos com série inválida, sinal cancelado ou geração anterior", async () => {
+    const get = vi.spyOn(api, "get");
+    await expect(getEventSessions("série-inválida")).rejects.toThrow("identificador");
+    const controller = new AbortController(); controller.abort();
+    await expect(getEventSessions(seriesId, controller.signal)).rejects.toThrow("contexto");
+    const context = getSessionContext(); advanceSession();
+    await expect(getEventSessions(seriesId, undefined, context)).rejects.toThrow("contexto");
+    expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe("Início das sessões no relógio de Lisboa", () => {
+  it.each([
+    ["2030-06-01", "10:00", "2030-06-01T08:59:59Z", true],
+    ["2030-06-01", "10:00", "2030-06-01T09:00:00Z", false],
+    ["2030-01-01", "10:00", "2030-01-01T09:59:59Z", true],
+    ["2030-01-01", "10:00", "2030-01-01T10:00:01Z", false],
+    ["2020-01-01", "10:00", "2030-01-01T10:00:00Z", false],
+    ["2030-02-30", "10:00", "2030-01-01T10:00:00Z", false],
+    ["2030-01-01", "25:00", "2030-01-01T10:00:00Z", false],
+  ])("valida %s %s em %s (futura=%s)", (event_date, event_start_time, now, expected) => {
+    expect(isFutureEventSession({ event_date, event_start_time }, Date.parse(now))).toBe(expected);
+  });
+  it("não permite inscrições com início desconhecido", () => {
+    expect(isFutureEventSession({})).toBe(false);
   });
 });
