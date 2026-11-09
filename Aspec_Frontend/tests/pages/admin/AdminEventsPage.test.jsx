@@ -221,7 +221,7 @@ describe('Gestão de Eventos', () => {
 
     const row = within(rowOf('Workshop de Liderança'))
 
-    expect(row.getByText('Workshop')).toHaveStyle({ backgroundColor: '#EDE4F3', color: '#300C45' })
+    expect(row.getByText('Workshop')).toHaveStyle({ backgroundColor: '#EDE4F3', color: '#6A1B9A' })
     expect(row.getByText('21 Jan 2099')).toBeInTheDocument()
     expect(row.getByText('08:00–10:00')).toBeInTheDocument()
     expect(row.getByText('Lisboa')).toBeInTheDocument()
@@ -436,7 +436,7 @@ describe('Gestão de Eventos', () => {
     show()
     await screen.findByRole('table')
 
-    expect(within(rowOf('Evento Sem Cor')).getByText('Sem cor')).toHaveStyle({ backgroundColor: '#E2E4E7', color: '#060E18' })
+    expect(within(rowOf('Evento Sem Cor')).getByText('Sem cor')).toHaveStyle({ backgroundColor: '#E2E4E7', color: '#0D1F35' })
   })
 
   it('sem prazo válido nem lotação válida mostra travessões', async () => {
@@ -552,7 +552,7 @@ describe('Gestão de Eventos', () => {
       show()
       await screen.findByRole('table')
 
-      expect(within(rowOf('Jantar de Natal')).getByText('Jantar')).toHaveStyle({ backgroundColor: '#F8E5E5', color: '#591212' })
+      expect(within(rowOf('Jantar de Natal')).getByText('Jantar')).toHaveStyle({ backgroundColor: '#F8E5E5', color: '#C62828' })
       const edit = screen.getByRole('button', { name: 'Editar Workshop de Liderança' })
       expect(edit).toHaveClass('bg-[#f5efe3]')
       expect(edit).toHaveClass('text-[#8a7043]')

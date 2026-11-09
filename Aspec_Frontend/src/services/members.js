@@ -317,6 +317,7 @@ function validMyReview(item) {
     typeof item.comment === 'string' &&
     ['Visible', 'Hidden', 'Flagged'].includes(item.status) &&
     nullableText(item.hidden_reason) &&
+    Array.isArray(item.flagging_reasons) && item.flagging_reasons.every((reason) => typeof reason === 'string') &&
     validReviewDate(item.created_at) &&
     validReviewDate(item.updated_at) &&
     (item.reviewer?.id === null || isMemberProfileId(item.reviewer?.id)) &&
@@ -350,6 +351,7 @@ export async function getMyReviews({ direction = 'received', status = 'all', pag
   const data = response.data?.data
   const pagination = data?.pagination
   const items = data?.items
+  const counts = data?.counts
 
   if (response.data?.success !== true || !Array.isArray(items) || !pagination ||
     !positiveInteger(pagination.current_page) || pagination.current_page !== page ||
@@ -359,7 +361,9 @@ export async function getMyReviews({ direction = 'received', status = 'all', pag
     pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
     items.length > pagination.per_page || items.length > pagination.total ||
     new Set(items.map((item) => item?.id)).size !== items.length ||
-    !items.every(validMyReview)) {
+    !items.every(validMyReview) ||
+    !Number.isSafeInteger(counts?.received) || counts.received < 0 ||
+    !Number.isSafeInteger(counts?.written) || counts.written < 0) {
     throw new Error('A resposta das suas avaliações tem um formato inesperado.')
   }
 
@@ -371,6 +375,7 @@ export async function getMyReviews({ direction = 'received', status = 'all', pag
       comment: item.comment,
       status: item.status,
       hidden_reason: item.hidden_reason,
+      flagging_reasons: item.flagging_reasons,
       reviewer: {
         id: item.reviewer.id,
         business_name: item.reviewer.business_name,
@@ -387,6 +392,10 @@ export async function getMyReviews({ direction = 'received', status = 'all', pag
       per_page: pagination.per_page,
       total: pagination.total,
       last_page: pagination.last_page,
+    },
+    counts: {
+      received: counts.received,
+      written: counts.written,
     },
   }
 }

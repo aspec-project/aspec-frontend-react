@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { normalizeError } from '../services/api'
-import { getAdminEventCategories } from '../services/adminEventCategories'
+import { getAdminEventCategories, getAdminEventCategoryPalette } from '../services/adminEventCategories'
 import { EVENT_CATEGORY_TEXTS } from '../utils/eventCategories'
 
 /**
- * Lista de tipos de evento do backoffice. No primeiro carregamento ainda não há lista; ao recarregar (retry,
+ * Lista de tipos de evento do backoffice e paleta de cores (pedidas em conjunto, com um só estado). No primeiro carregamento ainda não há lista; ao recarregar (retry,
  * também usado depois de gravar ou apagar) a lista atual continua visível com `loading` a true, para a tabela
  * ficar ocupada e as ações desativadas. Uma resposta com formato inesperado mostra uma frase própria; os erros
  * do servidor mostram a mensagem da API; um pedido cancelado não mostra nada.
  *
  * @returns {{
  *   categories: {id: string, name: string, color: string|null, events_count: number|null}[]|null,
+ *   palette: {color: string, name: string}[]|null,
  *   loading: boolean,
  *   error: string,
  *   retry: () => void,
@@ -19,6 +20,7 @@ import { EVENT_CATEGORY_TEXTS } from '../utils/eventCategories'
  */
 export default function useAdminEventCategories() {
   const [categories, setCategories] = useState(null)
+  const [palette, setPalette] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryKey, setRetryKey] = useState(0)
@@ -26,10 +28,11 @@ export default function useAdminEventCategories() {
   useEffect(() => {
     const controller = new AbortController()
 
-    getAdminEventCategories(controller.signal)
-      .then((items) => {
+    Promise.all([getAdminEventCategories(controller.signal), getAdminEventCategoryPalette(controller.signal)])
+      .then(([items, colors]) => {
         if (controller.signal.aborted) return
         setCategories(items)
+        setPalette(colors)
         setLoading(false)
       })
       .catch((err) => {
@@ -43,6 +46,7 @@ export default function useAdminEventCategories() {
 
   return {
     categories,
+    palette,
     loading,
     error,
     retry: () => {

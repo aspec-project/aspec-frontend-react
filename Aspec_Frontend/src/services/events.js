@@ -171,7 +171,7 @@ export function getEventsErrorMessage(error) {
 }
 
 export async function getEventsPage(
-  { categoryId = "", locationId = "", search = "", page = 1 } = {},
+  { categoryId = "", locationId = "", search = "", page = 1, perPage = 9 } = {},
   signal
 ) {
   if (!Number.isInteger(page) || page < 1) {
@@ -186,7 +186,7 @@ export async function getEventsPage(
     throw new Error("Os filtros dos eventos têm um formato inválido.");
   }
 
-  const params = { page, per_page: 9 };
+  const params = { page, per_page: perPage };
 
   if (categoryId) params.category_id = categoryId;
   if (locationId) params.location_id = locationId;
@@ -219,7 +219,7 @@ export async function getEventsPage(
     !Number.isInteger(pagination.total) ||
     !Number.isInteger(pagination.last_page) ||
     pagination.current_page !== page ||
-    pagination.per_page !== 9 ||
+    pagination.per_page !== perPage ||
     pagination.total < 0 ||
     pagination.last_page < 1 ||
     pagination.current_page > pagination.last_page ||

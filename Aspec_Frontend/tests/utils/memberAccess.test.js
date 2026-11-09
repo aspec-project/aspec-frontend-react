@@ -59,7 +59,7 @@ describe('Acesso de membro', () => {
 
   it('só o membro ativo com perfil pode sinalizar avaliações', () => {
     expect(canReportReviews(member)).toBe(true)
-    expect(canReportReviews(adminWithProfile)).toBe(false)
+    expect(canReportReviews(adminWithProfile)).toBe(true)
     expect(canReportReviews(technicalAdmin)).toBe(false)
     expect(canReportReviews({ ...member, account_status: { name: 'Inactive' } })).toBe(false)
   })

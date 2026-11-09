@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   CATEGORY_NAME_MAX_LENGTH,
-  DEFAULT_CATEGORY_COLOR,
   EVENT_CATEGORY_TEXTS,
   canDeleteCategory,
   findCategoryWithColor,
@@ -11,6 +10,7 @@ import {
   getDeleteCategoryDescription,
   getDeleteLabel,
   getEditLabel,
+  getFreePaletteColors,
   getLockedLabel,
   getUsedColorLabel,
   getUsedColors,
@@ -25,7 +25,17 @@ const categories = [
   { id: 'c5', name: 'Retiro', color: '#00838F', events_count: 0 },
 ]
 
-const NAVY = { color: '#0D1F35', background: '#E2E4E7', text: '#060E18' }
+const NAVY = { color: '#0D1F35', background: '#E2E4E7', text: '#0D1F35' }
+
+const palette = [
+  { color: '#0D1F35', name: 'Azul-marinho' },
+  { color: '#1E449A', name: 'Azul-cobalto' },
+  { color: '#2E7D32', name: 'Verde de teste' },
+  { color: '#1565C0', name: 'Azul de teste' },
+  { color: '#8A7043', name: 'Dourado de teste' },
+  { color: '#C62828', name: 'Vermelho de teste' },
+  { color: '#00838F', name: 'Turquesa de teste' },
+]
 
 function luminance(hex) {
   const channels = [1, 3, 5].map((index) => {
@@ -44,9 +54,9 @@ function contrast(first, second) {
 }
 
 describe('getCategoryBadgeColors', () => {
-  it('calcula o fundo claro e o texto escuro na mesma cor', () => {
-    expect(getCategoryBadgeColors('#8A7043')).toEqual({ color: '#8A7043', background: '#F1EEE8', text: '#3E321E' })
-    expect(getCategoryBadgeColors('#1565c0')).toEqual({ color: '#1565C0', background: '#E3EDF7', text: '#092D56' })
+  it('calcula o fundo claro e usa a própria cor no texto', () => {
+    expect(getCategoryBadgeColors('#7A6238')).toEqual({ color: '#7A6238', background: '#EFECE7', text: '#7A6238' })
+    expect(getCategoryBadgeColors('#1e449a')).toEqual({ color: '#1E449A', background: '#E4E9F3', text: '#1E449A' })
   })
 
   it('uma cor inválida usa o azul-marinho', () => {
@@ -55,8 +65,8 @@ describe('getCategoryBadgeColors', () => {
     }
   })
 
-  it('o texto tem contraste AA com o fundo nas cores do seeder e nos piores casos', () => {
-    for (const color of ['#B84A00', '#2E7D32', '#6A1B9A', '#C62828', '#1565C0', '#B65220', '#FFFF00', '#00FFFF', '#00FF00', '#FFFFFF', '#000000']) {
+  it('o texto tem contraste AA com o fundo nas cores da paleta mais claras e nas do seeder', () => {
+    for (const color of ['#686693', '#1C747E', '#2A6E9E', '#7A6238', '#94591A', '#0E784F', '#763B82', '#1E449A']) {
       const { background, text } = getCategoryBadgeColors(color)
 
       expect(contrast(text, background)).toBeGreaterThanOrEqual(4.5)
@@ -130,6 +140,12 @@ describe('validateEventCategory', () => {
     expect(validateEventCategory({ name: 'Workshop', color: '#c62828' }, categories, 'c4')).toEqual({})
   })
 
+  it('com a paleta, recusa uma cor fora dela e aceita a da paleta em minúsculas', () => {
+    expect(validateEventCategory({ name: 'Retiro Anual', color: '#AD1457' }, categories, undefined, palette).color)
+      .toBe('A cor escolhida não faz parte da paleta de cores disponíveis.')
+    expect(validateEventCategory({ name: 'Retiro Anual', color: '#0d1f35' }, categories, undefined, palette)).toEqual({})
+  })
+
   it('sem problemas devolve um objeto vazio', () => {
     expect(validateEventCategory({ name: 'Retiro Anual', color: '#AD1457' }, categories)).toEqual({})
   })
@@ -151,23 +167,29 @@ describe('cores já usadas', () => {
     expect(findCategoryWithColor('#c62828', categories, 'c4')).toBeNull()
   })
 
-  it('a cor inicial é a do design e roda a matiz 30° de cada vez quando já está usada', () => {
-    const rotations = ['#B65220', '#B69D20', '#84B620', '#39B620', '#20B652', '#20B69D', '#2084B6', '#2039B6', '#5220B6', '#9D20B6', '#B62084', '#B62039']
-    const withColors = (colors) => [...categories, ...colors.map((color, index) => ({ id: `x${index}`, name: `Extra ${index}`, color, events_count: 0 }))]
+  it('a cor inicial é a primeira livre da paleta e fica vazia se estiverem todas usadas', () => {
+    const withNavy = [...categories, { id: 'x1', name: 'Extra', color: '#0d1f35', events_count: 0 }]
+    const withAll = palette.map(({ color }, index) => ({ id: `x${index}`, name: `Extra ${index}`, color, events_count: 0 }))
 
-    expect(getDefaultCategoryColor(categories)).toBe('#B65220')
-    expect(getDefaultCategoryColor(withColors(['#B65220']))).toBe('#B69D20')
-    expect(getDefaultCategoryColor(withColors(['#B65220', '#B69D20']))).toBe('#84B620')
-    expect(getDefaultCategoryColor(withColors(rotations))).toBe('#B65220')
+    expect(getDefaultCategoryColor(categories, palette)).toBe('#0D1F35')
+    expect(getDefaultCategoryColor(withNavy, palette)).toBe('#1E449A')
+    expect(getDefaultCategoryColor(withAll, palette)).toBe('')
   })
 
-  it('descreve a marca de uma cor usada', () => {
-    expect(getUsedColorLabel('#2E7D32', 'Almoço')).toBe('#2E7D32, já usada por «Almoço»')
+  it('as cores livres excluem as usadas, mas não a do tipo em edição', () => {
+    const free = getFreePaletteColors(palette, categories)
+
+    expect(free.map(({ color }) => color)).toEqual(['#0D1F35', '#1E449A'])
+    expect(getFreePaletteColors(palette, categories, 'c2').map(({ color }) => color)).toEqual(['#0D1F35', '#1E449A', '#1565C0'])
+  })
+
+  it('descreve uma amostra já usada', () => {
+    expect(getUsedColorLabel('Azul-cobalto', 'Almoço')).toBe('Azul-cobalto, já usada por «Almoço»')
   })
 })
 
 describe('constantes', () => {
-  it('tem os textos da página e dos diálogos, o limite do nome e a cor inicial', () => {
+  it('tem os textos da página e dos diálogos e o limite do nome', () => {
     expect(EVENT_CATEGORY_TEXTS).toEqual({
       pageTitle: 'Tipos de Evento',
       subtitle: 'Só é possível apagar tipos que não estejam ligados a nenhum evento.',
@@ -182,15 +204,9 @@ describe('constantes', () => {
       nameLabel: 'Nome',
       namePlaceholder: 'Ex.: Retiro anual',
       colorLabel: 'Cor',
-      wheelLabel: 'Roda de cores',
-      lightnessLabel: 'Luminosidade',
-      hexLabel: 'Hexadecimal',
-      rgbLabel: 'RGB',
-      redLabel: 'Vermelho (R)',
-      greenLabel: 'Verde (G)',
-      blueLabel: 'Azul (B)',
-      rgbError: 'Os valores RGB têm de ser números inteiros entre 0 e 255.',
-      usedColorsHint: 'As cores já usadas estão assinaladas na roda com uma cruz.',
+      selectedColorLabel: 'Cor selecionada:',
+      usedColorsHint: 'As cores já usadas por outros tipos estão assinaladas com uma cruz.',
+      paletteExhausted: 'Já estão em uso as 20 cores disponíveis. Para criar um novo tipo, apague primeiro um tipo sem eventos.',
       previewLabel: 'Pré-visualização',
       previewPlaceholder: 'Nome do tipo',
       createSubmit: 'Criar tipo',
@@ -205,6 +221,5 @@ describe('constantes', () => {
       deleteConfirm: 'Apagar',
     })
     expect(CATEGORY_NAME_MAX_LENGTH).toBe(30)
-    expect(DEFAULT_CATEGORY_COLOR).toBe('#B65220')
   })
 })

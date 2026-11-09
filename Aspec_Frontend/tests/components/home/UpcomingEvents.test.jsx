@@ -159,7 +159,7 @@ describe("UpcomingEvents", () => {
 
     const primeiroCard = screen.getByRole("heading", { name: primeiro.name }).closest("article");
     expect(within(primeiroCard).getByText("Tipo primeiro"))
-      .toHaveStyle({ backgroundColor: "rgb(18, 52, 86)" });
+      .toHaveStyle({ color: "rgb(18, 52, 86)" });
     expect(within(primeiroCard).getByText("7 de outubro de 2030"))
       .toBeInTheDocument();
     expect(within(primeiroCard).getByText("11:00 – 13:00"))
@@ -167,7 +167,7 @@ describe("UpcomingEvents", () => {
     expect(within(primeiroCard).getByRole("link", { name: `Ver evento: ${primeiro.name}` }))
       .toHaveAttribute("href", "/eventos/primeiro");
     expect(screen.getByText("Tipo segundo"))
-      .toHaveStyle({ backgroundColor: "rgb(171, 205, 239)" });
+      .toHaveStyle({ color: "rgb(171, 205, 239)" });
     expect(screen.getByRole("link", { name: "Ver todos" }))
       .toHaveAttribute("href", "/eventos");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

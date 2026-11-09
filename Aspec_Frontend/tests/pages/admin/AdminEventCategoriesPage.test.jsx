@@ -8,33 +8,42 @@ import {
   createEventCategory,
   deleteEventCategory,
   getAdminEventCategories,
+  getAdminEventCategoryPalette,
   updateEventCategory,
 } from '../../../src/services/adminEventCategories'
 
 vi.mock('../../../src/services/adminEventCategories', () => ({
   getAdminEventCategories: vi.fn(),
+  getAdminEventCategoryPalette: vi.fn(),
   createEventCategory: vi.fn(),
   updateEventCategory: vi.fn(),
   deleteEventCategory: vi.fn(),
 }))
 
+const palette = [
+  ['#0D1F35', 'Azul-marinho'], ['#1E449A', 'Azul-cobalto'], ['#2A6E9E', 'Azul-aço'], ['#0A4251', 'Azul-petróleo'],
+  ['#1C747E', 'Turquesa-escuro'], ['#0B4D3F', 'Verde-petróleo'], ['#0E784F', 'Verde-esmeralda'], ['#2B4A12', 'Verde-floresta'],
+  ['#53731A', 'Verde-musgo'], ['#5E6013', 'Verde-azeitona'], ['#7A6238', 'Ouro-velho'], ['#94591A', 'Bronze'],
+  ['#5A3A14', 'Castanho'], ['#3A2E1C', 'Café'], ['#38207E', 'Índigo'], ['#6548B8', 'Violeta'],
+  ['#763B82', 'Púrpura'], ['#686693', 'Lilás-acinzentado'], ['#5B6670', 'Ardósia'], ['#383B41', 'Grafite'],
+].map(([color, name]) => ({ color, name }))
+
 const categories = [
-  { id: 'c1', name: 'Almoço', color: '#2E7D32', events_count: 1 },
-  { id: 'c2', name: 'Formação', color: '#1565C0', events_count: 7 },
-  { id: 'c3', name: 'Jantar', color: '#8A7043', events_count: 6 },
-  { id: 'c4', name: 'Workshop', color: '#C62828', events_count: 0 },
-  { id: 'c5', name: 'Retiro', color: '#00838F', events_count: 0 },
+  { id: 'c1', name: 'Almoço', color: '#0E784F', events_count: 1 },
+  { id: 'c2', name: 'Formação', color: '#1E449A', events_count: 7 },
+  { id: 'c3', name: 'Jantar', color: '#7A6238', events_count: 6 },
+  { id: 'c4', name: 'Workshop', color: '#1C747E', events_count: 0 },
+  { id: 'c5', name: 'Retiro', color: '#763B82', events_count: 0 },
 ]
 
 const NOT_FOUND = 'Este tipo de evento já não existe. A lista foi atualizada.'
-const RGB_ERROR = 'Os valores RGB têm de ser números inteiros entre 0 e 255.'
 const COLOR_TAKEN = 'Já existe uma categoria com esta cor.'
 const NAME_TAKEN = 'Já existe uma categoria com este nome.'
-const FORMAT_ERROR = 'A cor tem de estar no formato #RRGGBB (ex.: #8A7043).'
+const NOT_IN_PALETTE = 'A cor escolhida não faz parte da paleta de cores disponíveis.'
+const EXHAUSTED = 'Já estão em uso as 20 cores disponíveis. Para criar um novo tipo, apague primeiro um tipo sem eventos.'
 const CREATED = 'Categoria criada com sucesso.'
 const UPDATED = 'Categoria atualizada com sucesso.'
 const DELETED = 'Categoria eliminada com sucesso.'
-const WHEEL_RECT = { left: 0, top: 0, width: 200, height: 200, right: 200, bottom: 200, x: 0, y: 0 }
 
 function deferred() {
   let resolve
@@ -80,20 +89,8 @@ function nameField() {
   return inDialog().getByRole('textbox', { name: /^Nome/ })
 }
 
-function hexField() {
-  return inDialog().getByRole('textbox', { name: /^Hexadecimal/ })
-}
-
-function channel(label) {
-  return inDialog().getByRole('spinbutton', { name: label })
-}
-
-function wheel() {
-  return inDialog().getByRole('slider', { name: 'Roda de cores' })
-}
-
-function lightness() {
-  return inDialog().getByRole('slider', { name: 'Luminosidade' })
+function swatch(name) {
+  return inDialog().getByRole('radio', { name })
 }
 
 function submitButton(name = 'Criar tipo') {
@@ -119,22 +116,11 @@ async function openCreate(user) {
   return screen.getByRole('dialog', { name: 'Novo tipo de evento' })
 }
 
-async function typeHex(user, value) {
-  await user.clear(hexField())
-  await user.type(hexField(), value)
-}
-
-async function focusWheel(user) {
-  for (let index = 0; index < 12 && document.activeElement !== wheel(); index += 1) {
-    await user.tab()
-  }
-  expect(wheel()).toHaveFocus()
-}
-
 describe('Tipos de evento', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     getAdminEventCategories.mockResolvedValue(categories)
+    getAdminEventCategoryPalette.mockResolvedValue(palette)
   })
   afterEach(() => {
     vi.restoreAllMocks()
@@ -159,9 +145,9 @@ describe('Tipos de evento', () => {
       rows.forEach((row, index) => expect(row).toHaveTextContent(categories[index].name))
 
       const dinner = within(rowOf('Jantar'))
-      expect(rowOf('Jantar')).toHaveTextContent('#8A7043')
+      expect(rowOf('Jantar')).toHaveTextContent('#7A6238')
       expect(dinner.getByText('6 eventos')).toBeInTheDocument()
-      expect(dinner.getByText('Jantar')).toHaveStyle({ backgroundColor: '#F1EEE8', color: '#3E321E' })
+      expect(dinner.getByText('Jantar')).toHaveStyle({ backgroundColor: '#EFECE7', color: '#7A6238' })
       expect(within(rowOf('Almoço')).getByText('1 evento')).toBeInTheDocument()
       expect(within(rowOf('Retiro')).getByText('0 eventos')).toBeInTheDocument()
       expect(getAdminEventCategories).toHaveBeenCalledTimes(1)
@@ -214,6 +200,19 @@ describe('Tipos de evento', () => {
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
     })
 
+    it('um erro ao obter a paleta mostra o erro e recupera com Tentar novamente', async () => {
+      getAdminEventCategoryPalette.mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
+      const user = userEvent.setup()
+      show()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Erro interno do servidor.')
+
+      await user.click(screen.getByRole('button', { name: 'Tentar novamente' }))
+
+      expect(await screen.findByRole('table')).toBeInTheDocument()
+      expect(getAdminEventCategoryPalette).toHaveBeenCalledTimes(2)
+    })
+
     it('mostra o erro da API e recupera com Tentar novamente', async () => {
       getAdminEventCategories.mockRejectedValueOnce(apiError(500, 'Erro interno do servidor.'))
       const user = userEvent.setup()
@@ -246,7 +245,7 @@ describe('Tipos de evento', () => {
   })
 
   describe('Criar tipo', () => {
-    it('abre com o foco no nome, a cor inicial do design sincronizada em todos os campos e a pré-visualização', async () => {
+    it('abre com o foco no nome, a primeira cor livre selecionada e a pré-visualização', async () => {
       const user = userEvent.setup()
       show()
 
@@ -257,16 +256,15 @@ describe('Tipos de evento', () => {
       expect(nameField()).toHaveAttribute('placeholder', 'Ex.: Retiro anual')
       expect(nameField()).toHaveAttribute('maxlength', '30')
       expect(within(created).getByText('0/30')).toBeInTheDocument()
-      expect(hexField()).toHaveValue('#B65220')
-      expect(channel('Vermelho (R)')).toHaveValue(182)
-      expect(channel('Verde (G)')).toHaveValue(82)
-      expect(channel('Azul (B)')).toHaveValue(32)
-      expect(wheel()).toHaveAttribute('aria-valuenow', '20')
-      expect(wheel()).toHaveAttribute('aria-valuetext', 'Matiz 20°, saturação 82% (#B65220)')
-      expect(lightness()).toHaveValue('71')
+      expect(within(created).getAllByRole('radio')).toHaveLength(20)
+      expect(swatch('Azul-marinho')).toBeChecked()
+      expect(within(created).getByText('Azul-marinho')).toBeInTheDocument()
       expect(within(created).getByText('Nome do tipo')).toBeInTheDocument()
-      expect(within(created).getByText('#B65220')).toBeInTheDocument()
-      expect(within(created).getByText('As cores já usadas estão assinaladas na roda com uma cruz.')).toBeVisible()
+      expect(within(created).getByText('#0D1F35')).toBeInTheDocument()
+      expect(within(created).getByText('As cores já usadas por outros tipos estão assinaladas com uma cruz.')).toBeVisible()
+      expect(within(created).queryByRole('slider')).not.toBeInTheDocument()
+      expect(within(created).queryByRole('spinbutton')).not.toBeInTheDocument()
+      expect(within(created).getAllByRole('textbox')).toHaveLength(1)
       expect(submitButton()).toBeDisabled()
 
       await user.type(nameField(), 'Retiro Anual')
@@ -277,7 +275,7 @@ describe('Tipos de evento', () => {
       expect(submitButton()).toBeEnabled()
     })
 
-    it('cria com o nome sem espaços nas pontas e a cor escrita, bloqueia o diálogo durante o pedido e recarrega', async () => {
+    it('cria com o nome sem espaços nas pontas e a cor escolhida, bloqueia o diálogo durante o pedido e recarrega', async () => {
       const pending = deferred()
       createEventCategory.mockImplementationOnce(() => pending.promise)
       const user = userEvent.setup()
@@ -285,17 +283,23 @@ describe('Tipos de evento', () => {
 
       await openCreate(user)
       await user.type(nameField(), '  Retiro Anual  ')
-      await typeHex(user, '#AD1457')
+      await user.click(swatch('Violeta'))
+
+      expect(swatch('Violeta')).toBeChecked()
+      expect(swatch('Azul-marinho')).not.toBeChecked()
+      expect(previewStrip('Retiro Anual')).toHaveStyle({ backgroundColor: '#6548B8' })
+
       await user.click(submitButton())
 
       expect(inDialog().getByRole('button', { name: 'A criar...' })).toBeInTheDocument()
       expect(inDialog().getByRole('button', { name: 'Cancelar' })).toBeDisabled()
       expect(inDialog().getByRole('button', { name: 'Fechar' })).toBeDisabled()
+      expect(swatch('Violeta')).toBeDisabled()
       expect(createEventCategory).toHaveBeenCalledTimes(1)
-      expect(createEventCategory).toHaveBeenCalledWith({ name: 'Retiro Anual', color: '#AD1457' })
+      expect(createEventCategory).toHaveBeenCalledWith({ name: 'Retiro Anual', color: '#6548B8' })
 
       await act(async () => {
-        pending.resolve({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#AD1457', events_count: 0 } })
+        pending.resolve({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#6548B8', events_count: 0 } })
       })
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -331,94 +335,24 @@ describe('Tipos de evento', () => {
       expect(createEventCategory).not.toHaveBeenCalled()
     })
 
-    it('valida o hexadecimal: cor repetida sem distinguir maiúsculas, formato e obrigatório, sem mexer na pré-visualização', async () => {
+    it('um 422 na cor mostra errors.color junto à grelha, foca a cor selecionada e desaparece ao escolher outra', async () => {
+      const message = 'Todas as cores disponíveis já estão em uso. Apague um tipo de evento sem eventos para libertar uma cor.'
+      createEventCategory.mockRejectedValueOnce(apiError(422, 'Os dados enviados são inválidos.', { color: [message, 'Segunda mensagem.'] }))
       const user = userEvent.setup()
       show()
 
       await openCreate(user)
       await user.type(nameField(), 'Retiro Anual')
-
-      await typeHex(user, '#c62828')
-      expect(inDialog().getByText(COLOR_TAKEN)).toBeInTheDocument()
-      expect(submitButton()).toBeDisabled()
-
-      await typeHex(user, '#12')
-      expect(inDialog().getByText(FORMAT_ERROR)).toBeInTheDocument()
-      expect(hexField()).toHaveAttribute('aria-invalid', 'true')
-      expect(hexField()).toHaveAccessibleDescription(expect.stringContaining(FORMAT_ERROR))
-      expect(inDialog().getByText('#C62828')).toBeInTheDocument()
-      expect(submitButton()).toBeDisabled()
-
-      await user.clear(hexField())
-      expect(inDialog().getByText('O campo cor é obrigatório.')).toBeInTheDocument()
-      expect(submitButton()).toBeDisabled()
-
-      await user.type(hexField(), '#AD1457')
-      expect(inDialog().queryByText(FORMAT_ERROR)).not.toBeInTheDocument()
-      expect(inDialog().queryByText('O campo cor é obrigatório.')).not.toBeInTheDocument()
-      expect(inDialog().queryByText(COLOR_TAKEN)).not.toBeInTheDocument()
-      expect(submitButton()).toBeEnabled()
-      expect(createEventCategory).not.toHaveBeenCalled()
-    })
-
-    it('valores RGB inválidos mostram o erro e não mudam o hexadecimal', async () => {
-      const user = userEvent.setup()
-      show()
-
-      await openCreate(user)
-      await user.type(nameField(), 'Retiro Anual')
-
-      for (const value of ['300', '-1', '1.5', '']) {
-        fireEvent.change(channel('Vermelho (R)'), { target: { value } })
-
-        expect(inDialog().getByText(RGB_ERROR)).toBeInTheDocument()
-        expect(hexField()).toHaveValue('#B65220')
-        expect(submitButton()).toBeDisabled()
-      }
-
-      fireEvent.change(channel('Vermelho (R)'), { target: { value: '182' } })
-
-      expect(inDialog().queryByText(RGB_ERROR)).not.toBeInTheDocument()
-      expect(submitButton()).toBeEnabled()
-      expect(createEventCategory).not.toHaveBeenCalled()
-    })
-
-    it('o hexadecimal sem # atualiza o RGB e a pré-visualização e é enviado normalizado', async () => {
-      createEventCategory.mockResolvedValueOnce({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#ABCDEF', events_count: 0 } })
-      const user = userEvent.setup()
-      show()
-
-      await openCreate(user)
-      await user.type(nameField(), 'Retiro Anual')
-      await typeHex(user, 'abcdef')
-
-      expect(channel('Vermelho (R)')).toHaveValue(171)
-      expect(channel('Verde (G)')).toHaveValue(205)
-      expect(channel('Azul (B)')).toHaveValue(239)
-      expect(inDialog().getByText('#ABCDEF')).toBeInTheDocument()
-
       await user.click(submitButton())
 
-      expect(createEventCategory).toHaveBeenCalledWith({ name: 'Retiro Anual', color: '#ABCDEF' })
-    })
+      expect(await inDialog().findByText(message)).toBeInTheDocument()
+      expect(inDialog().queryByText('Segunda mensagem.')).not.toBeInTheDocument()
+      expect(swatch('Azul-marinho')).toHaveFocus()
+      expect(swatch('Azul-marinho')).toHaveAccessibleDescription(message)
 
-    it('o RGB atualiza o hexadecimal, um cinzento mantém a matiz da roda e a faixa mostra a cor atual', async () => {
-      const user = userEvent.setup()
-      show()
+      await user.click(swatch('Bronze'))
 
-      await openCreate(user)
-      fireEvent.change(channel('Vermelho (R)'), { target: { value: '18' } })
-      fireEvent.change(channel('Verde (G)'), { target: { value: '52' } })
-      fireEvent.change(channel('Azul (B)'), { target: { value: '86' } })
-
-      expect(hexField()).toHaveValue('#123456')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '210')
-
-      await typeHex(user, '#808080')
-
-      expect(wheel()).toHaveAttribute('aria-valuenow', '210')
-      expect(wheel().getAttribute('aria-valuetext')).toContain('saturação 0%')
-      expect(previewStrip('Nome do tipo')).toHaveStyle({ backgroundColor: '#808080' })
+      expect(inDialog().queryByText(message)).not.toBeInTheDocument()
     })
 
     it('um 422 mostra o erro por baixo do campo e põe lá o foco, com o diálogo aberto', async () => {
@@ -443,7 +377,7 @@ describe('Tipos de evento', () => {
     ])('um erro %s aparece dentro do diálogo, mantém os valores e deixa submeter de novo', async (status, message) => {
       createEventCategory
         .mockRejectedValueOnce(apiError(status, message))
-        .mockResolvedValueOnce({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#B65220', events_count: 0 } })
+        .mockResolvedValueOnce({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#0D1F35', events_count: 0 } })
       const user = userEvent.setup()
       show()
 
@@ -454,7 +388,7 @@ describe('Tipos de evento', () => {
       expect(await inDialog().findByRole('alert')).toHaveTextContent(message)
       expect(screen.getAllByRole('alert')).toHaveLength(1)
       expect(nameField()).toHaveValue('Retiro Anual')
-      expect(hexField()).toHaveValue('#B65220')
+      expect(swatch('Azul-marinho')).toBeChecked()
 
       await user.click(submitButton())
 
@@ -539,14 +473,14 @@ describe('Tipos de evento', () => {
       expect(dialog()).toBeInTheDocument()
 
       await act(async () => {
-        pending.resolve({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#B65220', events_count: 0 } })
+        pending.resolve({ success: true, message: CREATED, data: { id: 'n1', name: 'Retiro Anual', color: '#0D1F35', events_count: 0 } })
       })
     })
   })
 
   describe('Editar tipo', () => {
-    it('abre com os valores do tipo, sem a marca da própria cor, e só guarda com uma alteração real', async () => {
-      updateEventCategory.mockResolvedValueOnce({ success: true, message: UPDATED, data: { id: 'c2', name: 'Formações', color: '#1565C0', events_count: 7 } })
+    it('abre com a cor do próprio tipo disponível e só guarda com uma alteração real', async () => {
+      updateEventCategory.mockResolvedValueOnce({ success: true, message: UPDATED, data: { id: 'c2', name: 'Formações', color: '#1E449A', events_count: 7 } })
       const user = userEvent.setup()
       show()
       await screen.findByRole('table')
@@ -555,19 +489,13 @@ describe('Tipos de evento', () => {
 
       const edited = screen.getByRole('dialog', { name: 'Editar tipo de evento' })
       expect(nameField()).toHaveValue('Formação')
-      expect(hexField()).toHaveValue('#1565C0')
-      expect(channel('Vermelho (R)')).toHaveValue(21)
-      expect(channel('Verde (G)')).toHaveValue(101)
-      expect(channel('Azul (B)')).toHaveValue(192)
-      for (const label of ['#2E7D32, já usada por «Almoço»', '#8A7043, já usada por «Jantar»', '#C62828, já usada por «Workshop»', '#00838F, já usada por «Retiro»']) {
-        expect(within(edited).getByRole('img', { name: label })).toBeInTheDocument()
+      expect(swatch('Azul-cobalto')).toBeChecked()
+      expect(swatch('Azul-cobalto')).toBeEnabled()
+      for (const label of ['Verde-esmeralda, já usada por «Almoço»', 'Ouro-velho, já usada por «Jantar»', 'Turquesa-escuro, já usada por «Workshop»', 'Púrpura, já usada por «Retiro»']) {
+        expect(swatch(label)).toBeDisabled()
       }
-      expect(within(edited).queryByRole('img', { name: '#1565C0, já usada por «Formação»' })).not.toBeInTheDocument()
       expect(submitButton('Guardar alterações')).toBeDisabled()
       expect(within(edited).getByText('Ainda não fez nenhuma alteração.')).toBeInTheDocument()
-
-      await typeHex(user, '#1565c0')
-      expect(submitButton('Guardar alterações')).toBeDisabled()
 
       await user.clear(nameField())
       await user.type(nameField(), 'Formações')
@@ -576,11 +504,46 @@ describe('Tipos de evento', () => {
       await user.click(submitButton('Guardar alterações'))
 
       expect(updateEventCategory).toHaveBeenCalledTimes(1)
-      expect(updateEventCategory).toHaveBeenCalledWith('c2', { name: 'Formações', color: '#1565C0' })
+      expect(updateEventCategory).toHaveBeenCalledWith('c2', { name: 'Formações', color: '#1E449A' })
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       await waitFor(() => expect(successBanner(UPDATED)).toBeDefined())
       await waitFor(() => expect(getAdminEventCategories).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(screen.getByRole('button', { name: 'Editar Formação' })).toHaveFocus())
+    })
+
+    it('escolher outra cor livre conta como alteração', async () => {
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(screen.getByRole('button', { name: 'Editar Formação' }))
+      await user.click(swatch('Bronze'))
+
+      expect(submitButton('Guardar alterações')).toBeEnabled()
+
+      await user.click(swatch('Azul-cobalto'))
+
+      expect(submitButton('Guardar alterações')).toBeDisabled()
+    })
+
+    it('uma cor fora da paleta mostra o erro e obriga a escolher uma da paleta', async () => {
+      getAdminEventCategories.mockResolvedValue([...categories, { id: 'c6', name: 'Antigo', color: '#AD1457', events_count: 0 }])
+      const user = userEvent.setup()
+      show()
+      await screen.findByRole('table')
+
+      await user.click(screen.getByRole('button', { name: 'Editar Antigo' }))
+
+      expect(inDialog().getByText(NOT_IN_PALETTE)).toBeInTheDocument()
+      expect(inDialog().queryByRole('radio', { checked: true })).not.toBeInTheDocument()
+      await user.clear(nameField())
+      await user.type(nameField(), 'Novo nome')
+      expect(submitButton('Guardar alterações')).toBeDisabled()
+
+      await user.click(swatch('Bronze'))
+
+      expect(inDialog().queryByText(NOT_IN_PALETTE)).not.toBeInTheDocument()
+      expect(submitButton('Guardar alterações')).toBeEnabled()
     })
 
     it('se o tipo já não existir fecha o diálogo, avisa e recarrega', async () => {
@@ -694,150 +657,60 @@ describe('Tipos de evento', () => {
   })
 
   describe('Seletor de cor', () => {
-    async function openWithWheelRect(user) {
-      await openCreate(user)
-      vi.spyOn(wheel(), 'getBoundingClientRect').mockReturnValue(WHEEL_RECT)
-    }
-
-    async function reopen(user) {
-      await user.click(inDialog().getByRole('button', { name: 'Cancelar' }))
-      await user.click(newButton())
-      vi.spyOn(wheel(), 'getBoundingClientRect').mockReturnValue(WHEEL_RECT)
-    }
-
-    it('clicar e arrastar na roda muda a matiz e a saturação; depois de largar já não muda', async () => {
-      const user = userEvent.setup()
-      show()
-
-      await openWithWheelRect(user)
-      fireEvent.pointerDown(wheel(), { clientX: 100, clientY: 0, pointerId: 1 })
-
-      expect(hexField()).toHaveValue('#B60000')
-      expect(channel('Vermelho (R)')).toHaveValue(182)
-      expect(channel('Verde (G)')).toHaveValue(0)
-      expect(channel('Azul (B)')).toHaveValue(0)
-      expect(inDialog().getByText('#B60000')).toBeInTheDocument()
-
-      fireEvent.pointerMove(wheel(), { clientX: 200, clientY: 100, pointerId: 1 })
-      expect(hexField()).toHaveValue('#5BB600')
-
-      fireEvent.pointerUp(wheel(), { clientX: 200, clientY: 100, pointerId: 1 })
-      fireEvent.pointerMove(wheel(), { clientX: 100, clientY: 200, pointerId: 1 })
-      expect(hexField()).toHaveValue('#5BB600')
-
-      fireEvent.pointerDown(wheel(), { clientX: 100, clientY: 100, pointerId: 1 })
-      fireEvent.pointerUp(wheel(), { clientX: 100, clientY: 100, pointerId: 1 })
-      expect(hexField()).toHaveValue('#B6B6B6')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '90')
-    })
-
-    it('com o teclado as setas mudam a matiz e a saturação, com passos de 10 com Shift', async () => {
-      const user = userEvent.setup()
-      show()
-
-      await openWithWheelRect(user)
-      await focusWheel(user)
-      await user.keyboard('{ArrowRight}')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '21')
-      expect(hexField()).toHaveValue('#B65520')
-
-      await reopen(user)
-      await focusWheel(user)
-      await user.keyboard('{Shift>}{ArrowRight}{/Shift}')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '30')
-      expect(hexField()).toHaveValue('#B66B20')
-
-      await reopen(user)
-      fireEvent.pointerDown(wheel(), { clientX: 100, clientY: 0, pointerId: 1 })
-      fireEvent.pointerUp(wheel(), { clientX: 100, clientY: 0, pointerId: 1 })
-      expect(wheel()).toHaveAttribute('aria-valuenow', '0')
-      await focusWheel(user)
-      await user.keyboard('{ArrowLeft}')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '359')
-
-      await reopen(user)
-      await focusWheel(user)
-      await user.keyboard('{ArrowUp}')
-      expect(hexField()).toHaveValue('#B6511E')
-
-      await reopen(user)
-      await focusWheel(user)
-      await user.keyboard('{Shift>}{ArrowDown}{/Shift}')
-      expect(hexField()).toHaveValue('#B65E32')
-    })
-
-    it('as setas na roda não fazem scroll da página', async () => {
+    it('as cores dos outros tipos ficam desativadas, com o nome do tipo que as usa, e não podem ser escolhidas', async () => {
       const user = userEvent.setup()
       show()
 
       await openCreate(user)
 
-      for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
-        expect(fireEvent.keyDown(wheel(), { key })).toBe(false)
+      for (const label of ['Azul-cobalto, já usada por «Formação»', 'Verde-esmeralda, já usada por «Almoço»', 'Ouro-velho, já usada por «Jantar»', 'Turquesa-escuro, já usada por «Workshop»', 'Púrpura, já usada por «Retiro»']) {
+        expect(swatch(label)).toBeDisabled()
       }
+
+      await user.click(swatch('Azul-cobalto, já usada por «Formação»'))
+
+      expect(swatch('Azul-marinho')).toBeChecked()
+      expect(swatch('Azul-cobalto, já usada por «Formação»')).not.toBeChecked()
     })
 
-    it('a Luminosidade muda o valor da cor sem mudar a matiz e o hexadecimal atualiza a barra', async () => {
+    it('a primeira cor livre salta as já usadas', async () => {
+      getAdminEventCategories.mockResolvedValue([...categories, { id: 'c6', name: 'Convívio', color: '#0D1F35', events_count: 0 }])
       const user = userEvent.setup()
       show()
 
       await openCreate(user)
-      fireEvent.change(lightness(), { target: { value: '100' } })
 
-      expect(hexField()).toHaveValue('#FF732D')
-      expect(lightness()).toHaveAttribute('aria-valuetext', 'Luminosidade 100%')
-
-      fireEvent.change(lightness(), { target: { value: '50' } })
-
-      expect(hexField()).toHaveValue('#803916')
-      expect(wheel()).toHaveAttribute('aria-valuenow', '20')
-      expect(lightness().style.backgroundImage).toMatch(/^linear-gradient\(.*rgb\(255, 115, 45\)\)$/)
-
-      await typeHex(user, '#808080')
-
-      expect(lightness()).toHaveValue('50')
+      expect(swatch('Azul-aço')).toBeChecked()
     })
 
-    it('as cores dos outros tipos aparecem marcadas na roda, fora do slider, na posição e cor de cada uma', async () => {
-      const user = userEvent.setup()
-      show()
-
-      const created = await openCreate(user)
-
-      const marks = within(created).getAllByRole('img', { name: /já usada por/ })
-      expect(marks).toHaveLength(5)
-      for (const label of ['#2E7D32, já usada por «Almoço»', '#1565C0, já usada por «Formação»', '#8A7043, já usada por «Jantar»', '#C62828, já usada por «Workshop»', '#00838F, já usada por «Retiro»']) {
-        expect(within(created).getByRole('img', { name: label })).toBeInTheDocument()
-      }
-      expect(within(created).getByRole('img', { name: '#C62828, já usada por «Workshop»' })).toHaveStyle({ left: '50%', top: '10.1%', backgroundColor: '#C62828' })
-      for (const mark of marks) {
-        expect(wheel().contains(mark)).toBe(false)
-      }
-    })
-
-    it('uma cor inválida da lista não gera marca nem chega ao HTML do diálogo', async () => {
+    it('uma cor inválida da lista não desativa amostras nem chega ao HTML do diálogo', async () => {
       getAdminEventCategories.mockResolvedValue([...categories, { id: 'c6', name: 'Perigo', color: 'url(javascript:alert(1))', events_count: 0 }])
       const user = userEvent.setup()
       show()
 
       const created = await openCreate(user)
 
-      expect(within(created).getAllByRole('img', { name: /já usada por/ })).toHaveLength(5)
-      expect(within(created).queryByRole('img', { name: /«Perigo»/ })).not.toBeInTheDocument()
+      expect(within(created).getAllByRole('radio').filter((radio) => radio.disabled)).toHaveLength(5)
       expect(created.innerHTML).not.toContain('javascript')
     })
 
-    it('escolher exatamente a cor de outro tipo mostra o erro e desativa Criar tipo', async () => {
-      const user = userEvent.setup()
+    it('com as 20 cores usadas o Novo tipo fica desativado e aparece o aviso', async () => {
+      getAdminEventCategories.mockResolvedValue(palette.map(({ color }, index) => ({ id: `x${index}`, name: `Tipo ${index}`, color, events_count: 0 })))
       show()
+      await screen.findByRole('table')
 
-      await openCreate(user)
-      await user.type(nameField(), 'Retiro Anual')
-      await typeHex(user, '#C62828')
+      expect(newButton()).toBeDisabled()
+      expect(screen.getByText(EXHAUSTED)).toBeInTheDocument()
+      expect(newButton()).toHaveAccessibleDescription(EXHAUSTED)
+    })
 
-      expect(inDialog().getByText(COLOR_TAKEN)).toBeInTheDocument()
-      expect(submitButton()).toBeDisabled()
-      expect(createEventCategory).not.toHaveBeenCalled()
+    it('com 19 cores usadas o Novo tipo continua ativo, sem aviso', async () => {
+      getAdminEventCategories.mockResolvedValue(palette.slice(1).map(({ color }, index) => ({ id: `x${index}`, name: `Tipo ${index}`, color, events_count: 0 })))
+      show()
+      await screen.findByRole('table')
+
+      expect(newButton()).toBeEnabled()
+      expect(screen.queryByText(EXHAUSTED)).not.toBeInTheDocument()
     })
   })
 })

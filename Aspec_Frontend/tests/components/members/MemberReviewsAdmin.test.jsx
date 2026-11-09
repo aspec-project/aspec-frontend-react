@@ -119,14 +119,20 @@ describe('Avaliações escritas por admins com perfil de membro', () => {
     expect(requests('get', '/member-profile')).toHaveLength(0)
   })
 
-  it('só o membro vê o botão de sinalizar avaliações de outros', async () => {
+  it('o membro e o admin com perfil veem o botão de sinalizar avaliações de outros', async () => {
     const view = show(adminWithProfile)
     await screen.findByText('Outra experiência')
-    expect(screen.queryByRole('button', { name: 'Sinalizar avaliação de Outra empresa' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sinalizar avaliação de Outra empresa' })).toBeInTheDocument()
     view.unmount()
 
     show(member)
     await screen.findByText('Outra experiência')
     expect(screen.getByRole('button', { name: 'Sinalizar avaliação de Outra empresa' })).toBeInTheDocument()
+  })
+
+  it('o admin técnico, sem perfil, não vê o botão de sinalizar', async () => {
+    show(technicalAdmin)
+    await screen.findByText('Outra experiência')
+    expect(screen.queryByRole('button', { name: 'Sinalizar avaliação de Outra empresa' })).not.toBeInTheDocument()
   })
 })

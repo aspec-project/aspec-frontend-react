@@ -64,6 +64,35 @@ function readFlaggingSources(sources) {
 }
 
 /**
+ * Reconstrói os reports por resolver só com os campos que a página mostra (lista branca).
+ *
+ * @param {unknown} reports Reports vindos da API.
+ * @returns {{id: string, source: 'automatic'|'member', reason: string, comment: string|null, created_at: string}[]|undefined}
+ * Reports (lista vazia se a chave faltar), ou undefined se a forma for inválida.
+ */
+function readReports(reports) {
+  if (reports === undefined || reports === null) return []
+  if (!Array.isArray(reports)) return undefined
+
+  const valid = reports.every((report) => isObject(report) &&
+    typeof report.id === 'string' && report.id !== '' &&
+    FLAGGING_SOURCES.includes(report.source) &&
+    typeof report.reason === 'string' && report.reason !== '' &&
+    isStringOrNull(report.comment ?? null) &&
+    isIsoDateTime(report.created_at))
+
+  if (!valid) return undefined
+
+  return reports.map(({ id, source, reason, comment, created_at: createdAt }) => ({
+    id,
+    source,
+    reason,
+    comment: comment ?? null,
+    created_at: createdAt,
+  }))
+}
+
+/**
  * Reconstrói uma avaliação só com os campos que a página mostra (lista branca).
  *
  * @param {unknown} item Avaliação vinda da API.
@@ -76,6 +105,7 @@ function readFlaggingSources(sources) {
  *   reviewer: {business_name: string|null},
  *   reviewed: {business_name: string|null},
  *   flagging_sources: string[],
+ *   reports: {id: string, source: string, reason: string, comment: string|null, created_at: string}[],
  *   created_at: string,
  * }|null} Avaliação, ou null se a forma for inválida.
  */
@@ -85,6 +115,7 @@ function readReview(item) {
   const reviewer = readBusiness(item.reviewer)
   const reviewed = readBusiness(item.reviewed)
   const flaggingSources = readFlaggingSources(item.flagging_sources)
+  const reports = readReports(item.reports)
   const hiddenReason = item.hidden_reason ?? null
   const comment = item.comment ?? null
 
@@ -100,6 +131,7 @@ function readReview(item) {
     reviewer !== undefined &&
     reviewed !== undefined &&
     flaggingSources !== undefined &&
+    reports !== undefined &&
     isIsoDateTime(item.created_at)
 
   if (!valid) return null
@@ -113,6 +145,7 @@ function readReview(item) {
     reviewer,
     reviewed,
     flagging_sources: flaggingSources,
+    reports,
     created_at: item.created_at,
   }
 }

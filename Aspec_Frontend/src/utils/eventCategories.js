@@ -1,10 +1,7 @@
-import { hexToRgb, isHexColor, normalizeHexColor, rotateHue } from './color'
+import { hexToRgb, isHexColor, normalizeHexColor } from './color'
 
 /** Número máximo de caracteres do nome de um tipo de evento (igual ao backend). */
 export const CATEGORY_NAME_MAX_LENGTH = 30
-
-/** Cor inicial de um tipo novo (a do print do design); se já estiver usada, roda-se a matiz. */
-export const DEFAULT_CATEGORY_COLOR = '#B65220'
 
 /** Textos da página e dos diálogos de tipos de evento. */
 export const EVENT_CATEGORY_TEXTS = {
@@ -21,15 +18,9 @@ export const EVENT_CATEGORY_TEXTS = {
   nameLabel: 'Nome',
   namePlaceholder: 'Ex.: Retiro anual',
   colorLabel: 'Cor',
-  wheelLabel: 'Roda de cores',
-  lightnessLabel: 'Luminosidade',
-  hexLabel: 'Hexadecimal',
-  rgbLabel: 'RGB',
-  redLabel: 'Vermelho (R)',
-  greenLabel: 'Verde (G)',
-  blueLabel: 'Azul (B)',
-  rgbError: 'Os valores RGB têm de ser números inteiros entre 0 e 255.',
-  usedColorsHint: 'As cores já usadas estão assinaladas na roda com uma cruz.',
+  selectedColorLabel: 'Cor selecionada:',
+  usedColorsHint: 'As cores já usadas por outros tipos estão assinaladas com uma cruz.',
+  paletteExhausted: 'Já estão em uso as 20 cores disponíveis. Para criar um novo tipo, apague primeiro um tipo sem eventos.',
   previewLabel: 'Pré-visualização',
   previewPlaceholder: 'Nome do tipo',
   createSubmit: 'Criar tipo',
@@ -52,6 +43,7 @@ const VALIDATION_MESSAGES = {
   nameTaken: 'Já existe uma categoria com este nome.',
   colorRequired: 'O campo cor é obrigatório.',
   colorFormat: 'A cor tem de estar no formato #RRGGBB (ex.: #8A7043).',
+  colorNotInPalette: 'A cor escolhida não faz parte da paleta de cores disponíveis.',
   colorTaken: 'Já existe uma categoria com esta cor.',
 }
 
@@ -66,8 +58,8 @@ function channelsToHex(channels) {
 }
 
 /**
- * Cores do badge tingido de um tipo: fundo = a cor misturada com 88 % de branco; texto = cada canal × 0,45.
- * Uma cor inválida (que nunca chega a um `style`) passa a azul-marinho.
+ * Cores do badge tingido de um tipo: fundo = a cor misturada com 88 % de branco; texto = a própria cor (a paleta
+ * garante contraste AA nesta combinação). Uma cor inválida (que nunca chega a um `style`) passa a azul-marinho.
  *
  * @param {unknown} color Cor do tipo vinda da API.
  * @returns {{color: string, background: string, text: string}} Cor base, fundo e texto, em #RRGGBB.
@@ -80,7 +72,7 @@ export function getCategoryBadgeColors(color) {
   return {
     color: base,
     background: channelsToHex(channels.map((channel) => Math.round(channel + (255 - channel) * 0.88))),
-    text: channelsToHex(channels.map((channel) => Math.round(channel * 0.45))),
+    text: base,
   }
 }
 
@@ -145,7 +137,7 @@ export function getDeleteCategoryDescription(name) {
 }
 
 /**
- * Cores já usadas pelos outros tipos (para as marcas na roda). Os tipos com cor inválida não entram.
+ * Cores já usadas pelos outros tipos (para desativar as amostras da paleta). Os tipos com cor inválida não entram.
  *
  * @param {object[]} categories Tipos de evento.
  * @param {string} [exceptId] Id do tipo a ignorar (o que está a ser editado).
@@ -174,41 +166,49 @@ export function findCategoryWithColor(color, categories, exceptId) {
 }
 
 /**
- * Cor inicial de um tipo novo: a do design; se já estiver usada, roda a matiz 30° de cada vez (até 11 vezes)
- * até encontrar uma livre. Se estiverem todas usadas, fica a do design (e aparece o erro de cor repetida).
+ * Cores da paleta que ainda nenhum tipo usa, pela ordem da paleta.
  *
+ * @param {{color: string, name: string}[]} palette Paleta vinda da API.
  * @param {object[]} categories Tipos de evento existentes.
- * @returns {string} Cor #RRGGBB.
+ * @param {string} [exceptId] Id do tipo a ignorar (o que está a ser editado).
+ * @returns {{color: string, name: string}[]}
  */
-export function getDefaultCategoryColor(categories) {
-  for (let step = 0; step < 12; step += 1) {
-    const candidate = step === 0 ? DEFAULT_CATEGORY_COLOR : rotateHue(DEFAULT_CATEGORY_COLOR, step * 30)
-
-    if (!findCategoryWithColor(candidate, categories)) return candidate
-  }
-
-  return DEFAULT_CATEGORY_COLOR
+export function getFreePaletteColors(palette, categories, exceptId) {
+  return palette.filter(({ color }) => !findCategoryWithColor(color, categories, exceptId))
 }
 
 /**
- * @param {string} color Cor usada.
- * @param {string} name Nome do tipo que a usa.
- * @returns {string} Nome acessível da marca da cor na roda.
+ * Cor inicial de um tipo novo: a primeira cor livre da paleta.
+ *
+ * @param {object[]} categories Tipos de evento existentes.
+ * @param {{color: string, name: string}[]} palette Paleta vinda da API.
+ * @returns {string} Cor #RRGGBB, ou texto vazio se estiverem todas usadas.
  */
-export function getUsedColorLabel(color, name) {
-  return `${color}, já usada por «${name}»`
+export function getDefaultCategoryColor(categories, palette) {
+  return getFreePaletteColors(palette, categories)[0]?.color ?? ''
+}
+
+/**
+ * @param {string} colorName Nome da cor na paleta.
+ * @param {string} name Nome do tipo que a usa.
+ * @returns {string} Nome acessível de uma amostra já usada.
+ */
+export function getUsedColorLabel(colorName, name) {
+  return `${colorName}, já usada por «${name}»`
 }
 
 /**
  * Validação no browser (só UX) com as mesmas regras e frases do backend: nome obrigatório, até 30 caracteres
- * e único sem distinguir maiúsculas; cor obrigatória, #RRGGBB e diferente da dos outros tipos.
+ * e único sem distinguir maiúsculas; cor obrigatória, #RRGGBB, da paleta (quando é indicada) e diferente da dos
+ * outros tipos.
  *
  * @param {{name: unknown, color: unknown}} values Valores do formulário.
  * @param {object[]} categories Tipos de evento existentes.
  * @param {string} [exceptId] Id do tipo a ignorar (o que está a ser editado).
+ * @param {{color: string, name: string}[]} [palette] Paleta vinda da API.
  * @returns {{name?: string, color?: string}} Erros por campo (vazio quando está tudo certo).
  */
-export function validateEventCategory({ name, color }, categories, exceptId) {
+export function validateEventCategory({ name, color }, categories, exceptId, palette) {
   const errors = {}
   const trimmed = typeof name === 'string' ? name.trim() : ''
   const lower = trimmed.toLocaleLowerCase('pt-PT')
@@ -229,6 +229,8 @@ export function validateEventCategory({ name, color }, categories, exceptId) {
     errors.color = VALIDATION_MESSAGES.colorRequired
   } else if (normalized === null) {
     errors.color = VALIDATION_MESSAGES.colorFormat
+  } else if (palette && !palette.some((option) => option.color === normalized)) {
+    errors.color = VALIDATION_MESSAGES.colorNotInPalette
   } else if (findCategoryWithColor(normalized, categories, exceptId)) {
     errors.color = VALIDATION_MESSAGES.colorTaken
   }

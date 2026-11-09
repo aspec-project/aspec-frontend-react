@@ -64,7 +64,7 @@ describe('Páginas reais da área de membro para o admin com perfil', () => {
     getSectors.mockResolvedValue([])
     getWeekDays.mockResolvedValue([])
     getSocialPlatforms.mockResolvedValue([])
-    getMyReviews.mockResolvedValue({ items: [], pagination: { current_page: 1, per_page: 5, total: 0, last_page: 1 } })
+    getMyReviews.mockResolvedValue({ items: [], pagination: { current_page: 1, per_page: 5, total: 0, last_page: 1 }, counts: { received: 0, written: 0 } })
   })
   afterEach(() => {
     useAuthStore.getState().clearSession()

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users, ChevronRight, Video, Repeat } from "lucide-react";
 
-import { formatDate, formatTime, categoryColor, badgeTextColor } from "../../utils/eventFormatting";
+import { formatDate, formatTime, categoryColor, softCategoryColor, isOccupancyCritical, OCCUPANCY_WARNING_COLOR } from "../../utils/eventFormatting";
 import EventTypeBadges from "./EventTypeBadges";
 
 export default function EventCard({ event, sessionLabel = "" }) {
@@ -34,7 +34,7 @@ export default function EventCard({ event, sessionLabel = "" }) {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span
             className="max-w-full break-words rounded-full px-2.5 py-1 text-xs font-semibold"
-            style={{ backgroundColor: color, color: badgeTextColor(color) }}
+            style={{ backgroundColor: softCategoryColor(color), color }}
           >
             {typeof event.category?.name === "string" ? event.category.name : "Evento"}
           </span>
@@ -88,7 +88,7 @@ export default function EventCard({ event, sessionLabel = "" }) {
               aria-valuenow={occupancy}
               className="h-1.5 overflow-hidden rounded-full bg-gray-100"
             >
-              <div className="h-full rounded-full" style={{ width: `${occupancy}%`, backgroundColor: color }} />
+              <div className="h-full rounded-full" style={{ width: `${occupancy}%`, backgroundColor: isOccupancyCritical(maxAttendees, registrationsCount) ? OCCUPANCY_WARNING_COLOR : color }} />
             </div>
           </div>
         ) : (

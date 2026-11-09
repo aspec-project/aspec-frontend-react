@@ -104,14 +104,16 @@ describe("Página de detalhe do evento", () => {
   });
 
   it.each([
-    [8, 40, "Apenas 8 vagas disponíveis!"],
+    [5, 40, "Apenas 5 vagas disponíveis!"],
+    [6, 40, "6 vagas disponíveis"],
     [1, 5, "Apenas 1 vaga disponível!"],
-    [9, 40, "9 vagas disponíveis"],
+    [3, 5, "3 vagas disponíveis"],
     [0, 40, "Evento lotado"],
     [null, 40, "Vagas por confirmar"],
     [1, null, "1 vaga disponível"],
-  ])("aplica o aviso apenas até 20%% da capacidade com dados reais (%s/%s)", async (available_spots, max_attendees, text) => {
-    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, available_spots, max_attendees }));
+  ])("avisa com poucas vagas: até 5 vagas, ou metade dos lugares em eventos pequenos (%s/%s)", async (available_spots, max_attendees, text) => {
+    const registrations_count = available_spots === null || max_attendees === null ? event.registrations_count : max_attendees - available_spots;
+    api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, available_spots, max_attendees, registrations_count }));
     show();
     await screen.findByRole("heading", { name: event.name });
     expect(screen.getByText(text)).toBeInTheDocument();

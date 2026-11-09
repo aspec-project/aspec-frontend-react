@@ -11,7 +11,7 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
 
 /**
  * Diálogo de criar ou editar um tipo de evento, em duas colunas: nome e pré-visualização à esquerda, cor
- * (roda, Luminosidade, Hexadecimal e RGB) à direita. Foco inicial no nome, Escape e "Fechar"/"Cancelar"
+ * (grelha da paleta) à direita. Foco inicial no nome, Escape e "Fechar"/"Cancelar"
  * fecham (exceto durante o pedido), o clique fora não fecha, Tab preso nos elementos ativos e foco devolvido
  * ao elemento que o tinha antes de abrir. Só existe enquanto está aberto, por isso cada abertura começa limpa.
  * Na edição, "Guardar alterações" só fica ativo com uma alteração real.
@@ -19,20 +19,21 @@ const buttonBase = 'rounded-lg px-4 py-2 text-sm font-semibold focus-visible:out
  * @param {{
  *   category: object|null,
  *   categories: object[],
+ *   palette: {color: string, name: string}[],
  *   onClose: () => void,
  *   onSuccess: (message: string) => void,
  *   onStale: (message: string) => void,
  * }} props category é null ao criar.
  * @returns {JSX.Element}
  */
-export default function EventCategoryDialog({ category, categories, onClose, onSuccess, onStale }) {
+export default function EventCategoryDialog({ category, categories, palette, onClose, onSuccess, onStale }) {
   const titleId = useId()
   const nameId = useId()
   const nameErrorId = useId()
   const counterId = useId()
   const footerId = useId()
   const dialogRef = useRef(null)
-  const form = useEventCategoryForm({ category, categories, onSuccess, onStale })
+  const form = useEventCategoryForm({ category, categories, palette, onSuccess, onStale })
   const { submitting, focusField } = form
   const isEditing = Boolean(category)
   const showNoChanges = isEditing && !form.changed
@@ -49,7 +50,11 @@ export default function EventCategoryDialog({ category, categories, onClose, onS
 
   useEffect(() => {
     if (focusField) {
-      dialogRef.current?.querySelector(`[name="${focusField.name}"]`)?.focus()
+      const dialog = dialogRef.current
+      // Na paleta, o primeiro campo com o nome "color" pode ser uma amostra desativada.
+      const target = dialog?.querySelector(`[name="${focusField.name}"]:checked`)
+        ?? dialog?.querySelector(`[name="${focusField.name}"]:not(:disabled)`)
+      target?.focus()
     }
   }, [focusField])
 
@@ -167,14 +172,11 @@ export default function EventCategoryDialog({ category, categories, onClose, onS
               </div>
 
               <CategoryColorPicker
-                hsv={form.hsv}
-                hexInput={form.hexInput}
-                rgbInputs={form.rgbInputs}
+                palette={palette}
+                value={form.color}
                 usedColors={form.usedColors}
-                onHsvChange={form.setHsv}
-                onHexChange={form.setHexInput}
-                onRgbChange={form.setRgbInput}
-                errors={{ color: form.errors.color, rgb: form.errors.rgb }}
+                onChange={form.setColor}
+                error={form.errors.color}
               />
             </fieldset>
           </div>

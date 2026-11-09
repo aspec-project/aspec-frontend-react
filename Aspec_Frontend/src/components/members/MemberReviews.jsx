@@ -1,10 +1,11 @@
 ﻿import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Flag, MessageSquare, Star, Trash2 } from 'lucide-react'
+import { Flag, MessageSquare, Star, Trash2 } from 'lucide-react'
 import { deleteMemberReview, getMemberReviewPage, isMemberProfileId, saveMemberReview } from '../../services/members'
 import { getMemberProfile } from '../../services/memberProfile'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
 import { useAuthStore } from '../../store/authStore'
 import { canActAsMember, canReportReviews } from '../../utils/memberAccess'
+import Pagination from '../ui/Pagination'
 import SelectMenu from '../ui/SelectMenu'
 import RatingStars from './RatingStars'
 import ReportReviewDialog from './ReportReviewDialog'
@@ -237,7 +238,6 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     setRetry((value) => value + 1)
   }
   const pagination = data?.pagination ?? (!current ? result?.data?.pagination : null)
-  const pageNumbers = pagination ? [...new Set([1, page - 1, page, page + 1, pagination.last_page])].filter((value) => value >= 1 && value <= pagination.last_page).sort((a, b) => a - b) : []
   return (
     <section className="min-w-0 rounded-2xl border border-gray-100 bg-white p-4 text-[#0d1f35] shadow-sm sm:p-6" aria-label="Avaliações">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -278,11 +278,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
       {data && (data.items.length > 0 ? <ul className={mine ? '' : 'mt-1'}>{data.items.map((review) => <ReviewCard key={review.id} review={review} onReport={canReportReviews(user) ? setReportedReview : undefined} />)}</ul> : <p className="mt-5 text-sm text-gray-600">{ratingFilter ? 'Não existem outras avaliações com esta classificação.' : mine ? 'Ainda não existem outras avaliações.' : 'Ainda não existem avaliações.'}</p>)}
         {pagination && pagination.total > 0 && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
           <p className="text-xs text-gray-500">{(page - 1) * 5 + 1}–{Math.min(page * 5, pagination.total)} de {pagination.total} outras avaliações</p>
-          {pagination.last_page > 1 && <nav aria-label="Paginação das avaliações" className="flex max-w-full flex-wrap items-center gap-1">
-            <button type="button" className={`${focusClass} rounded-lg p-2 disabled:opacity-30`} disabled={busy || !current || page <= 1} aria-label="Avaliações anteriores" onClick={() => changePage(page - 1)}><ChevronLeft size={14} aria-hidden="true" /></button>
-            {pageNumbers.map((number, index) => <span key={number} className="contents">{index > 0 && number > pageNumbers[index - 1] + 1 && <span className="px-1 text-xs text-gray-400" aria-hidden="true">…</span>}<button type="button" disabled={busy || !current} aria-label={`Página ${number}`} aria-current={page === number ? 'page' : undefined} className={`${focusClass} h-8 min-w-8 rounded-lg px-2 text-xs ${page === number ? 'bg-[#0d1f35] text-white' : ''}`} onClick={() => changePage(number)}>{number}</button></span>)}
-            <button type="button" className={`${focusClass} rounded-lg p-2 disabled:opacity-30`} disabled={busy || !current || page >= pagination.last_page} aria-label="Avaliações seguintes" onClick={() => changePage(page + 1)}><ChevronRight size={14} aria-hidden="true" /></button>
-          </nav>}
+          <Pagination currentPage={page} lastPage={pagination.last_page} onChange={changePage} disabled={busy || !current} label="Paginação das avaliações" />
         </div>}
       {reportedReview && <ReportReviewDialog review={reportedReview} onClose={() => setReportedReview(null)} onReported={reviewReported} />}
     </section>

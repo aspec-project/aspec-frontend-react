@@ -9,16 +9,16 @@ import {
   Settings,
   LayoutGrid,
   UserCog,
+  IdCard,
 } from "lucide-react";
 import { useAuthStore } from '../../store/authStore'
 import { getAccountMenuSections } from '../../utils/accountMenu'
 import MemberAvatar from '../member/MemberAvatar'
 
-/* O "†" vem do CSS para não entrar no texto (nome acessível) da ligação. */
 const accountMenuIcons = {
   'public-profile': <User size={14} aria-hidden="true" />,
   'edit-profile': <Settings size={14} aria-hidden="true" />,
-  'prayer-cards': <span aria-hidden="true" className="inline-flex w-3.5 justify-center before:content-['†']" />,
+  'prayer-cards': <IdCard size={14} aria-hidden="true" />,
   'admin-dashboard': <LayoutGrid size={14} aria-hidden="true" />,
   account: <UserCog size={14} aria-hidden="true" />,
 }

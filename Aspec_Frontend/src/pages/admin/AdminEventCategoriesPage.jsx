@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Plus, TriangleAlert } from 'lucide-react'
 import EventCategoriesTable from '../../components/admin/eventCategories/EventCategoriesTable'
 import EventCategoryDialog from '../../components/admin/eventCategories/EventCategoryDialog'
@@ -6,21 +6,23 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import FeedbackBanner from '../../components/ui/FeedbackBanner'
 import useAdminEventCategories from '../../hooks/useAdminEventCategories'
 import useEventCategoryDeletion from '../../hooks/useEventCategoryDeletion'
-import { EVENT_CATEGORY_TEXTS, getDeleteCategoryDescription } from '../../utils/eventCategories'
+import { EVENT_CATEGORY_TEXTS, getDeleteCategoryDescription, getFreePaletteColors } from '../../utils/eventCategories'
 
 const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold text-white hover:bg-[#183650] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
  * Página Tipos de Evento do backoffice: lista dos tipos com a cor e o número de eventos, criar e editar num
  * diálogo com seletor de cor próprio, e apagar com confirmação (só tipos sem eventos). Depois de gravar ou
- * apagar aparece a mensagem da API e a lista recarrega; enquanto recarrega, as ações ficam desativadas.
+ * apagar aparece a mensagem da API e a lista recarrega; enquanto recarrega, as ações ficam desativadas. Com as
+ * cores da paleta todas em uso, "Novo tipo" fica desativado e aparece o aviso.
  * A lógica vive nos hooks useAdminEventCategories (lista), useEventCategoryForm (diálogo) e
  * useEventCategoryDeletion (apagar).
  *
  * @returns {JSX.Element}
  */
 export default function AdminEventCategoriesPage() {
-  const { categories, loading, error, retry } = useAdminEventCategories()
+  const { categories, palette, loading, error, retry } = useAdminEventCategories()
+  const exhaustedId = useId()
   const [editing, setEditing] = useState(null)
   const [feedback, setFeedback] = useState(null)
 
@@ -44,6 +46,7 @@ export default function AdminEventCategoriesPage() {
   })
 
   const busy = loading || deletion.pending
+  const paletteExhausted = categories !== null && palette !== null && getFreePaletteColors(palette, categories).length === 0
 
   return (
     <div className="space-y-6">
@@ -55,7 +58,8 @@ export default function AdminEventCategoriesPage() {
         <button
           type="button"
           aria-haspopup="dialog"
-          disabled={busy || categories === null}
+          disabled={busy || categories === null || palette === null || paletteExhausted}
+          aria-describedby={paletteExhausted ? exhaustedId : undefined}
           onClick={() => setEditing({ category: null })}
           className={`${buttonClass} flex items-center gap-2`}
         >
@@ -63,6 +67,12 @@ export default function AdminEventCategoriesPage() {
           {EVENT_CATEGORY_TEXTS.newButton}
         </button>
       </div>
+
+      {paletteExhausted && (
+        <p id={exhaustedId} className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {EVENT_CATEGORY_TEXTS.paletteExhausted}
+        </p>
+      )}
 
       {feedback && (
         <FeedbackBanner type={feedback.type} message={feedback.message} onClose={() => setFeedback(null)} />
@@ -105,6 +115,7 @@ export default function AdminEventCategoriesPage() {
           key={editing.category?.id ?? 'new'}
           category={editing.category}
           categories={categories ?? []}
+          palette={palette ?? []}
           onClose={() => setEditing(null)}
           onSuccess={(message) => {
             setEditing(null)

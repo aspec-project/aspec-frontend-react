@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import EventFilters from "../components/events/EventFilters";
 import EventCard from "../components/events/EventCard";
+import ListPagination from "../components/ui/ListPagination";
 import { getEventsPage, getEventsCapabilities, getEventsErrorMessage } from "../services/events";
 import { getEventCategories, getLocations } from "../services/referenceLists";
 
@@ -49,18 +49,18 @@ function useFilterOptions(loadOptions) {
   };
 }
 
-const paginationButtonClassName = "inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-[#0D1F35] hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315A79] disabled:cursor-not-allowed disabled:opacity-50";
+const PER_PAGE_OPTIONS = [9, 18, 36];
 
 export default function EventsPage() {
-  const [query, setQuery] = useState({ categoryId: "", locationId: "", search: "", page: 1 });
+  const [query, setQuery] = useState({ categoryId: "", locationId: "", search: "", page: 1, perPage: 9 });
   const [draftSearch, setDraftSearch] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState({ key: "", data: null, error: "" });
   const categories = useFilterOptions(getEventCategories);
   const locations = useFilterOptions(getLocations);
   const capabilities = getEventsCapabilities();
-  const { categoryId, locationId, search, page } = query;
-  const queryKey = JSON.stringify([categoryId, locationId, search, page, attempt]);
+  const { categoryId, locationId, search, page, perPage } = query;
+  const queryKey = JSON.stringify([categoryId, locationId, search, page, perPage, attempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -68,7 +68,7 @@ export default function EventsPage() {
     async function load() {
       try {
         if (controller.signal.aborted) return;
-        const data = await getEventsPage({ categoryId, locationId, search, page }, controller.signal);
+        const data = await getEventsPage({ categoryId, locationId, search, page, perPage }, controller.signal);
 
         if (!controller.signal.aborted) {
           setResult({ key: queryKey, data, error: "" });
@@ -84,7 +84,7 @@ export default function EventsPage() {
     queueMicrotask(load);
 
     return () => controller.abort();
-  }, [categoryId, locationId, search, page, queryKey]);
+  }, [categoryId, locationId, search, page, perPage, queryKey]);
 
   /*
    * Uma resposta pertence à consulta que a originou. Durante a mudança de
@@ -177,26 +177,17 @@ export default function EventsPage() {
               </div>
             </>
           )}
-          {data && data.pagination.last_page > 1 && (
-            <nav aria-label="Paginação de eventos" className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <button
-                type="button"
-                disabled={data.pagination.current_page <= 1}
-                onClick={() => changePage(data.pagination.current_page - 1)}
-                className={paginationButtonClassName}
-              >
-                <ChevronLeft size={18} aria-hidden="true" /> Anterior
-              </button>
-              <p className="text-sm text-gray-600">Página {data.pagination.current_page} de {data.pagination.last_page}</p>
-              <button
-                type="button"
-                disabled={data.pagination.current_page >= data.pagination.last_page}
-                onClick={() => changePage(data.pagination.current_page + 1)}
-                className={paginationButtonClassName}
-              >
-                Seguinte <ChevronRight size={18} aria-hidden="true" />
-              </button>
-            </nav>
+          {data && (
+            <ListPagination
+              currentPage={data.pagination.current_page}
+              lastPage={data.pagination.last_page}
+              total={data.pagination.total}
+              perPage={perPage}
+              perPageOptions={PER_PAGE_OPTIONS}
+              onPageChange={changePage}
+              onPerPageChange={(value) => setQuery((current) => ({ ...current, perPage: value, page: 1 }))}
+              label="Paginação de eventos"
+            />
           )}
         </section>
       </div>
