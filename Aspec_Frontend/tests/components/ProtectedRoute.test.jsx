@@ -75,4 +75,34 @@ describe('Destino após login válido', () => {
       useAuthStore.getState().clearSession()
     }
   })
+
+  it('devolve o membro ao evento indicado pelo link do email', async () => {
+    const loginOriginal = useAuthStore.getState().login
+    const login = vi.fn(async () => {
+      useAuthStore.setState({ user: member, status: 'authenticated' })
+      return { success: true }
+    })
+    useAuthStore.setState({ login, user: null, status: 'idle' })
+    const wrapper = ({ children }) => <MemoryRouter initialEntries={['/login?redirect=%2Feventos%2Fevento-de-teste']}>
+      {children}
+      <Routes>
+        <Route path="/login" element={<p>Login</p>} />
+        <Route path="/eventos/evento-de-teste" element={<p>Evento do email</p>} />
+      </Routes>
+    </MemoryRouter>
+
+    try {
+      const { result } = renderHook(() => useLoginForm(), { wrapper })
+      act(() => {
+        result.current.setEmail('teste@example.test')
+        result.current.setPassword('password-de-teste')
+      })
+      await act(async () => result.current.handleLogin())
+
+      expect(screen.getByText('Evento do email')).toBeInTheDocument()
+    } finally {
+      useAuthStore.setState({ login: loginOriginal })
+      useAuthStore.getState().clearSession()
+    }
+  })
 })
