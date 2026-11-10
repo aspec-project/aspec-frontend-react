@@ -28,6 +28,14 @@ const WEEKEND_SHORT = ['SÁB', 'DOM']
 const footerButtonClass = 'rounded-md px-2 py-1 text-sm font-semibold text-[#0d1f35] hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315a79] disabled:cursor-not-allowed disabled:text-gray-300 disabled:hover:bg-transparent'
 
 /**
+ * Classes de posição horizontal do calendário para cada valor de `align`.
+ */
+const POPOVER_ALIGN_CLASS = {
+  start: 'left-0',
+  end: 'left-0 sm:left-auto sm:right-0',
+}
+
+/**
  * Mês e dia focado quando o calendário abre: o do valor; sem valor, hoje se estiver dentro dos limites;
  * senão o mês do mínimo (ou do máximo) com o primeiro dia permitido desse mês.
  *
@@ -68,12 +76,15 @@ function getInitialFocus(value, min, max) {
  *   describedBy?: string,
  *   name?: string,
  *   labelId?: string,
+ *   align?: 'start' | 'end',
  * }} props Num formulário: `name` vai para o botão e, com `labelId`, a label é de fora (não desenha a sua) e o
- * nome acessível continua a ser "label + data" (`aria-labelledby` com a label de fora e o valor).
+ * nome acessível continua a ser "label + data" (`aria-labelledby` com a label de fora e o valor). `align`: lado do
+ * campo pelo qual o calendário se alinha: `start` (esquerda, por omissão) ou `end` (direita, a partir de 640 px;
+ * abaixo disso abre à esquerda porque os campos ocupam a largura toda).
  * @param {import('react').Ref<HTMLButtonElement>} [ref] Permite pôr o foco no botão (ex.: depois de limpar os filtros).
  * @returns {JSX.Element}
  */
-export default function DatePicker({ id, label, value, onChange, min, max, placeholder = '', invalid = false, describedBy, name, labelId, ref }) {
+export default function DatePicker({ id, label, value, onChange, min, max, placeholder = '', invalid = false, describedBy, name, labelId, align = 'start', ref }) {
   const [open, setOpen] = useState(false)
   const [focused, setFocused] = useState('')
   const containerRef = useRef(null)
@@ -240,7 +251,7 @@ export default function DatePicker({ id, label, value, onChange, min, max, place
           aria-modal="true"
           aria-label={dialogLabel}
           onKeyDown={handlePopoverKeyDown}
-          className="absolute left-0 z-30 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-lg"
+          className={`absolute ${POPOVER_ALIGN_CLASS[align] ?? POPOVER_ALIGN_CLASS.start} z-30 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-lg`}
         >
           <div className="flex items-center justify-between gap-2">
             <button
