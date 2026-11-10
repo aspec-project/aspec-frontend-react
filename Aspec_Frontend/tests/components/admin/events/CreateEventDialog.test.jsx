@@ -959,6 +959,22 @@ describe('CreateEventDialog', () => {
     })
   })
 
+  it('em Pontual os calendários da Data e da Data limite de inscrição abrem à esquerda', async () => {
+    const user = userEvent.setup({ delay: null })
+    show()
+
+    await user.click(field.date())
+    const dateCalendar = screen.getByRole('dialog', { name: 'Escolher data' })
+    expect(dateCalendar).toHaveClass('left-0')
+    expect(dateCalendar).not.toHaveClass('sm:right-0')
+    await user.keyboard('{Escape}')
+
+    await user.click(field.deadline())
+    const deadlineCalendar = screen.getByRole('dialog', { name: 'Escolher data limite de inscrição' })
+    expect(deadlineCalendar).toHaveClass('left-0')
+    expect(deadlineCalendar).not.toHaveClass('sm:right-0')
+  })
+
   describe('mapa da Google', () => {
     beforeEach(() => {
       vi.stubEnv('VITE_GOOGLE_MAPS_EMBED_KEY', 'chave-falsa-418')
@@ -1673,6 +1689,27 @@ describe('CreateEventDialog — série recorrente', () => {
       expect(series.firstDate()).toHaveAttribute('aria-invalid', 'true')
       await waitFor(() => expect(series.frequency()).toHaveFocus())
     }, 15000)
+
+    it('em Recorrente o calendário do Fim abre à direita do campo e o do Início à esquerda', async () => {
+      const user = userEvent.setup({ delay: null })
+      const { onClose } = show()
+      await chooseRecurring(user)
+
+      await user.click(series.lastDate())
+      const endCalendar = screen.getByRole('dialog', { name: 'Escolher fim' })
+      expect(recurrenceBox()).toContainElement(endCalendar)
+      expect(endCalendar).toHaveClass('sm:left-auto', 'sm:right-0')
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Escolher fim' })).not.toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Criar Novo Evento' })).toBeInTheDocument()
+      expect(onClose).not.toHaveBeenCalled()
+
+      await user.click(series.firstDate())
+      const startCalendar = screen.getByRole('dialog', { name: 'Escolher início' })
+      expect(startCalendar).toHaveClass('left-0')
+      expect(startCalendar).not.toHaveClass('sm:right-0')
+    })
   })
 
   describe('cartões de oração', () => {

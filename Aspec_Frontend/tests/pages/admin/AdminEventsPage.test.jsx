@@ -557,6 +557,24 @@ describe('Gestão de Eventos', () => {
       expect(edit).toHaveClass('bg-[#f5efe3]')
       expect(edit).toHaveClass('text-[#8a7043]')
     })
+
+    it('os calendários dos filtros Data de e Data até abrem à esquerda', async () => {
+      useFakeToday()
+      const user = userEvent.setup({ delay: null })
+      show()
+      await screen.findByRole('table')
+
+      await user.click(dateButton('Data de'))
+      const fromCalendar = screen.getByRole('dialog', { name: 'Escolher data de' })
+      expect(fromCalendar).toHaveClass('left-0')
+      expect(fromCalendar).not.toHaveClass('sm:right-0')
+      await user.keyboard('{Escape}')
+
+      await user.click(dateButton('Data até'))
+      const toCalendar = screen.getByRole('dialog', { name: 'Escolher data até' })
+      expect(toCalendar).toHaveClass('left-0')
+      expect(toCalendar).not.toHaveClass('sm:right-0')
+    })
   })
 
   it('não há botão de ver inscritos em nenhum separador e as ações de um agendado são só exportar, editar e apagar', async () => {
