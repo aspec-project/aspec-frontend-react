@@ -302,12 +302,12 @@ describe('Perfil público de membro', () => {
     api.defaults.adapter = adapter
     const view = show('invalido')
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
-    expect(document.title).toBe('Perfil não encontrado | ASPEC')
+    await waitFor(() => expect(document.title).toBe('Perfil não encontrado | ASPEC'))
     expect(adapter).not.toHaveBeenCalled()
     view.unmount()
     show()
     await screen.findByRole('heading', { name: 'Perfil não encontrado' })
-    expect(document.title).toBe('Perfil não encontrado | ASPEC')
+    await waitFor(() => expect(document.title).toBe('Perfil não encontrado | ASPEC'))
     expect(screen.queryByText(/pendente|inativ/i)).not.toBeInTheDocument()
   })
 
