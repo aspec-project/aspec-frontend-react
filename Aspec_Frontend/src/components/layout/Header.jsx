@@ -298,7 +298,7 @@ export default function Header() {
                 <Link
                   to="/registo"
                   onClick={() => setMobileOpen(false)}
-                  className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                  className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-[#c9b87a] hover:text-white hover:bg-white/5"
                 >
                   Candidatar-me
                 </Link>
@@ -316,7 +316,7 @@ export default function Header() {
                     key={item.id}
                     to={item.to}
                     onClick={() => setMobileOpen(false)}
-                    className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-primary hover:bg-primary/10"
+                    className="block w-full text-left px-3 py-2 rounded text-sm font-medium text-[#c9b87a] hover:text-white hover:bg-white/5"
                   >
                     {item.label}
                   </Link>
@@ -326,7 +326,7 @@ export default function Header() {
                   type="button"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-[#fb7185] hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <LogOut size={14} />
                   {isLoggingOut ? 'A terminar sessão...' : 'Terminar sessão'}
