@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError } from "axios";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EventsPage from "../../src/pages/EventsPage.jsx";
@@ -90,8 +90,18 @@ function pedidosEventos(adapter) {
   return adapter.mock.calls.map(([config]) => config).filter((config) => config.url === "/events");
 }
 
-function mostrarAgenda() {
-  return render(<MemoryRouter><EventsPage /></MemoryRouter>);
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="agenda-location">{`${location.pathname}${location.search}`}</output>;
+}
+
+function mostrarAgenda(initialEntry = "/eventos") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <EventsPage />
+      <LocationProbe />
+    </MemoryRouter>
+  );
 }
 
 async function esperarPagina(page) {
@@ -198,6 +208,40 @@ describe("EventsPage", () => {
     await user.click(screen.getByRole("button", { name: "Página anterior" }));
     await esperarPagina(2);
     expect(pedidosEventos(adapter).map((config) => config.params.page)).toEqual([1, 1, 1, 2, 3, 2]);
+  });
+
+  it("repõe filtros e página a partir do URL depois de recarregar a agenda", async () => {
+    vi.stubEnv("VITE_EVENTS_SEARCH_ENABLED", "true");
+    const adapter = instalarAdapter((config) => respostaPagina(
+      [criarEvento(`pagina-${config.params.page}`, `Evento da página ${config.params.page}`)],
+      config.params.page,
+      { per_page: config.params.per_page, total: 36, last_page: 2 }
+    ));
+
+    mostrarAgenda("/eventos?category_id=categoria-a&location_id=distrito-b&search=rede&page=2&per_page=18");
+
+    await esperarPagina(2);
+    expect(pedidosEventos(adapter)).toHaveLength(1);
+    expect(pedidosEventos(adapter)[0].params).toEqual({
+      category_id: "categoria-a",
+      location_id: "distrito-b",
+      search: "rede",
+      page: 2,
+      per_page: 18,
+    });
+    expect(screen.getByRole("searchbox", { name: "Pesquisar eventos" })).toHaveValue("rede");
+    expect(screen.getByLabelText("Categoria")).toHaveTextContent("Conferência");
+    expect(screen.getByLabelText("Distrito")).toHaveTextContent("Porto");
+    expect(screen.getByTestId("agenda-location")).toHaveTextContent("/eventos?category_id=categoria-a&location_id=distrito-b&search=rede&page=2&per_page=18");
+  });
+
+  it("normaliza parâmetros de paginação inválidos sem enviar valores inválidos para a API", async () => {
+    const adapter = instalarAdapter();
+
+    mostrarAgenda("/eventos?page=abc&per_page=1");
+
+    await esperarPagina(1);
+    expect(pedidosEventos(adapter)[0].params).toEqual({ page: 1, per_page: 9 });
   });
 
   it("alterar ou limpar um filtro regressa à página 1 e preserva o outro", async () => {
