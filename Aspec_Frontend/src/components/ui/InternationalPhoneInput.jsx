@@ -109,7 +109,7 @@ export default function InternationalPhoneInput({
         maxLength={20}
         autoComplete={autoComplete}
         placeholder={placeholder}
-        className={className}
+        className={`${className ?? ''} min-w-0 flex-1`}
         style={style}
       />
     </div>

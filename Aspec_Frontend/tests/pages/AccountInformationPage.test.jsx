@@ -60,7 +60,7 @@ describe('Informações de conta', () => {
     show(technicalAdmin, null)
     expect(screen.getByRole('heading', { level: 1, name: 'Informações de conta' })).toBeInTheDocument()
     expect(screen.getByText('tecnico@example.pt')).toBeInTheDocument()
-    expect(screen.getByText('Não indicado')).toBeInTheDocument()
+    expect(screen.getAllByText('Não indicado')).toHaveLength(2)
     expect(screen.getByText(noProfileNote)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Alterar dados' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alterar palavra-passe' })).toBeInTheDocument()
@@ -71,6 +71,7 @@ describe('Informações de conta', () => {
 
   it('o membro com perfil vê os seus dados e pode alterá-los', async () => {
     show(member, { ...member.member_profile, email: 'maria@example.pt', phone: '+351912345678' })
+    expect(screen.getByText('Maria Santos')).toBeInTheDocument()
     expect(screen.getByText('maria@example.pt')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alterar dados' })).toBeInTheDocument()
     expect(screen.queryByText(noProfileNote)).not.toBeInTheDocument()
