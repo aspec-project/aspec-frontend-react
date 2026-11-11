@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import EventFilters from "../components/events/EventFilters";
 import EventCard from "../components/events/EventCard";
 import ListPagination from "../components/ui/ListPagination";
@@ -50,17 +51,66 @@ function useFilterOptions(loadOptions) {
 }
 
 const PER_PAGE_OPTIONS = [9, 18, 36];
+const DEFAULT_QUERY = {
+  categoryId: "",
+  locationId: "",
+  search: "",
+  draftSearch: "",
+  page: 1,
+  perPage: 9,
+};
+
+function parsePositiveInteger(value, fallback) {
+  if (!/^\d+$/.test(value ?? "")) return fallback;
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function readAgendaQuery(searchParams) {
+  const perPageCandidate = parsePositiveInteger(searchParams.get("per_page"), DEFAULT_QUERY.perPage);
+  const search = searchParams.get("search") ?? "";
+
+  return {
+    categoryId: searchParams.get("category_id") ?? "",
+    locationId: searchParams.get("location_id") ?? "",
+    search,
+    draftSearch: searchParams.has("draft_search") ? searchParams.get("draft_search") ?? "" : search,
+    page: parsePositiveInteger(searchParams.get("page"), DEFAULT_QUERY.page),
+    perPage: PER_PAGE_OPTIONS.includes(perPageCandidate) ? perPageCandidate : DEFAULT_QUERY.perPage,
+  };
+}
+
+function agendaSearchParams(query) {
+  const params = new URLSearchParams();
+
+  if (query.categoryId) params.set("category_id", query.categoryId);
+  if (query.locationId) params.set("location_id", query.locationId);
+  if (query.search) params.set("search", query.search);
+  if (query.draftSearch !== query.search) params.set("draft_search", query.draftSearch);
+  if (query.page !== DEFAULT_QUERY.page) params.set("page", String(query.page));
+  if (query.perPage !== DEFAULT_QUERY.perPage) params.set("per_page", String(query.perPage));
+
+  return params;
+}
 
 export default function EventsPage() {
-  const [query, setQuery] = useState({ categoryId: "", locationId: "", search: "", page: 1, perPage: 9 });
-  const [draftSearch, setDraftSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = readAgendaQuery(searchParams);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState({ key: "", data: null, error: "" });
   const categories = useFilterOptions(getEventCategories);
   const locations = useFilterOptions(getLocations);
   const capabilities = getEventsCapabilities();
-  const { categoryId, locationId, search, page, perPage } = query;
+  const { categoryId, locationId, search, draftSearch, page, perPage } = query;
   const queryKey = JSON.stringify([categoryId, locationId, search, page, perPage, attempt]);
+
+  function updateQuery(changes, options) {
+    setSearchParams((currentParams) => {
+      const currentQuery = readAgendaQuery(currentParams);
+      return agendaSearchParams({ ...currentQuery, ...changes });
+    }, options);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -97,7 +147,7 @@ export default function EventsPage() {
   function changeFilter(field, value, options) {
     if (value && !options.some((option) => option.id === value)) return;
 
-    setQuery((current) => ({ ...current, [field]: value, page: 1 }));
+    updateQuery({ [field]: value, page: 1 });
   }
 
   function changePage(nextPage) {
@@ -108,7 +158,7 @@ export default function EventsPage() {
       nextPage > data.pagination.last_page
     ) return;
 
-    setQuery((current) => ({ ...current, page: nextPage }));
+    updateQuery({ page: nextPage });
   }
 
   return (
@@ -131,20 +181,20 @@ export default function EventsPage() {
           onLocationChange={(value) => changeFilter("locationId", value, locations.items)}
           onSearchChange={(value) => {
             if (!capabilities.search) return;
-            setDraftSearch(value);
+            updateQuery({ draftSearch: value }, { replace: true });
             if (value === "") {
-              setQuery((current) => ({ ...current, search: "", page: 1 }));
+              updateQuery({ search: "", draftSearch: "", page: 1 }, { replace: true });
               setAttempt((current) => current + 1);
             }
           }}
           onSearch={(event) => {
             event.preventDefault();
-            setQuery((current) => ({ ...current, search: capabilities.search ? draftSearch.trim() : "", page: 1 }));
+            const submittedSearch = capabilities.search ? draftSearch.trim() : "";
+            updateQuery({ search: submittedSearch, draftSearch: submittedSearch, page: 1 });
             setAttempt((current) => current + 1);
           }}
           onClear={() => {
-            setDraftSearch("");
-            setQuery({ categoryId: "", locationId: "", search: "", page: 1 });
+            updateQuery(DEFAULT_QUERY);
             setAttempt((current) => current + 1);
           }}
         />
@@ -185,7 +235,7 @@ export default function EventsPage() {
               perPage={perPage}
               perPageOptions={PER_PAGE_OPTIONS}
               onPageChange={changePage}
-              onPerPageChange={(value) => setQuery((current) => ({ ...current, perPage: value, page: 1 }))}
+              onPerPageChange={(value) => updateQuery({ perPage: value, page: 1 })}
               label="Paginação de eventos"
             />
           )}
