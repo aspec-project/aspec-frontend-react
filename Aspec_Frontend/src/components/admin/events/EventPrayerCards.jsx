@@ -39,7 +39,6 @@ export default function EventPrayerCards({ values, errors, onToggle, onVerseChan
   return (
     <div role="group" aria-labelledby={titleId} className="space-y-4 rounded-xl border border-[#e7e2d6] bg-[#f5f3ee] p-5">
       <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="text-lg leading-5 text-[#8a7043]">†</span>
         <div className="min-w-0 flex-1 space-y-1">
           <h3 id={titleId} className="text-sm font-semibold text-[#0d1f35]">{PRAYER_CARD_TEXTS.title}</h3>
           <p id={explanationId} className="text-xs text-gray-600">{PRAYER_CARD_TEXTS.explanation}</p>

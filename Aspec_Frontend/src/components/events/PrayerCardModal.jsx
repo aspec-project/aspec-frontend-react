@@ -2,10 +2,6 @@ import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
-export function PrayerCross({ size = 16, className = '' }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}><path d="M12 2v20" /><path d="M7 8h10" /></svg>
-}
-
 export function PrayerVerse({ verse, compact = false }) {
   if (!verse) return null
   return <figure className={`${compact ? 'rounded-lg' : 'rounded-xl'} border-l-[3px] border-[#8a7043] bg-[#f5f3ee] p-4`}><figcaption className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a7043]">Versículo da semana</figcaption><blockquote className="mt-1.5 text-[15px] italic leading-relaxed text-[#0d1f35]">{verse}</blockquote></figure>
@@ -60,7 +56,7 @@ export default function PrayerCardModal({ title, description, children, footer, 
     <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
       <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} aria-busy={busy} className={`relative flex h-[100dvh] w-full flex-col overflow-hidden bg-white text-[#0d1f35] shadow-lg outline-none sm:h-auto sm:max-h-[92vh] sm:rounded-2xl sm:border sm:border-black/10 ${wide ? 'sm:max-w-xl' : 'sm:max-w-lg'}`}>
         <header className="flex shrink-0 flex-col gap-2 border-b border-gray-100 px-4 pb-3 pr-14 pt-4 text-left sm:px-6 sm:pr-14">
-          <h2 id={titleId} className="flex items-center gap-2 text-lg leading-none font-semibold"><PrayerCross className="shrink-0 text-[#8a7043]" />{title}</h2>
+          <h2 id={titleId} className="flex items-center gap-2 text-lg leading-none font-semibold">{title}</h2>
           <p id={descriptionId} className="text-xs text-gray-500">{description}</p>
         </header>
         <button type="button" onClick={onClose} disabled={busy} aria-label="Fechar" className="absolute right-3 top-3 rounded-md p-2.5 text-gray-600 opacity-70 hover:opacity-100 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[#8a7043]"><X size={16} aria-hidden="true" /></button>
