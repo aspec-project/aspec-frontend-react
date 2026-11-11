@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Briefcase, Church, Clock, Globe, Image, Link2, Mail, Phone, Star, UserRound } from 'lucide-react'
+import { Briefcase, Church, Clock, Globe, Image, Link2, Mail, MapPin, Phone, Star, UserRound } from 'lucide-react'
 import UserReviewCounts from './UserReviewCounts'
 import { safeMemberUrl } from '../../../services/members'
 import {
@@ -83,6 +83,29 @@ function ExternalLink({ href }) {
 }
 
 /**
+ * Morada numa linha (rua, código postal e localidade), sem as partes vazias.
+ *
+ * @param {{address?: string|null, postal_code?: string|null, city?: string|null}} profile
+ * @returns {string|null}
+ */
+function formatAddress(profile) {
+  const locality = [profile.postal_code, profile.city].filter((part) => !isEmpty(part)).join(' ')
+  const parts = [profile.address, locality].filter((part) => !isEmpty(part))
+
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
+/**
+ * Indica se a conta ainda não é de membro (candidatura pendente ou aprovada por ativar).
+ *
+ * @param {{account_status?: {name?: string}}} user
+ * @returns {boolean}
+ */
+function isApplicant(user) {
+  return ['Pending', 'Approved'].includes(user?.account_status?.name)
+}
+
+/**
  * Contactos comerciais, website e redes sociais, uma linha com ícone por item. Nunca usa os
  * contactos pessoais da conta (o perfil da API também os repete em email/phone).
  *
@@ -94,6 +117,7 @@ function ContactList({ profile }) {
   const rows = [
     { key: 'email', Icon: Mail, label: 'Email profissional', value: profile.commercial_email },
     { key: 'phone', Icon: Phone, label: 'Telefone da empresa', value: profile.commercial_phone },
+    { key: 'address', Icon: MapPin, label: 'Morada', value: formatAddress(profile) },
     { key: 'website', Icon: Globe, label: 'Website', value: profile.website_url ? <ExternalLink href={profile.website_url} /> : null },
     ...socialLinks.map((link) => ({ key: link.platform_id, Icon: Link2, label: link.platform, value: <ExternalLink href={link.url} /> })),
   ]
@@ -142,7 +166,7 @@ export default function UserDetail({ user, busy = false }) {
           ['Perfil', getRoleLabel(user)],
           ['Núcleo', profile?.location?.name],
           ['Subscrição', getStatusBadge(user).label],
-          ['Membro desde', formatDate(user.created_at)],
+          [isApplicant(user) ? 'Candidatura em' : 'Membro desde', formatDate(user.created_at)],
         ]}
       />
     </DetailCard>

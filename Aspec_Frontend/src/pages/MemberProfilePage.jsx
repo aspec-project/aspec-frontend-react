@@ -294,8 +294,8 @@ export default function MemberProfilePage() {
       if (!activeDraft.address.trim()) errors.address = 'O campo morada é obrigatório.'
       if (!activeDraft.postalCode.trim()) {
         errors.postal_code = 'O código postal é obrigatório.'
-      } else if (!/^\d{4}-?\d{3}$/.test(activeDraft.postalCode.trim())) {
-        errors.postal_code = 'Use o formato 0000-000.'
+      } else if (!/^[1-9]\d{3}-?\d{3}$/.test(activeDraft.postalCode.trim())) {
+        errors.postal_code = 'Use o formato 1234-567.'
       }
       if (!activeDraft.city.trim()) errors.city = 'A localidade é obrigatória.'
     }
@@ -471,14 +471,14 @@ export default function MemberProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           {editingSection === 'dados-perfil' ? (
-            <form onSubmit={(event) => void saveSection(event, 'dados-perfil')}>
+            <form noValidate onSubmit={(event) => void saveSection(event, 'dados-perfil')}>
               <h2 className="text-xl font-semibold text-[#0d1f35]">Dados do Perfil</h2>
               {isPreparing ? <p className="mt-5 text-sm text-slate-600">A carregar opções do formulário...</p> : (
                 <div className="mt-6 grid gap-6 md:grid-cols-2">
                   <div><label htmlFor="businessName" className="text-sm font-semibold text-[#0d1f35]">Nome do Negócio</label><input id="businessName" name="businessName" type="text" value={activeDraft.businessName} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.business_name} /></div>
                   <div><label htmlFor="sectorId" className="text-sm font-semibold text-[#0d1f35]">Setor de Atividade</label><select id="sectorId" name="sectorId" value={activeDraft.sectorId} onChange={updateDraft} className={inputClassName}><option value="">Selecionar setor...</option>{sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}</select><FieldError message={fieldErrors.sector_id} /></div>
                   <div className="md:col-span-2"><label htmlFor="address" className="text-sm font-semibold text-[#0d1f35]">Rua</label><input id="address" name="address" type="text" value={activeDraft.address} onChange={updateDraft} autoComplete="street-address" className={inputClassName} /><FieldError message={fieldErrors.address} /></div>
-                  <div><label htmlFor="postalCode" className="text-sm font-semibold text-[#0d1f35]">Código postal</label><input id="postalCode" name="postalCode" type="text" value={activeDraft.postalCode} onChange={updateDraft} autoComplete="postal-code" inputMode="numeric" placeholder="0000-000" className={inputClassName} /><FieldError message={fieldErrors.postal_code} /></div>
+                  <div><label htmlFor="postalCode" className="text-sm font-semibold text-[#0d1f35]">Código postal</label><input id="postalCode" name="postalCode" type="text" value={activeDraft.postalCode} onChange={updateDraft} autoComplete="postal-code" inputMode="numeric" placeholder="1234-567" className={inputClassName} /><FieldError message={fieldErrors.postal_code} /></div>
                   <div><label htmlFor="city" className="text-sm font-semibold text-[#0d1f35]">Localidade</label><input id="city" name="city" type="text" value={activeDraft.city} onChange={updateDraft} autoComplete="address-level2" className={inputClassName} /><FieldError message={fieldErrors.city} /></div>
                 </div>
               )}
@@ -496,7 +496,7 @@ export default function MemberProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           {editingSection === 'descricao' ? (
-            <form onSubmit={(event) => void saveSection(event, 'descricao')}>
+            <form noValidate onSubmit={(event) => void saveSection(event, 'descricao')}>
               <label htmlFor="description" className="text-xl font-semibold text-[#0d1f35]">Descrição Institucional</label>
               <textarea id="description" name="description" rows="6" value={activeDraft.description} onChange={updateDraft} placeholder="Apresente a sua empresa, atividade e principais serviços." className={`${inputClassName} resize-y`} />
               <FieldError message={fieldErrors.description} />
@@ -514,7 +514,7 @@ export default function MemberProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           {editingSection === 'contactos-comerciais' ? (
-            <form onSubmit={(event) => void saveSection(event, 'contactos-comerciais')}>
+            <form noValidate onSubmit={(event) => void saveSection(event, 'contactos-comerciais')}>
               <h2 className="text-xl font-semibold text-[#0d1f35]">Contactos Comerciais</h2>
               <p className="mt-2 text-sm text-slate-600">Estes dados são apresentados no seu perfil comercial.</p>
               <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -542,7 +542,7 @@ export default function MemberProfilePage() {
 
       <aside className="space-y-6">
         {editingSection === 'horario' ? (
-          <form onSubmit={(event) => void saveSection(event, 'horario')}>
+          <form noValidate onSubmit={(event) => void saveSection(event, 'horario')}>
             {isPreparing ? (
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-sm text-slate-600">A carregar editor de horários...</p><InlineFeedback status={editStatus} /><CardActions isSaving onCancel={cancelEditing} /></section>
             ) : (
@@ -558,7 +558,7 @@ export default function MemberProfilePage() {
         )}
 
         {editingSection === 'redes-sociais' ? (
-          <form onSubmit={(event) => void saveSection(event, 'redes-sociais')}>
+          <form noValidate onSubmit={(event) => void saveSection(event, 'redes-sociais')}>
             {isPreparing ? (
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><p className="text-sm text-slate-600">A carregar redes sociais...</p><InlineFeedback status={editStatus} /><CardActions isSaving onCancel={cancelEditing} /></section>
             ) : (
@@ -580,7 +580,7 @@ export default function MemberProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           {editingSection === 'congregacao' ? (
-            <form onSubmit={(event) => void saveSection(event, 'congregacao')}>
+            <form noValidate onSubmit={(event) => void saveSection(event, 'congregacao')}>
               <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0d1f35]"><Church size={20} className="text-[#9b7b45]" aria-hidden="true" />Congregação</h2>
               <div className="mt-6 grid gap-6"><div><label htmlFor="congregation" className="text-sm font-semibold text-[#0d1f35]">Congregação</label><input id="congregation" name="congregation" type="text" value={activeDraft.congregation} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.congregation} /></div><div><label htmlFor="roleInCongregation" className="text-sm font-semibold text-[#0d1f35]">Cargo na congregação</label><input id="roleInCongregation" name="roleInCongregation" type="text" value={activeDraft.roleInCongregation} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.role_in_congregation} /></div></div>
               <InlineFeedback status={editStatus} />

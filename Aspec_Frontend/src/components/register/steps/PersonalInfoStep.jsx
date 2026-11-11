@@ -18,10 +18,11 @@ export default function PersonalInfoStep({ bind, errors, inputCls }) {
       <Field label="Email *" error={errors.email}>
         <input type="email" {...bind("email")} maxLength={255} placeholder="joao.silva@email.pt" className={inputCls} />
       </Field>
-      <Field label="Telefone pessoal *" error={errors.phone}>
+      <Field label="Telefone pessoal *">
         <InternationalPhoneInput
           id="phone"
           {...bind("phone")}
+          error={errors.phone}
           placeholder="912 345 678"
           className={inputCls}
         />

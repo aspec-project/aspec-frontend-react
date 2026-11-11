@@ -25,7 +25,7 @@ export default function LocationStep({ bind, errors, inputCls, locations, listsL
             maxLength={8}
             inputMode="numeric"
             autoComplete="postal-code"
-            placeholder="0000-000"
+            placeholder="1234-567"
             className={inputCls}
           />
         </Field>

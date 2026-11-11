@@ -4,6 +4,9 @@ import { formatCount, getBusinessName, getDashboardStatCards } from '../../src/u
 function stats({
   activeTotal = 320,
   newThisMonth = 12,
+  trial = 300,
+  active = 20,
+  admins = 0,
   pendingTotal = 3,
   eventsThisMonth = 8,
   eventsThisWeek = 2,
@@ -16,7 +19,7 @@ function stats({
   eventsWithRegistrations = 2,
 } = {}) {
   return {
-    active_members: { total: activeTotal, new_this_month: newThisMonth },
+    active_members: { total: activeTotal, new_this_month: newThisMonth, trial, active, admins },
     pending_applications: { total: pendingTotal },
     events: { this_month: eventsThisMonth, this_week: eventsThisWeek },
     reviews: { flagged, new_this_week: newThisWeek },
@@ -40,9 +43,10 @@ describe('getDashboardStatCards', () => {
         key: 'members',
         label: 'Membros Ativos',
         value: '320',
-        hint: '+12 este mês',
+        delta: '+12 este mês',
+        hint: '300 em trial · 20 ativos',
         to: '/admin/utilizadores?estado=active',
-        linkLabel: 'Membros Ativos: 320 (+12 este mês). Ver utilizadores ativos',
+        linkLabel: 'Membros Ativos: 320, +12 este mês (300 em trial, 20 ativos). Ver utilizadores ativos',
       },
       {
         key: 'pending',
@@ -91,6 +95,9 @@ describe('getDashboardStatCards', () => {
     const zeros = getDashboardStatCards(stats({
       activeTotal: 0,
       newThisMonth: 0,
+      trial: 0,
+      active: 0,
+      admins: 0,
       pendingTotal: 0,
       eventsThisMonth: 0,
       eventsThisWeek: 0,
@@ -105,7 +112,7 @@ describe('getDashboardStatCards', () => {
 
     expect(zeros.map((card) => card.value)).toEqual(['0', '0', '0', '0', '0', '0'])
     expect(zeros.map((card) => card.hint)).toEqual([
-      '+0 este mês',
+      'Nenhum membro ativo',
       'Nenhuma por analisar',
       '0 esta semana',
       '0 novas esta semana',
@@ -116,6 +123,48 @@ describe('getDashboardStatCards', () => {
     expect(hintOf(getDashboardStatCards(stats({ pendingTotal: 1 })), 'pending')).toBe('Requer ação')
     expect(hintOf(getDashboardStatCards(stats({ newThisWeek: 1 })), 'reviews')).toBe('1 nova esta semana')
     expect(hintOf(getDashboardStatCards(stats({ newThisWeek: 2 })), 'reviews')).toBe('2 novas esta semana')
+  })
+
+  it('cartão Membros Ativos mostra a divisão, o +N ao lado do número e inclui administradores', () => {
+    const cards = getDashboardStatCards(stats({ activeTotal: 15, newThisMonth: 3, trial: 10, active: 5, admins: 2 }))
+
+    expect(cardOf(cards, 'members')).toEqual({
+      key: 'members',
+      label: 'Membros Ativos',
+      value: '15',
+      delta: '+3 este mês',
+      hint: '10 em trial · 5 ativos (inclui administradores)',
+      to: '/admin/utilizadores?estado=active',
+      linkLabel: 'Membros Ativos: 15, +3 este mês (10 em trial, 5 ativos (inclui administradores)). Ver utilizadores ativos',
+    })
+  })
+
+  it('sem admins não diz que inclui administradores e usa o singular', () => {
+    const members = (activeTotal, trial, active, admins) =>
+      cardOf(getDashboardStatCards(stats({ activeTotal, trial, active, admins })), 'members')
+
+    const plural = members(15, 10, 5, 0)
+    const singular = members(2, 1, 1, 0)
+
+    expect(plural.hint).toBe('10 em trial · 5 ativos')
+    expect(singular.hint).toBe('1 em trial · 1 ativo')
+    expect(members(1, 0, 1, 1).hint).toBe('0 em trial · 1 ativo (inclui administradores)')
+    expect(plural.hint).not.toContain('administradores')
+    expect(singular.hint).not.toContain('administradores')
+  })
+
+  it('sem membros ativos mostra Nenhum membro ativo e +0 este mês', () => {
+    const members = cardOf(getDashboardStatCards(stats({
+      activeTotal: 0,
+      newThisMonth: 0,
+      trial: 0,
+      active: 0,
+      admins: 0,
+    })), 'members')
+
+    expect(members.hint).toBe('Nenhum membro ativo')
+    expect(members.delta).toBe('+0 este mês')
+    expect(members.linkLabel).toBe('Membros Ativos: 0, +0 este mês (Nenhum membro ativo). Ver utilizadores ativos')
   })
 
   it('mostra as quotas em atraso com as duas partes, os plurais e Nenhuma em atraso', () => {
@@ -180,7 +229,10 @@ describe('formatCount e getBusinessName', () => {
 
     const members = getDashboardStatCards(stats({ activeTotal: 12345, newThisMonth: 12345 }))[0]
     expect(members.value).toBe(formatCount(12345))
-    expect(members.hint).toBe(`+${formatCount(12345)} este mês`)
+    expect(members.delta).toBe(`+${formatCount(12345)} este mês`)
+
+    const withTrial = getDashboardStatCards(stats({ activeTotal: 12365, trial: 12345, active: 20 }))[0]
+    expect(withTrial.hint.startsWith(`${formatCount(12345)} em trial`)).toBe(true)
   })
 
   it('devolve o nome do negócio ou Empresa desconhecida', () => {

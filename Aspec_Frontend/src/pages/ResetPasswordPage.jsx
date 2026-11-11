@@ -90,14 +90,14 @@ export default function ResetPasswordPage() {
     const errors = {}
 
     if (!password) {
-      errors.password = 'Indique a nova password.'
+      errors.password = 'Indique a nova palavra-passe.'
     } else if (!isPasswordValid(password)) {
       errors.password =
-        'A password deve ter 8 caracteres, maiúscula, minúscula, número e símbolo.'
+        'A palavra-passe deve ter 8 caracteres, maiúscula, minúscula, número e símbolo.'
     }
 
     if (password !== passwordConfirmation) {
-      errors.password_confirmation = 'As passwords não coincidem.'
+      errors.password_confirmation = 'As palavras-passe não coincidem.'
     }
 
     return errors
@@ -135,7 +135,7 @@ export default function ResetPasswordPage() {
         type: 'success',
         message:
           response.message ??
-          'Password redefinida com sucesso. Inicie sessão novamente.',
+          'Palavra-passe redefinida com sucesso. Inicie sessão novamente.',
       })
     } catch (error) {
 
@@ -146,7 +146,7 @@ export default function ResetPasswordPage() {
         type: 'error',
         message:
           normalizedError.message ??
-          'Não foi possível redefinir a password. Tente novamente.',
+          'Não foi possível redefinir a palavra-passe. Tente novamente.',
       })
     } finally {
       submittingRef.current = false
@@ -169,7 +169,7 @@ export default function ResetPasswordPage() {
 
           <p className="mt-3 text-sm leading-6 text-slate-600">
             O link está incompleto ou já não é válido. Peça um novo link para
-            redefinir a sua password.
+            redefinir a sua palavra-passe.
           </p>
 
           <Link
@@ -193,7 +193,7 @@ export default function ResetPasswordPage() {
             </div>
 
             <h1 className="mt-6 text-2xl font-bold text-[#0d1f35]">
-              Password redefinida
+              Palavra-passe redefinida
             </h1>
 
             <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -215,11 +215,11 @@ export default function ResetPasswordPage() {
             </div>
 
             <h1 className="mt-5 text-2xl font-bold text-[#0d1f35]">
-              Redefinir password
+              Redefinir palavra-passe
             </h1>
 
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              Escolha uma nova password para a conta <strong>{email}</strong>.
+              Escolha uma nova palavra-passe para a conta <strong>{email}</strong>.
             </p>
 
             <form className="mt-7 space-y-5" onSubmit={handleSubmit} noValidate>
@@ -228,7 +228,7 @@ export default function ResetPasswordPage() {
                   className="block text-sm font-medium text-slate-700"
                   htmlFor="reset-password"
                 >
-                  Nova password
+                  Nova palavra-passe
                 </label>
 
                 <input
@@ -253,7 +253,7 @@ export default function ResetPasswordPage() {
                   className="block text-sm font-medium text-slate-700"
                   htmlFor="reset-password-confirmation"
                 >
-                  Confirmar nova password
+                  Confirmar nova palavra-passe
                 </label>
 
                 <input
@@ -287,7 +287,7 @@ export default function ResetPasswordPage() {
                 ) : (
                   <Save size={18} aria-hidden="true" />
                 )}
-                {submitting ? 'A guardar…' : 'Guardar nova password'}
+                {submitting ? 'A guardar…' : 'Guardar nova palavra-passe'}
               </button>
             </form>
 

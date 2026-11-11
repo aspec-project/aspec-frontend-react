@@ -45,11 +45,11 @@ function describedTexts(element) {
 }
 
 describe('EventPrayerCards', () => {
-  it('desligada mostra a caixa com o título, a cruz decorativa e o texto explicativo, sem o versículo', () => {
+  it('desligada mostra a caixa com o título e o texto explicativo, sem cruz nem versículo', () => {
     show()
 
     const box = screen.getByRole('group', { name: TITLE })
-    expect(within(box).getByText('†')).toHaveAttribute('aria-hidden', 'true')
+    expect(within(box).queryByText('†')).not.toBeInTheDocument()
     expect(within(box).getByText(EXPLANATION)).toBeInTheDocument()
     expect(toggle()).toHaveAccessibleDescription(EXPLANATION)
     expect(toggle()).toHaveAttribute('aria-checked', 'false')

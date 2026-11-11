@@ -63,8 +63,8 @@ function validateBillingData(data) {
 
   if (!data.billing_postal_code.trim()) {
     errors.billing_postal_code = 'Indica o código postal.'
-  } else if (!/^\d{4}-\d{3}$/.test(data.billing_postal_code.trim())) {
-    errors.billing_postal_code = 'Usa o formato 0000-000.'
+  } else if (!/^[1-9]\d{3}-\d{3}$/.test(data.billing_postal_code.trim())) {
+    errors.billing_postal_code = 'Usa o formato 1234-567.'
   }
 
   if (!data.billing_city.trim()) {
@@ -141,7 +141,7 @@ function BillingField({ label, name, error, ...inputProps }) {
 function ActivationShell({ children }) {
   return (
     <main className="min-h-screen bg-[#f8f7f2]">
-      <PublicAccountBrand />
+      <PublicAccountBrand widthClass="max-w-2xl" />
       <section className="flex justify-center px-5 pb-12 pt-0">
         <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
           {children}
@@ -442,7 +442,7 @@ function AccountActivationPage() {
                 value={billingData.billing_postal_code}
                 onChange={handleBillingChange}
                 error={fieldErrors.billing_postal_code}
-                placeholder="0000-000"
+                placeholder="1234-567"
                 autoComplete="postal-code"
               />
               <div className="sm:col-span-2">

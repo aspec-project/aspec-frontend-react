@@ -123,7 +123,7 @@ describe('Rotas de administração', () => {
     getAdminEventCategoryPalette.mockResolvedValue([])
     getAdminDashboard.mockResolvedValue({
       stats: {
-        active_members: { total: 0, new_this_month: 0 },
+        active_members: { total: 0, new_this_month: 0, trial: 0, active: 0, admins: 0 },
         pending_applications: { total: 0 },
         events: { this_month: 0, this_week: 0 },
         reviews: { flagged: 0, new_this_week: 0 },

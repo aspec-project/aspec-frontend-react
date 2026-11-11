@@ -16,11 +16,12 @@ const CARD_STYLES = {
 
 /**
  * Cartão de um total do painel, item da lista "Resumo": borda colorida em cima, rótulo pequeno em maiúsculas,
- * ícone num quadrado arredondado à direita, número grande com uma linha divisória por baixo e a linha de baixo.
- * Com `to`, o cartão inteiro é uma ligação com o nome acessível `linkLabel`; sem `to` (inscrições da semana)
- * é só informativo.
+ * ícone num quadrado arredondado à direita, número grande (com a variação `delta` ao lado, quando existe) com uma
+ * linha divisória por baixo e a linha de baixo. Com `to`, o cartão inteiro é uma ligação com o nome acessível
+ * `linkLabel`; sem `to` (inscrições da semana) é só informativo.
  *
- * @param {{card: {key: string, label: string, value: string, hint: string, to: string|null, linkLabel: string|null}}} props
+ * @param {{card: {key: string, label: string, value: string, delta?: string, hint: string, to: string|null,
+ *   linkLabel: string|null}}} props
  *   Cartão já formatado (ver getDashboardStatCards).
  * @returns {JSX.Element}
  */
@@ -41,7 +42,10 @@ export default function DashboardStatCard({ card }) {
           </span>
         )}
       </div>
-      <p className="mt-2 border-b border-gray-100 pb-3 text-4xl font-bold text-[#0d1f35]">{card.value}</p>
+      <div className="mt-2 flex items-baseline gap-3 border-b border-gray-100 pb-3">
+        <p className="text-4xl font-bold text-[#0d1f35]">{card.value}</p>
+        {card.delta && <p className="text-sm font-medium text-gray-500">{card.delta}</p>}
+      </div>
       <p className={`mt-3 text-sm ${style.hint ?? 'text-gray-500'}`}>{card.hint}</p>
     </>
   )

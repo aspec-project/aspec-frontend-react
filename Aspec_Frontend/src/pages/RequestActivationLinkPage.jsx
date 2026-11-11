@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   CheckCircle2,
   LoaderCircle,
@@ -9,7 +9,8 @@ import {
 import { resendAccountActivationLink } from '../services/accountActivation'
 
 function RequestActivationLinkPage() {
-  const [email, setEmail] = useState('')
+  const location = useLocation()
+  const [email, setEmail] = useState(() => location.state?.email ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
@@ -63,7 +64,7 @@ function RequestActivationLinkPage() {
             </div>
 
             <h1 className="mt-5 text-2xl font-bold text-[#0d1f35]">
-              Pedir novo link de ativação
+              Pedir novo link
             </h1>
 
             <p className="mt-3 text-sm leading-6 text-slate-600">

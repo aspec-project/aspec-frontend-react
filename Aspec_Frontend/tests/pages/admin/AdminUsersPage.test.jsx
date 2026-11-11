@@ -683,6 +683,20 @@ describe('Gestão de Utilizadores', () => {
     await waitFor(() => expect(getAdminUsers).toHaveBeenCalledTimes(callsBefore + 1))
   })
 
+  it('o diálogo de bloquear avisa sobre as inscrições em eventos futuros', async () => {
+    const user = userEvent.setup()
+    show()
+    await waitForTable()
+
+    const dialog = await openAction(user, 'Bloquear Ana Costa')
+    expect(screen.getByRole('dialog', { name: 'Bloquear membro' })).toBe(dialog)
+    expect(dialog).toHaveAccessibleDescription(/inscrições em eventos futuros são canceladas e não são repostas ao desbloquear/)
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(blockUser).not.toHaveBeenCalled()
+  })
+
   it('o diálogo de recusar explica o email e o efeito e põe o foco na justificação', async () => {
     const user = userEvent.setup()
     show()

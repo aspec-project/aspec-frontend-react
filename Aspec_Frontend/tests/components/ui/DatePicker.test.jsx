@@ -335,6 +335,86 @@ describe('DatePicker', () => {
   })
 })
 
+describe('DatePicker — alinhamento do calendário', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 15, 12))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sem align o calendário abre alinhado à esquerda, como antes', async () => {
+    const user = userEvent.setup()
+    show()
+
+    const dialog = await open(user)
+
+    expect(dialog).toHaveClass('left-0', 'w-72', 'max-w-[calc(100vw-2rem)]')
+    expect(dialog).not.toHaveClass('sm:left-auto')
+    expect(dialog).not.toHaveClass('sm:right-0')
+  })
+
+  it('com align="end" o calendário alinha pela direita do campo a partir de sm', async () => {
+    const user = userEvent.setup()
+    show({ align: 'end' })
+
+    const dialog = await open(user)
+
+    expect(dialog).toHaveClass('left-0', 'sm:left-auto', 'sm:right-0')
+    expect(dialog).toHaveClass('w-72', 'max-w-[calc(100vw-2rem)]')
+    expect(opener()).not.toHaveAttribute('align')
+    expect(dialog).not.toHaveAttribute('align')
+  })
+
+  it('align desconhecido ou start fica à esquerda', async () => {
+    const user = userEvent.setup()
+    const { unmount } = show({ align: 'center' })
+
+    let dialog = await open(user)
+    expect(dialog).toHaveClass('left-0')
+    expect(dialog).not.toHaveClass('sm:right-0')
+    unmount()
+
+    show({ align: 'start' })
+    dialog = await open(user)
+    expect(dialog).toHaveClass('left-0')
+    expect(dialog).not.toHaveClass('sm:right-0')
+  })
+
+  it('com align="end" o teclado, o foco, o Escape, o Tab e o clicar fora funcionam como antes', async () => {
+    const user = userEvent.setup()
+    const { onChange } = show({ align: 'end' })
+
+    await open(user)
+    expect(day('15 de novembro de 2026')).toHaveFocus()
+    await user.keyboard('{ArrowRight}')
+    expect(day('16 de novembro de 2026')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('2026-11-16')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener()).toHaveFocus()
+
+    await open(user)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(opener()).toHaveFocus()
+    expect(onChange).toHaveBeenCalledTimes(1)
+
+    await open(user)
+    await user.tab()
+    expect(within(picker()).getByRole('button', { name: 'Hoje' })).toHaveFocus()
+    await user.tab()
+    expect(within(picker()).getByRole('button', { name: 'Mês anterior' })).toHaveFocus()
+    expect(picker()).toContainElement(document.activeElement)
+
+    await user.click(document.body)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('DatePicker num formulário', () => {
   it('com labelId usa a label de fora, junta-lhe o valor no nome e aplica o name', () => {
     const { rerender } = render(

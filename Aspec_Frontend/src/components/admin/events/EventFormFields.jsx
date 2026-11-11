@@ -288,6 +288,7 @@ export default function EventFormFields({ values, errors, options, onFieldChange
                 min={endLimits.min ?? today}
                 max={endLimits.max}
                 placeholder="Selecionar data"
+                align="end"
               />
             </EventField>
           </div>

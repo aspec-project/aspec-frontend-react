@@ -56,7 +56,7 @@ export default function AdminEventDetailPage() {
           {showEvent ? (
             <div>
               {event.category?.name && (
-                <p className="text-sm font-semibold uppercase tracking-wider text-[#8a7043]">{event.category.name}</p>
+                <p className="text-sm font-semibold uppercase tracking-wider text-[#c9b87a]">{event.category.name}</p>
               )}
               <h1 className="mt-1 text-2xl font-semibold text-white">{event.name}</h1>
               {session && <p className="mt-1 text-gray-300">{session}</p>}

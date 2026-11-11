@@ -1,5 +1,5 @@
 import { Calendar, Mail, Phone } from 'lucide-react'
-import PrayerCardModal, { PrayerCross, PrayerVerse } from './PrayerCardModal'
+import PrayerCardModal, { PrayerVerse } from './PrayerCardModal'
 import { PRAYER_BUTTON, PRAYER_REQUESTS } from '../../utils/eventPrayerCard'
 import { formatDate } from '../../utils/eventFormatting'
 
@@ -9,7 +9,7 @@ export default function OwnPrayerCardView({ event, result, profile, profileError
       <article className="rounded-md border border-[#e4dfd3] bg-[#fbf9f4] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_-12px_rgba(13,31,53,0.25),0_2px_4px_rgba(13,31,53,0.05)] @md:p-2.5">
         <div className="rounded-sm border border-[#d9ccab] p-4 @md:p-6">
           <header className="mb-4 flex flex-col gap-3 border-b border-[#e4dfd3] pb-4 @md:flex-row @md:items-start @md:justify-between">
-            <div className="min-w-0"><p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7043]"><PrayerCross size={13} />Cartão de Oração</p><h3 className="mt-2 break-words text-lg font-medium leading-snug text-[#0d1f35]">{event.name}</h3><p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600"><Calendar size={13} aria-hidden="true" className="shrink-0 text-[#8a7043]" />{formatDate(result.event_date)}</p></div>
+            <div className="min-w-0"><p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#8a7043]">Cartão de Oração</p><h3 className="mt-2 break-words text-lg font-medium leading-snug text-[#0d1f35]">{event.name}</h3><p className="mt-1 flex items-center gap-1.5 text-sm text-gray-600"><Calendar size={13} aria-hidden="true" className="shrink-0 text-[#8a7043]" />{formatDate(result.event_date)}</p></div>
           </header>
           <div className="mb-5"><PrayerVerse verse={result.prayer_verse} compact /></div>
           <div className="mb-6">

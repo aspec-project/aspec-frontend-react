@@ -2,8 +2,10 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import UserRiskZone from '../../../../src/components/admin/users/UserRiskZone'
+import { ANONYMIZE_TEXTS } from '../../../../src/utils/adminUsers'
 
 const maria = { id: 'u3', email: 'maria@santos.pt', role: { name: 'Member' }, member_profile: { name: 'Maria Santos' } }
+const NEW_TEXT = 'Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e as inscrições em eventos passados ficam guardadas sem dados pessoais. Esta ação não pode ser desfeita.'
 const helena = { id: 'admin-2', email: 'helena@brandao.pt', role: { name: 'Admin' }, member_profile: { name: 'Helena Brandão' } }
 
 describe('UserRiskZone', () => {
@@ -12,8 +14,7 @@ describe('UserRiskZone', () => {
     const onAnonymize = vi.fn()
     render(<UserRiskZone user={maria} onAnonymize={onAnonymize} />)
 
-    const zone = within(screen.getByRole('region', { name: 'Zona de risco · RGPD' }))
-    expect(zone.getByText('Elimina de forma irreversível os dados pessoais do membro, a pedido do titular. Pede várias confirmações.')).toBeInTheDocument()
+    const zone = within(screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' }))
 
     const button = zone.getByRole('button', { name: 'Anonimizar membro' })
     expect(button).toBeEnabled()
@@ -21,6 +22,26 @@ describe('UserRiskZone', () => {
 
     expect(onAnonymize).toHaveBeenCalledTimes(1)
     expect(onAnonymize).toHaveBeenCalledWith(maria)
+  })
+
+  it('mostra o cartão Anonimizar conta (RGPD) com o texto novo', () => {
+    render(<UserRiskZone user={maria} onAnonymize={vi.fn()} />)
+
+    const zone = within(screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' }))
+    expect(zone.getByText(NEW_TEXT)).toBeInTheDocument()
+    expect(zone.getByRole('button', { name: 'Anonimizar membro' })).toBeEnabled()
+    expect(screen.queryByRole('region', { name: 'Zona de risco · RGPD' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Pede várias confirmações/)).not.toBeInTheDocument()
+  })
+
+  it('o cartão usa a mesma expressão do diálogo de anonimizar', () => {
+    render(<UserRiskZone user={maria} onAnonymize={vi.fn()} />)
+
+    const zone = within(screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' }))
+    expect(zone.getByText(NEW_TEXT)).toBeInTheDocument()
+    expect(screen.queryByText(/histórico de presenças/)).toBeNull()
+    expect(ANONYMIZE_TEXTS.note).toContain('inscrições em eventos passados')
+    expect(NEW_TEXT).toContain('inscrições em eventos passados')
   })
 
   it('desativado não deixa anonimizar', async () => {

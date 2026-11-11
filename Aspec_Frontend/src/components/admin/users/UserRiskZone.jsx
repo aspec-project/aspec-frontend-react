@@ -4,7 +4,7 @@ import { ShieldAlert, Trash2 } from 'lucide-react'
 const ADMIN_BLOCKED_TEXT = 'Não é possível anonimizar um administrador. Para isso, despromova-o primeiro.'
 
 /**
- * Cartão "Zona de risco · RGPD" do detalhe do membro, com o botão "Anonimizar membro", separado
+ * Cartão "Anonimizar conta (RGPD)" do detalhe do membro, com o botão "Anonimizar membro", separado
  * das ações do dia a dia. Num administrador o botão fica desativado com a explicação da regra
  * (o backend recusaria com 409).
  *
@@ -24,11 +24,11 @@ export default function UserRiskZone({ user, disabled = false, onAnonymize }) {
     <section aria-labelledby={titleId} className="rounded-xl border border-red-200 bg-white p-6 shadow-sm">
       <h2 id={titleId} className="flex items-center gap-2 font-semibold text-red-600">
         <ShieldAlert size={18} aria-hidden="true" className="shrink-0" />
-        Zona de risco · RGPD
+        Anonimizar conta (RGPD)
       </h2>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-2 text-sm">
-          <p className="text-gray-600">Elimina de forma irreversível os dados pessoais do membro, a pedido do titular. Pede várias confirmações.</p>
+          <p className="text-gray-600">Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e as inscrições em eventos passados ficam guardadas sem dados pessoais. Esta ação não pode ser desfeita.</p>
           {isAdmin && <p id={reasonId} className="text-gray-500">{ADMIN_BLOCKED_TEXT}</p>}
         </div>
         <button
