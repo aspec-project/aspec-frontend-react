@@ -28,7 +28,7 @@ export default function UserRiskZone({ user, disabled = false, onAnonymize }) {
       </h2>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-2 text-sm">
-          <p className="text-gray-600">Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e o histórico de presenças fica guardado sem dados pessoais. Esta ação não pode ser desfeita.</p>
+          <p className="text-gray-600">Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e as inscrições em eventos passados ficam guardadas sem dados pessoais. Esta ação não pode ser desfeita.</p>
           {isAdmin && <p id={reasonId} className="text-gray-500">{ADMIN_BLOCKED_TEXT}</p>}
         </div>
         <button
