@@ -184,7 +184,7 @@ describe('ações disponíveis e textos de confirmação', () => {
     expect(getActionConfirmation('block', maria)).toEqual({
       title: 'Bloquear membro',
       description: 'Maria Santos deixa de poder aceder à plataforma. É enviado um email para maria@santos.pt a informar da decisão; pode indicar uma justificação, que segue nesse email.',
-      note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde.',
+      note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde. As inscrições em eventos futuros são canceladas e não são repostas ao desbloquear.',
       confirmLabel: 'Bloquear',
       tone: 'danger',
       maxLength: 2000,
@@ -194,6 +194,14 @@ describe('ações disponíveis e textos de confirmação', () => {
     expect(description.startsWith('x@y.pt deixa de poder aceder à plataforma.')).toBe(true)
     expect(description).toContain('para x@y.pt')
     expect(description).not.toContain('(')
+  })
+
+  it('a nota de bloquear avisa que as inscrições em eventos futuros são canceladas e não voltam ao desbloquear', () => {
+    const maria = { email: 'maria@santos.pt', member_profile: { name: 'Maria Santos' } }
+
+    expect(getActionConfirmation('block', maria).note.endsWith(
+      'Pode desbloquear a conta mais tarde. As inscrições em eventos futuros são canceladas e não são repostas ao desbloquear.',
+    )).toBe(true)
   })
 
   it('explica a promoção a administrador com o nome e o email do membro', () => {

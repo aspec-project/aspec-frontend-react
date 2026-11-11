@@ -787,7 +787,7 @@ describe('Zona de risco e envio do email de pagamento no detalhe', () => {
 
     await loaded()
     const card = screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' })
-    expect(within(card).getByText('Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e o histórico de presenças fica guardado sem dados pessoais. Esta ação não pode ser desfeita.')).toBeInTheDocument()
+    expect(within(card).getByText('Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e as inscrições em eventos passados ficam guardadas sem dados pessoais. Esta ação não pode ser desfeita.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Zona de risco · RGPD' })).not.toBeInTheDocument()
   })
 

@@ -27,7 +27,7 @@ vi.mock('../../../src/services/adminUsers', () => ({
 const TOO_MANY = 'Demasiados pedidos. Tente novamente mais tarde.'
 
 const stats = {
-  active_members: { total: 320, new_this_month: 12 },
+  active_members: { total: 320, new_this_month: 12, trial: 300, active: 20, admins: 0 },
   pending_applications: { total: 3 },
   events: { this_month: 8, this_week: 2 },
   reviews: { flagged: 2, new_this_week: 5 },
@@ -36,7 +36,7 @@ const stats = {
 }
 
 const zeroStats = {
-  active_members: { total: 0, new_this_month: 0 },
+  active_members: { total: 0, new_this_month: 0, trial: 0, active: 0, admins: 0 },
   pending_applications: { total: 0 },
   events: { this_month: 0, this_week: 0 },
   reviews: { flagged: 0, new_this_week: 0 },
@@ -174,7 +174,7 @@ describe('Painel do admin', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Resumo' })).toBeInTheDocument()
 
     const expected = [
-      ['Membros Ativos', '320', '+12 este mês'],
+      ['Membros Ativos', '320', '300 em trial · 20 ativos'],
       ['Candidaturas Pendentes', '3', 'Requerem ação'],
       ['Eventos este mês', '8', '2 esta semana'],
       ['Avaliações para moderar', '2', '5 novas esta semana'],
@@ -189,6 +189,23 @@ describe('Painel do admin', () => {
       expect(card.getByText(value)).toBeInTheDocument()
       expect(card.getByText(hint)).toBeInTheDocument()
     })
+    expect(within(cards[0]).getByText('+12 este mês')).toBeInTheDocument()
+  })
+
+  it('o cartão Membros Ativos mostra a divisão com os administradores e o link continua na lista de ativos', async () => {
+    getAdminDashboard.mockResolvedValue(dashboard({
+      stats: { ...stats, active_members: { total: 15, new_this_month: 3, trial: 10, active: 5, admins: 2 } },
+    }))
+    show()
+    await waitForDashboard()
+
+    const members = within(summaryItems()[0])
+    expect(members.getByText('15')).toBeInTheDocument()
+    expect(members.getByText('+3 este mês')).toBeInTheDocument()
+    expect(members.getByText('10 em trial · 5 ativos (inclui administradores)')).toBeInTheDocument()
+    expect(members.getByRole('link', {
+      name: 'Membros Ativos: 15, +3 este mês (10 em trial, 5 ativos (inclui administradores)). Ver utilizadores ativos',
+    })).toHaveAttribute('href', '/admin/utilizadores?estado=active')
   })
 
   it('lista as candidaturas pendentes pela ordem da API com inicial, nome, negócio e setor e data relativa', async () => {
@@ -296,7 +313,7 @@ describe('Painel do admin', () => {
 
     const cards = summaryItems()
     expect(cards.map((card) => within(card).getByText('0'))).toHaveLength(6)
-    for (const hint of ['+0 este mês', 'Nenhuma por analisar', '0 esta semana', '0 novas esta semana', 'Nenhuma em atraso', 'Nenhum evento com inscrições']) {
+    for (const hint of ['Nenhum membro ativo', '+0 este mês', 'Nenhuma por analisar', '0 esta semana', '0 novas esta semana', 'Nenhuma em atraso', 'Nenhum evento com inscrições']) {
       expect(screen.getByText(hint)).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Ver todas as candidaturas pendentes' })).toBeInTheDocument()
@@ -716,7 +733,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     const links = within(summary)
 
     const expected = [
-      ['Membros Ativos: 320 (+12 este mês). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
+      ['Membros Ativos: 320, +12 este mês (300 em trial, 20 ativos). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
       ['Candidaturas Pendentes: 3 (Requerem ação). Ver candidaturas pendentes', '/admin/utilizadores?estado=pending'],
       ['Eventos este mês: 8 (2 esta semana). Ver eventos agendados', '/admin/eventos'],
       ['Avaliações para moderar: 2 (5 novas esta semana). Ver avaliações sinalizadas', '/admin/moderacao?estado=flagged'],

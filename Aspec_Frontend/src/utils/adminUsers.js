@@ -465,7 +465,7 @@ export function getActionConfirmation(action, user, context = {}) {
       return {
         title: 'Bloquear membro',
         description: `${getDisplayName(user)} deixa de poder aceder à plataforma. É enviado um email para ${user?.email} a informar da decisão; pode indicar uma justificação, que segue nesse email.`,
-        note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde.',
+        note: 'A conta fica inativa, as sessões abertas terminam e a subscrição ou o pagamento pendente são cancelados. Pode desbloquear a conta mais tarde. As inscrições em eventos futuros são canceladas e não são repostas ao desbloquear.',
         confirmLabel: USER_ACTION_LABELS.block,
         tone: 'danger',
         maxLength: REASON_MAX_LENGTH,
