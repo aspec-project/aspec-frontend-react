@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
         type: 'success',
         message:
           response.message ??
-          'Se o email estiver registado e a conta ativa, receberá um link para redefinir a password.',
+          'Se o email estiver registado e a conta ativa, receberá um link para redefinir a palavra-passe.',
       })
     } catch (error) {
 
@@ -131,13 +131,13 @@ export default function ForgotPasswordPage() {
             </div>
 
             <h1 className="mt-5 text-2xl font-bold text-[#0d1f35]">
-              Esqueci-me da password
+              Esqueci-me da palavra-passe
             </h1>
 
             <p className="mt-3 text-sm leading-6 text-slate-600">
               Introduza o email associado à sua conta. Se estiver registado e
               a conta estiver ativa, receberá um link para redefinir a
-              password.
+              palavra-passe.
             </p>
 
             <form className="mt-7" onSubmit={handleSubmit} noValidate>
