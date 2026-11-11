@@ -68,7 +68,12 @@ export function useLoginForm() {
     setAccountNotice(null)
 
     if (!email.trim() || !password) {
-      setFormError("Preencha o email e a password.");
+      setFormError("Preencha o email e a palavra-passe.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFormError("Indique um endereço de email válido.");
       return;
     }
 

@@ -55,6 +55,7 @@ function formatNationalNumber(value, country) {
 /*
  * Mantém o valor enviado à API no formato internacional E.164, mas separa
  * visualmente o indicativo para que o membro não tenha de o escrever.
+ * O erro, quando existe, aparece debaixo do número e não do indicativo.
  */
 export default function InternationalPhoneInput({
   id,
@@ -65,7 +66,10 @@ export default function InternationalPhoneInput({
   style,
   placeholder = '912 345 678',
   autoComplete = 'tel',
+  error,
+  errorClassName = 'mt-1 text-xs text-red-500',
 }) {
+  const errorId = error && id ? `${id}-error` : undefined
   const [country, setCountry] = useState(() => getInitialCountry(value))
   const nationalNumber = getNationalNumber(value, country)
   const formattedNationalNumber = formatNationalNumber(nationalNumber, country)
@@ -100,18 +104,27 @@ export default function InternationalPhoneInput({
         ))}
       </select>
 
-      <input
-        id={id}
-        name={name}
-        type="tel"
-        value={formattedNationalNumber}
-        onChange={(event) => emitValue(country, event.target.value)}
-        maxLength={20}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        className={`${className ?? ''} min-w-0 flex-1`}
-        style={style}
-      />
+      <div className="min-w-0 flex-1">
+        <input
+          id={id}
+          name={name}
+          type="tel"
+          value={formattedNationalNumber}
+          onChange={(event) => emitValue(country, event.target.value)}
+          maxLength={20}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId}
+          className={`${className ?? ''} w-full`}
+          style={style}
+        />
+        {error && (
+          <p id={errorId} className={errorClassName} role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

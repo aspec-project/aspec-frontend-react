@@ -431,7 +431,7 @@ export default function AccountInformationPage() {
           </dl>
         ) : (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <form role="dialog" aria-modal="true" aria-labelledby="personal-data-dialog-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8" onSubmit={handlePersonalSubmit}>
+          <form noValidate role="dialog" aria-modal="true" aria-labelledby="personal-data-dialog-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl sm:p-8" onSubmit={handlePersonalSubmit}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="personal-data-dialog-title" className="text-xl font-semibold text-[#0d1f35]">Alterar dados pessoais</h2>
@@ -497,9 +497,9 @@ export default function AccountInformationPage() {
                 value={personalData.phone}
                 onChange={handlePersonalChange}
                 className={inputClassName.replace('mt-2 ', '')}
+                error={personalErrors.phone}
+                errorClassName="mt-2 text-sm text-red-700"
               />
-
-              <FieldError message={personalErrors.phone} />
             </div>
 
             {emailChanged && (
