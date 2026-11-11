@@ -245,6 +245,13 @@ export async function getMemberReviewPage(id, page = 1, signal, filters = {}) {
   }
 }
 
+/**
+ * Cria ou atualiza a avaliação do membro autenticado a outro membro.
+ * @param {string} id Identificador do perfil avaliado.
+ * @param {{ rating: number, comment: string }} values Classificação e comentário.
+ * @param {AbortSignal} [signal] Sinal para cancelar o pedido.
+ * @returns {Promise<object>} Campos públicos da avaliação e, quando a API o envia, o estado de moderação.
+ */
 export async function saveMemberReview(id, values, signal) {
   if (!isMemberProfileId(id) || !Number.isInteger(values?.rating) || values.rating < 1 || values.rating > 5 ||
     typeof values?.comment !== 'string' || !values.comment.trim() || [...values.comment.trim()].length > 2000) {
@@ -253,10 +260,12 @@ export async function saveMemberReview(id, values, signal) {
   const response = await api.post(`/members/${encodeURIComponent(id)}/reviews`, {
     rating: values.rating, comment: values.comment.trim(),
   }, { signal, skipAuthRedirect: true })
-  if (![200, 201].includes(response.status) || response.data?.success !== true || !validReview(response.data?.data)) {
+  const saved = response.data?.data
+  if (![200, 201].includes(response.status) || response.data?.success !== true || !validReview(saved) ||
+    (saved.status !== undefined && !['Visible', 'Hidden', 'Flagged'].includes(saved.status))) {
     throw new Error('A resposta da avaliação tem um formato inesperado.')
   }
-  return publicReview(response.data.data)
+  return { ...publicReview(saved), ...(saved.status === undefined ? {} : { status: saved.status }) }
 }
 
 export async function deleteMemberReview(id, signal) {
