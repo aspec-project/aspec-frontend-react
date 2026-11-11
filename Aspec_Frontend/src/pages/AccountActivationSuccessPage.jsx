@@ -5,7 +5,7 @@ import PublicAccountBrand from '../components/layout/PublicAccountBrand'
 function AccountActivationSuccessPage() {
   return (
     <main className="min-h-screen bg-[#f8f7f2]">
-      <PublicAccountBrand />
+      <PublicAccountBrand widthClass="max-w-xl" />
       <section className="flex justify-center px-5 pb-12 pt-0">
         <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10">
         <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">

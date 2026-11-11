@@ -1,4 +1,4 @@
-import { Clock3, LogIn } from 'lucide-react'
+import { Clock3, Home } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PublicAccountBrand from '../components/layout/PublicAccountBrand'
 
@@ -27,11 +27,11 @@ export default function PendingAccountPage() {
         </p>
 
         <Link
-          to="/login"
+          to="/"
           className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0d1f35] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#193451]"
         >
-          <LogIn size={17} aria-hidden="true" />
-          Voltar ao início de sessão
+          <Home size={17} aria-hidden="true" />
+          Voltar à página inicial
         </Link>
         </section>
       </div>
