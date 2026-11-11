@@ -369,7 +369,7 @@ describe('Detalhe do membro', () => {
     await loaded()
     const grid = screen.getByRole('region', { name: 'Conta' }).closest('[class~="lg:grid-cols-3"]')
     const imagens = screen.getByRole('region', { name: /^Imagens/ })
-    const riskZone = screen.getByRole('region', { name: 'Zona de risco · RGPD' })
+    const riskZone = screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' })
     expect(grid.contains(imagens)).toBe(false)
     expect(grid.compareDocumentPosition(imagens) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(imagens.compareDocumentPosition(riskZone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -755,7 +755,7 @@ describe('Zona de risco e envio do email de pagamento no detalhe', () => {
   })
 
   function riskButton() {
-    return within(screen.getByRole('region', { name: 'Zona de risco · RGPD' })).getByRole('button', { name: 'Anonimizar membro' })
+    return within(screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' })).getByRole('button', { name: 'Anonimizar membro' })
   }
 
   async function anonymize(user) {
@@ -780,6 +780,15 @@ describe('Zona de risco e envio do email de pagamento no detalhe', () => {
 
     await loaded('Helena Brandão')
     expect(riskButton()).toBeDisabled()
+  })
+
+  it('o detalhe mostra o cartão Anonimizar conta (RGPD) e já não mostra Zona de risco', async () => {
+    show()
+
+    await loaded()
+    const card = screen.getByRole('region', { name: 'Anonimizar conta (RGPD)' })
+    expect(within(card).getByText('Apaga de forma definitiva os dados pessoais do membro, a pedido do próprio. As faturas ficam guardadas por obrigação fiscal e o histórico de presenças fica guardado sem dados pessoais. Esta ação não pode ser desfeita.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Zona de risco · RGPD' })).not.toBeInTheDocument()
   })
 
   it('anonimiza o membro depois de escrever ANONIMIZAR e volta à lista com a mensagem da API', async () => {

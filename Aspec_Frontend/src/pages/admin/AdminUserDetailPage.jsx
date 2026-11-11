@@ -20,7 +20,7 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * membro (nome como título), e os cartões do detalhe. Tem as mesmas ações da lista (incluindo
  * promover e despromover), o envio do email de ativação, reativação ou lembrete de pagamento e,
  * depois de uma ação, o detalhe é pedido de novo. Recusar e bloquear pedem uma justificação
- * opcional, que segue no email ao membro. No fim, a "Zona de risco · RGPD" permite anonimizar o
+ * opcional, que segue no email ao membro. No fim, o cartão "Anonimizar conta (RGPD)" permite anonimizar o
  * membro; depois de anonimizar ou recusar, a página volta à lista com a mensagem da API (a conta
  * deixa de existir). A lógica vive nos hooks useAdminUser (detalhe) e useAdminUserActions (ações).
  *
