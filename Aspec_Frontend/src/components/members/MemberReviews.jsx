@@ -1,5 +1,6 @@
 ﻿import { useEffect, useId, useRef, useState } from 'react'
 import { Flag, MessageSquare, Star, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { deleteMemberReview, getMemberReviewPage, isMemberProfileId, saveMemberReview } from '../../services/members'
 import { getMemberProfile } from '../../services/memberProfile'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
@@ -111,6 +112,11 @@ export default function MemberReviews(props) {
   return <ReviewPanel key={scope.revision} {...props} user={user} generation={generation} />
 }
 
+/**
+ * Cartão de avaliações do perfil público: resumo, lista, formulário da própria avaliação e aviso de moderação.
+ * @param {{ memberId: string, allowReview?: boolean, user: object, generation: number, onSummaryChange?: Function }} props Perfil avaliado, sessão atual e callback do resumo.
+ * @returns {JSX.Element} Secção "Avaliações".
+ */
 function ReviewPanel({ memberId, allowReview = false, user, generation, onSummaryChange }) {
   const formId = useId()
   const [page, setPage] = useState(1)
@@ -128,6 +134,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
   const [error, setError] = useState('')
   const [requestStatus, setRequestStatus] = useState(null)
   const [notice, setNotice] = useState('')
+  const [awaitingModeration, setAwaitingModeration] = useState(false)
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [reportedReview, setReportedReview] = useState(null)
@@ -177,6 +184,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     setError('')
     setRequestStatus(null)
     setNotice('')
+    setAwaitingModeration(false)
     setConfirmDelete(false)
     setEditing(true)
   }
@@ -198,14 +206,17 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     mutation.current = controller
     setBusy(true)
     setNotice('')
+    setAwaitingModeration(false)
     const stillCurrent = () => !controller.signal.aborted && isSessionCurrent(session) && useAuthStore.getState().user === user && useAuthStore.getState().sessionGeneration === generation && useAuthStore.getState().status === 'authenticated'
     try {
       if (remove) await deleteMemberReview(memberId, controller.signal)
-      else await saveMemberReview(memberId, { rating, comment: comment.trim() }, controller.signal)
+      const saved = remove ? null : await saveMemberReview(memberId, { rating, comment: comment.trim() }, controller.signal)
       if (!stillCurrent()) return
       setEditing(false)
       setConfirmDelete(false)
-      setNotice(remove ? 'Avaliação removida. A atualizar avaliações…' : 'Avaliação guardada. A atualizar avaliações…')
+      const flagged = saved?.status === 'Flagged'
+      setAwaitingModeration(flagged)
+      setNotice(flagged ? '' : remove ? 'Avaliação removida. A atualizar avaliações…' : 'Avaliação guardada. A atualizar avaliações…')
       /* O POST não substitui a leitura da média e contagem reais. */
       summaryCallback.current?.(null)
       setResult(null)
@@ -232,6 +243,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
   function changePage(value) { setReportedReview(null); setPage(value) }
   function reviewReported({ message }) {
     setReportedReview(null)
+    setAwaitingModeration(false)
     setNotice(message || 'Avaliação sinalizada para moderação.')
     summaryCallback.current?.(null)
     setResult(null)
@@ -265,6 +277,12 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
         {confirmDelete && <div className="mt-4 rounded-lg border border-red-200 p-3 text-sm"><p>Pretende remover a sua avaliação?</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" disabled={busy || !data} className={`${buttonClass} bg-red-700 text-white`} onClick={() => submit(true)}>Confirmar remoção</button><button type="button" disabled={busy} className={buttonClass} onClick={() => setConfirmDelete(false)}>Manter avaliação</button></div></div>}
       </form>}
       {notice && <p role="status" className="mt-4 text-sm text-gray-600">{data ? notice.replace(' A atualizar avaliações…', '') : notice}</p>}
+      {awaitingModeration && (
+        <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>A sua avaliação ficou a aguardar moderação e só fica visível depois de aprovada.</p>
+          <Link to="/perfil/avaliacoes" className={`mt-1 inline-block rounded font-medium underline ${focusClass}`}>As minhas avaliações</Link>
+        </div>
+      )}
       {data && <RatingDistribution distribution={data.rating_distribution} total={data.reviews_count} />}
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 [&_button[role=combobox]]:px-2.5 [&_button[role=combobox]]:py-1.5 [&_button[role=combobox]]:text-xs">
         <span id={`${formId}-sort-label`} className="sr-only">Ordenar avaliações</span>
@@ -273,7 +291,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
         <SelectMenu id={`${formId}-filter`} label="Filtrar por estrelas" labelId={`${formId}-filter-label`} value={ratingFilter} options={ratingOptions} onChange={(value) => changeFilter(setRatingFilter, value)} variant="public-filter" disabled={busy} />
       </div>
       {!current && <p role="status" className="mt-5 text-sm text-gray-600">A carregar avaliações...</p>}
-      {current?.status === 'error' && <div role="alert" className="mt-5 text-sm text-gray-600"><p>Não foi possível carregar as avaliações. {notice ? 'A alteração foi concluída, mas a lista e o resumo ainda não foram atualizados.' : 'Tente novamente.'}</p><button type="button" className={`${buttonClass} mt-3 border border-gray-300`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button></div>}
+      {current?.status === 'error' && <div role="alert" className="mt-5 text-sm text-gray-600"><p>Não foi possível carregar as avaliações. {(notice || awaitingModeration) ? 'A alteração foi concluída, mas a lista e o resumo ainda não foram atualizados.' : 'Tente novamente.'}</p><button type="button" className={`${buttonClass} mt-3 border border-gray-300`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button></div>}
       {mine && <ul className="mt-5"><ReviewCard review={mine} mine editable={canWrite && !busy && !!data} onEdit={openForm} /></ul>}
       {data && (data.items.length > 0 ? <ul className={mine ? '' : 'mt-1'}>{data.items.map((review) => <ReviewCard key={review.id} review={review} onReport={canReportReviews(user) ? setReportedReview : undefined} />)}</ul> : <p className="mt-5 text-sm text-gray-600">{ratingFilter ? 'Não existem outras avaliações com esta classificação.' : mine ? 'Ainda não existem outras avaliações.' : 'Ainda não existem avaliações.'}</p>)}
         {pagination && pagination.total > 0 && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
