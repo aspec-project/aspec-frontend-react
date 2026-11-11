@@ -8,10 +8,10 @@ export default function AccessStep({ bind, errors, inputCls, formData, handleCha
         5. Criar Acesso
       </h3>
       <div>
-        <label className="text-xs text-gray-500 block mb-1">Password *</label>
+        <label className="text-xs text-gray-500 block mb-1">Palavra-passe *</label>
         <input type="password" {...bind("password")} placeholder="Mínimo 8 caracteres" className={inputCls} />
         <div className="mt-2 p-3 bg-white rounded-xl border text-xs space-y-1" style={{ borderColor: "#d4d8e3" }}>
-          <p className="font-medium text-gray-600 mb-1">A password deve conter no mínimo:</p>
+          <p className="font-medium text-gray-600 mb-1">A palavra-passe deve conter no mínimo:</p>
           <div className="grid grid-cols-2 gap-1 text-gray-400">
             {PASSWORD_RULES.map(([key, text]) => (
               <span key={key} className={passCriteria[key] ? "text-green-600 font-medium" : ""}>
@@ -23,8 +23,8 @@ export default function AccessStep({ bind, errors, inputCls, formData, handleCha
         {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
       </div>
 
-      <Field label="Confirmar password *" error={errors.password_confirmation}>
-        <input type="password" {...bind("password_confirmation")} placeholder="Repetir a password" className={inputCls} />
+      <Field label="Confirmar palavra-passe *" error={errors.password_confirmation}>
+        <input type="password" {...bind("password_confirmation")} placeholder="Repetir a palavra-passe" className={inputCls} />
       </Field>
 
       <div
@@ -43,9 +43,12 @@ export default function AccessStep({ bind, errors, inputCls, formData, handleCha
           className="mt-0.5 cursor-pointer"
         />
         <label htmlFor="acceptTerms" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
-          Concordo com os <span className="underline" style={{ color: "#0d1f35" }}>Termos e Condições</span> e o{" "}
-          <span className="underline" style={{ color: "#0d1f35" }}>Código de Conduta</span> da ASPEC, 
-          comprometendo-me a agir com integridade e princípios cristãos nas minhas relações dentro da associação.
+          Concordo com os{" "}
+          <a href="/termos-e-condicoes" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#0d1f35" }}>Termos e Condições</a> e o{" "}
+          <a href="/codigo-de-conduta" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#0d1f35" }}>Código de Conduta</a> da ASPEC,
+          comprometendo-me a agir com integridade e princípios cristãos nas minhas relações dentro da associação,
+          e declaro que li a{" "}
+          <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#0d1f35" }}>Política de Privacidade</a>.
         </label>
       </div>
       {errors.acceptTerms && (

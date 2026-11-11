@@ -48,7 +48,6 @@ export default function PrayerCardsCard({ status, now, pending = false, onDistri
         tabIndex={-1}
         className="flex items-center gap-3 text-lg font-semibold text-[#0d1f35] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#315a79]"
       >
-        <span aria-hidden="true" className="text-[#8a7043]">†</span>
         {PRAYER_CARDS_TEXTS.title}
       </h2>
 

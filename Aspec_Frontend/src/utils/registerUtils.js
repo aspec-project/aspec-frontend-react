@@ -48,7 +48,7 @@ export const formatPostalCode = (postalCode) => {
 }
 
 export const validatePostalCode = (postalCode) =>
-  /^\d{4}-?\d{3}$/.test(String(postalCode ?? '').trim())
+  /^[1-9]\d{3}-?\d{3}$/.test(String(postalCode ?? '').trim())
 
 /*
  * Remove apenas separadores habituais e converte o prefixo internacional
@@ -77,6 +77,31 @@ export const getPasswordCriteria = (pwd) => ({
 
 export const isPasswordValid = (pwd) =>
   Object.values(getPasswordCriteria(pwd)).every(Boolean)
+
+/*
+ * Valida o website como o backend: sem esquema assume https://; só http ou https;
+ * sem utilizador/palavra-passe antes do "@" (mostraria um domínio e abriria outro).
+ * Devolve a mensagem de erro, ou null se estiver vazio ou válido.
+ */
+export const getWebsiteError = (value) => {
+  const raw = (value ?? '').trim()
+  if (!raw) return null
+  if (raw.startsWith('//')) return 'O campo website tem de ser um URL válido.'
+
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`
+  let url
+  try {
+    url = new URL(candidate)
+  } catch {
+    return 'O campo website tem de ser um URL válido.'
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) return 'O campo website tem de ser um URL válido.'
+  if (url.username || url.password) return 'O campo website não pode ter utilizador nem palavra-passe antes do "@".'
+  if (!url.hostname.includes('.')) return 'O campo website tem de ser um URL válido.'
+
+  return null
+}
 
 export const validateStepForm = (currentStep, formData) => {
   const newErrors = {}
@@ -112,6 +137,9 @@ export const validateStepForm = (currentStep, formData) => {
     } else if (!validatePhone(formData.commercial_phone)) {
       newErrors.commercial_phone = 'Indique um telefone válido.'
     }
+
+    const websiteError = getWebsiteError(formData.website_url)
+    if (websiteError) newErrors.website_url = websiteError
   }
 
   if (currentStep === 2) {
@@ -126,7 +154,7 @@ export const validateStepForm = (currentStep, formData) => {
     if (!formData.postal_code.trim()) {
       newErrors.postal_code = 'Obrigatório.'
     } else if (!validatePostalCode(formData.postal_code)) {
-      newErrors.postal_code = 'Use o formato 0000-000.'
+      newErrors.postal_code = 'Use o formato 1234-567.'
     }
 
     if (!formData.city.trim()) {

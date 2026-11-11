@@ -64,10 +64,11 @@ export default function BusinessInfoStep({
           </div>
 
           <div className="sm:col-span-3">
-            <Field label="Telefone comercial *" error={errors.commercial_phone}>
+            <Field label="Telefone comercial *">
               <InternationalPhoneInput
                 id="commercial_phone"
                 {...bind("commercial_phone")}
+                error={errors.commercial_phone}
                 placeholder="912 345 678"
                 className={inputCls}
               />

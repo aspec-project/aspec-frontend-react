@@ -18,7 +18,7 @@ const accountNotices = {
   },
   expired: {
     title: 'A sua subscrição expirou',
-    message: 'Para voltar a aceder à área de membro, reative a subscrição. Enviamos-lhe um email com o link de reativação.',
+    message: 'Para voltar a aceder à área de membro, reative a subscrição. Enviámos-lhe um email com o link de reativação.',
     actionLabel: 'Enviar email de reativação',
     className: 'border-[#f3c479] bg-[#fff1dc] text-[#925200]',
     Icon: Clock3,
@@ -55,7 +55,7 @@ export default function LoginForm({
 
   return (
     <div className="w-full max-w-md">
-      <form className="space-y-5" onSubmit={onSubmit}>
+      <form noValidate className="space-y-5" onSubmit={onSubmit}>
         {formError && (
           <div
             className={`flex items-start gap-3 rounded-2xl border p-5 text-sm ${
@@ -71,6 +71,7 @@ export default function LoginForm({
               {canRequestActivationLink && (
                 <Link
                   to="/ativacao/novo-link"
+                  state={{ email: email.trim() }}
                   className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#0d1f35] px-5 py-3 font-semibold text-white transition hover:bg-[#193451]"
                 >
                   <Send size={17} aria-hidden="true" />
@@ -98,14 +99,14 @@ export default function LoginForm({
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="text-xs text-gray-500 block">
-              Password *
+              Palavra-passe *
             </label>
             <Link
               to="/esqueci-password"
               className="text-xs cursor-pointer"
               style={{ color: '#8a7043' }}
             >
-              Esqueci-me da password
+              Esqueci-me da palavra-passe
             </Link>
           </div>
           <div className="relative">
