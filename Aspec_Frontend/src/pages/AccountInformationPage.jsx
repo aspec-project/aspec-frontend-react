@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bell, CalendarDays, Check, KeyRound, Mail, Pencil, Phone, Save, X } from 'lucide-react'
+import { Bell, CalendarDays, Check, KeyRound, Mail, Pencil, Phone, Save, UserRound, X } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import ChangePasswordDialog from '../components/account/ChangePasswordDialog'
 import FeedbackBanner from '../components/ui/FeedbackBanner'
@@ -82,7 +82,7 @@ function NotificationPreferenceToggle({
 /**
  * Página da aba “Informações de conta”.
  *
- * O email e telefone são dados pessoais da conta. Os contactos comerciais
+ * O nome, email e telefone são dados pessoais da conta. Os contactos comerciais
  * ficam exclusivamente na página geral do perfil. Numa conta sem perfil de
  * membro (admin técnico), mostra o email e o telefone da conta só para leitura.
  * @returns {JSX.Element}
@@ -98,6 +98,7 @@ export default function AccountInformationPage() {
 
   const [savedEmail, setSavedEmail] = useState(profile?.email ?? user?.email ?? '')
   const [personalData, setPersonalData] = useState({
+    name: profile?.name ?? '',
     email: profile?.email ?? user?.email ?? '',
     phone: profile?.phone ?? user?.phone ?? '',
     currentPassword: '',
@@ -176,6 +177,10 @@ export default function AccountInformationPage() {
     const emailChanged =
       personalData.email.trim() !== savedEmail.trim()
 
+    if (!personalData.name.trim()) {
+      errors.name = 'O nome é obrigatório.'
+    }
+
     if (!personalData.email.trim()) {
       errors.email = 'O email é obrigatório.'
     } else if (!validateEmail(personalData.email.trim())) {
@@ -226,6 +231,7 @@ export default function AccountInformationPage() {
         personalData.email.trim() !== savedEmail.trim()
 
         const payload = {
+          name: personalData.name.trim(),
           phone: normalizePhone(personalData.phone),
         }
 
@@ -277,6 +283,7 @@ export default function AccountInformationPage() {
 
   function handleCancelPersonalEdit() {
     setPersonalData({
+      name: profile?.name ?? '',
       email: savedEmail,
       phone: profile.phone ?? '',
       currentPassword: '',
@@ -345,6 +352,18 @@ export default function AccountInformationPage() {
   const emailChanged =
     personalData.email.trim() !== savedEmail.trim()
 
+  useEffect(() => {
+    if (personalStatus?.type !== 'success') {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPersonalStatus(null)
+    }, 2000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [personalStatus])
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -379,7 +398,17 @@ export default function AccountInformationPage() {
         </div>
 
         {!hasProfile || !isEditingPersonalData ? (
-          <dl className="mt-7 grid gap-5 sm:grid-cols-2">
+          <dl className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl bg-slate-50 p-5">
+              <dt className="flex items-center gap-2 text-sm font-semibold text-[#0d1f35]">
+                <UserRound size={17} aria-hidden="true" />
+                Nome pessoal
+              </dt>
+              <dd className="mt-3 text-sm text-slate-600">
+                {shownData?.name ?? 'Não indicado'}
+              </dd>
+            </div>
+
             <div className="rounded-xl bg-slate-50 p-5">
               <dt className="flex items-center gap-2 text-sm font-semibold text-[#0d1f35]">
                 <Mail size={17} aria-hidden="true" />
@@ -411,6 +440,28 @@ export default function AccountInformationPage() {
               <button type="button" onClick={handleCancelPersonalEdit} disabled={isSavingPersonalData} className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 disabled:opacity-60" aria-label="Fechar"><X size={18} aria-hidden="true" /></button>
             </div>
             <div className="mt-6 space-y-5">
+            <div>
+              <label
+                htmlFor="name"
+                className="text-sm font-semibold text-[#0d1f35]"
+              >
+                Nome pessoal
+              </label>
+
+              <input
+                id="name"
+                name="name"
+                type="text"
+                value={personalData.name}
+                onChange={handlePersonalChange}
+                autoComplete="name"
+                maxLength={255}
+                className={inputClassName}
+              />
+
+              <FieldError message={personalErrors.name} />
+            </div>
+
             <div>
               <label
                 htmlFor="email"
@@ -478,14 +529,10 @@ export default function AccountInformationPage() {
               </div>
             )}
 
-            {personalStatus && (
+            {personalStatus?.type === 'error' && (
               <p
-                className={
-                  personalStatus.type === 'success'
-                    ? 'rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800'
-                    : 'rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800'
-                }
-                role={personalStatus.type === 'error' ? 'alert' : 'status'}
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800"
+                role="alert"
               >
                 {personalStatus.message}
               </p>
@@ -516,6 +563,14 @@ export default function AccountInformationPage() {
           </div>
         )}
       </section>
+
+      {personalStatus?.type === 'success' && (
+        <FeedbackBanner
+          type="success"
+          message={personalStatus.message}
+          onClose={() => setPersonalStatus(null)}
+        />
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-center gap-3">
