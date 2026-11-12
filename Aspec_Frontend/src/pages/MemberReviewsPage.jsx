@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   Star,
 } from 'lucide-react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import ReviewJustificationDialog from '../components/members/ReviewJustificationDialog'
 import Pagination from '../components/ui/Pagination'
 import useSessionRequest from '../hooks/useSessionRequest'
@@ -189,7 +189,12 @@ function EmptyReviews({ scope, filter }) {
 export default function MemberReviewsPage() {
   const { profile } = useOutletContext()
   const getRequestContext = useSessionRequest()
-  const [scope, setScope] = useState('received')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [scope, setScope] = useState(() => {
+    const requested = searchParams.get('separador')
+
+    return reviewScopes.some((reviewScope) => reviewScope.id === requested) ? requested : 'received'
+  })
   const [filter, setFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [retry, setRetry] = useState(0)
@@ -246,6 +251,7 @@ export default function MemberReviewsPage() {
     }
 
     setScope(nextScope)
+    setSearchParams(nextScope === 'written' ? { separador: 'written' } : {}, { replace: true })
     setFilter('all')
     setPage(1)
   }

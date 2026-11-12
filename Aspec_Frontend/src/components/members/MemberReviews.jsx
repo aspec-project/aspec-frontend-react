@@ -265,7 +265,8 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
         </fieldset>
         {errors.rating && <p id={`${formId}-rating-error`} className="mt-1 text-xs text-red-700">{errors.rating}</p>}
         <label htmlFor={`${formId}-comment`} className="sr-only">Comentário obrigatório</label>
-        <textarea id={`${formId}-comment`} name="comment" rows={3} maxLength={2000} required disabled={busy} value={comment} onChange={(event) => setComment(event.target.value)} aria-invalid={!!errors.comment} aria-describedby={errors.comment ? `${formId}-comment-error` : undefined} className={`mt-3 block w-full resize-y rounded-xl border bg-transparent px-3 py-2 text-sm leading-relaxed disabled:opacity-60 ${errors.comment ? 'border-red-400' : 'border-gray-200'} ${focusClass}`} />
+        <textarea id={`${formId}-comment`} name="comment" rows={3} maxLength={2000} required disabled={busy} value={comment} onChange={(event) => setComment(event.target.value)} aria-invalid={!!errors.comment} aria-describedby={errors.comment ? `${formId}-comment-counter ${formId}-comment-error` : `${formId}-comment-counter`} className={`mt-3 block w-full resize-y rounded-xl border bg-transparent px-3 py-2 text-sm leading-relaxed disabled:opacity-60 ${errors.comment ? 'border-red-400' : 'border-gray-200'} ${focusClass}`} />
+        <p id={`${formId}-comment-counter`} className={`mt-1 text-right text-xs ${comment.length >= 2000 ? 'text-amber-800' : 'text-gray-500'}`}>{comment.length}/2000</p>
         {errors.comment && <p id={`${formId}-comment-error`} className="mt-1 text-xs text-red-700">{errors.comment}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {requestStatus === 409 && <button type="button" className={`mt-2 rounded text-sm underline ${focusClass}`} disabled={busy || !current} onClick={() => setRetry((value) => value + 1)}>Atualizar avaliações</button>}
@@ -280,7 +281,7 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
       {awaitingModeration && (
         <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <p>A sua avaliação ficou a aguardar moderação e só fica visível depois de aprovada.</p>
-          <Link to="/perfil/avaliacoes" className={`mt-1 inline-block rounded font-medium underline ${focusClass}`}>As minhas avaliações</Link>
+          <Link to="/perfil/avaliacoes?separador=written" className={`mt-1 inline-block rounded font-medium underline ${focusClass}`}>As minhas avaliações</Link>
         </div>
       )}
       {data && <RatingDistribution distribution={data.rating_distribution} total={data.reviews_count} />}

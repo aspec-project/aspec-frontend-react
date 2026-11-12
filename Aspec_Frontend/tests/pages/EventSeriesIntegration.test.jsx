@@ -25,7 +25,7 @@ const seriesRegion = () => screen.getByRole("region", { name: "Sessões" });
 const seriesButton = (day) => within(seriesRegion()).getByRole("button", { name: new RegExp(`, ${day} de outubro de 2030`) });
 
 describe("Integração real do contrato de séries no detalhe", () => {
-  let originalAdapter, originalAuth, calls, events, listFails, conflict, uncertain;
+  let originalAdapter, originalAuth, calls, events, listFails, conflict, conflictMessage, uncertain;
   function adapter(config) {
     calls.push(config);
     if (config.url === "/events") {
@@ -35,7 +35,7 @@ describe("Integração real do contrato de séries no detalhe", () => {
     const targetId = config.url.split("/")[2];
     const target = events.find((event) => event.id === targetId);
     if (config.method === "get") return Promise.resolve(response(config, target));
-    if (conflict) return Promise.reject(new AxiosError("Conflito", AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config, null, 409), data: { message: "O evento atingiu a lotação máxima." } }));
+    if (conflict) return Promise.reject(new AxiosError("Conflito", AxiosError.ERR_BAD_RESPONSE, config, undefined, { ...response(config, null, 409), data: { message: conflictMessage } }));
     const group = config.method === "post" && JSON.parse(config.data || "{}").scope === "this_and_following";
     const affected = group ? events.filter((event) => event.event_date >= target.event_date) : [target];
     for (const event of affected) {
@@ -59,7 +59,7 @@ describe("Integração real do contrato de séries no detalhe", () => {
       { ...base },
       { ...base, id: nextId, event_date: "2030-10-22", registration_deadline: "2030-10-21T23:59:00+01:00" },
     ];
-    calls = []; listFails = false; conflict = false; uncertain = false;
+    calls = []; listFails = false; conflict = false; conflictMessage = "O evento atingiu a lotação máxima."; uncertain = false;
     api.defaults.adapter = adapter;
   });
   afterEach(() => { api.defaults.adapter = originalAdapter; act(() => useAuthStore.setState(originalAuth, true)); vi.restoreAllMocks(); });
@@ -112,6 +112,18 @@ describe("Integração real do contrato de séries no detalhe", () => {
     expect(calls.filter((config) => config.url === "/events")).toHaveLength(2);
     await userEvent.setup().click(screen.getByRole("button", { name: "Inscrever-me" }));
     expect(screen.getByRole("radio", { name: "Nesta e nas seguintes" })).toBeChecked();
+  });
+
+  it("o 409 do grupo indica a data da sessão que falhou", async () => {
+    conflict = true;
+    conflictMessage = "Já está inscrito na sessão de 18/11/2030.";
+    show();
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Inscrever-me" }));
+    await userEvent.setup().click(screen.getByRole("radio", { name: "Nesta e nas seguintes" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Confirmar inscrição" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Já está inscrito na sessão de 18/11/2030. Não foram efetuadas inscrições neste pedido.");
+    await waitFor(() => expect(calls.filter((config) => config.url === "/events")).toHaveLength(2));
+    expect(within(seriesRegion()).queryByText("Inscrito")).not.toBeInTheDocument();
   });
 
   it("se a atualização da série falhar, bloqueia mutações e repete apenas GET", async () => {

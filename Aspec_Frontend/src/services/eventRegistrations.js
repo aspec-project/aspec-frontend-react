@@ -9,10 +9,19 @@ const conflicts = new Set([
   "O prazo para cancelar a inscrição terminou.",
 ]);
 
+const seriesConflict = /^(?:Já está inscrito na sessão de \d{2}\/\d{2}\/\d{4}\.|A sessão de \d{2}\/\d{2}\/\d{4} atingiu a lotação máxima\.|O prazo de inscrição da sessão de \d{2}\/\d{2}\/\d{4} terminou\.)$/;
+
+/**
+ * Converte o erro de um pedido de inscrição numa mensagem para o membro. Nos 409 só mostra mensagens
+ * do servidor conhecidas, incluindo as da série com a data da sessão que falhou.
+ *
+ * @param {unknown} error Erro do axios.
+ * @returns {string} Mensagem em pt-PT.
+ */
 export function getRegistrationErrorMessage(error) {
   const status = error?.response?.status;
   const message = error?.response?.data?.message;
-  if (status === 409 && conflicts.has(message)) return message;
+  if (status === 409 && typeof message === "string" && (conflicts.has(message) || seriesConflict.test(message))) return message;
   if (status === 404) return "O evento ou a sua inscrição já não está disponível.";
   if (status === 401) return "Inicie sessão para gerir a sua inscrição.";
   if (status === 403) return "Não tem permissão para gerir esta inscrição.";

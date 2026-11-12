@@ -293,14 +293,14 @@ describe('Painel do admin', () => {
 
   it('uma avaliação de um negócio sem perfil mostra Empresa desconhecida', async () => {
     getAdminDashboard.mockResolvedValue(dashboard({
-      recent_reviews: [review('r4', 3, 'Visible', null, 'Empresa Removida')],
+      recent_reviews: [review('r4', 3, 'Visible', null, 'Empresa anonimizada')],
     }))
     show()
     await waitForDashboard()
 
     const row = within(itemsOf('Avaliações Recentes')[0])
     expect(row.getByText('Empresa desconhecida')).toBeInTheDocument()
-    expect(row.getByText('por Empresa Removida')).toBeInTheDocument()
+    expect(row.getByText('por Empresa anonimizada')).toBeInTheDocument()
   })
 
   it('sem dados mostra os zeros, as mensagens de lista vazia e mantém as ligações', async () => {

@@ -120,6 +120,22 @@ describe("Página de detalhe do evento", () => {
     if (!text.startsWith("Apenas")) expect(screen.queryByText(/^Apenas/)).not.toBeInTheDocument();
   });
 
+  it("depois do prazo a lotação não anuncia as vagas que restam", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-15T08:00:00Z"));
+    try {
+      api.defaults.adapter = (config) => Promise.resolve(response(config, { ...event, available_spots: 5, max_attendees: 40, registrations_count: 35, registration_open: false }));
+      show();
+      await screen.findByRole("heading", { name: event.name });
+      const capacity = screen.getByRole("region", { name: "Lotação do Evento" });
+      expect(within(capacity).getByText("Prazo de inscrição terminado")).toBeInTheDocument();
+      expect(within(capacity).queryByText("Apenas 5 vagas disponíveis!")).not.toBeInTheDocument();
+      expect(within(capacity).getByText("35 / 40")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("mantém o evento no layout público da aplicação", async () => {
     render(<MemoryRouter initialEntries={[`/eventos/${id}`]}><AppRouter /></MemoryRouter>);
     await screen.findByRole("heading", { name: event.name });
