@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import EventCard from "../../../src/components/events/EventCard.jsx";
 
 const evento = {
@@ -20,7 +20,10 @@ function mostrarCard(alteracoes = {}, apresentacao = {}) {
   return render(<MemoryRouter><EventCard event={{ ...evento, ...alteracoes }} {...apresentacao} /></MemoryRouter>);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("EventCard", () => {
   it("identifica o evento online sem apresentar localização física nem URL de reunião", () => {
@@ -172,12 +175,25 @@ describe("EventCard", () => {
     expect(screen.getByText("Lotação por confirmar.")).toBeInTheDocument();
   });
 
-  it("distingue um evento lotado e inscrições encerradas", () => {
-    mostrarCard({ available_spots: 0, registration_open: false });
+  it("distingue um evento lotado com o prazo aberto como lotação esgotada", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-01T10:00:00Z"));
+    mostrarCard({ available_spots: 0, registration_open: false, registration_deadline: "2030-10-14T22:59:00Z" });
 
     expect(screen.getByText("Evento lotado")).toBeInTheDocument();
-    expect(screen.getByText("Inscrições encerradas")).toBeInTheDocument();
+    expect(screen.getByText("Lotação esgotada")).toBeInTheDocument();
+    expect(screen.queryByText("Inscrições encerradas")).not.toBeInTheDocument();
     expect(screen.queryByText("Inscrições abertas")).not.toBeInTheDocument();
+  });
+
+  it("depois do prazo não anuncia vagas", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-15T08:00:00Z"));
+    mostrarCard({ available_spots: 45, registration_open: false, registration_deadline: "2030-10-14T22:59:00Z" });
+
+    expect(screen.getByText("Prazo de inscrição terminado")).toBeInTheDocument();
+    expect(screen.getByText("Inscrições encerradas")).toBeInTheDocument();
+    expect(screen.queryByText("45 vagas disponíveis")).not.toBeInTheDocument();
   });
 
   it("mantém o estado desconhecido quando a disponibilidade não é válida", () => {

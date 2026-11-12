@@ -173,6 +173,34 @@ describe("UpcomingEvents", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("distingue o prazo terminado de um evento com lotação esgotada", async () => {
+    const prazoTerminado = {
+      ...criarEvento("prazo", "Encontro com prazo terminado", "2030-10-08", "11:00:00"),
+      available_spots: 12,
+      registration_open: false,
+      registration_deadline: "2030-10-06T22:59:00Z",
+    };
+    const cheio = {
+      ...criarEvento("cheio", "Encontro cheio", "2030-10-09", "11:00:00"),
+      available_spots: 0,
+      registration_open: false,
+      registration_deadline: "2030-10-08T22:59:00Z",
+    };
+    simularResposta(respostaEventos([prazoTerminado, cheio]));
+
+    mostrarAgenda();
+
+    const cartaoPrazo = (await screen.findByRole("heading", { name: prazoTerminado.name })).closest("article");
+    expect(within(cartaoPrazo).getByText("Prazo de inscrição terminado")).toBeInTheDocument();
+    expect(within(cartaoPrazo).getByText("Inscrições encerradas")).toBeInTheDocument();
+    expect(within(cartaoPrazo).queryByText("12 vagas disponíveis")).not.toBeInTheDocument();
+
+    const cartaoCheio = screen.getByRole("heading", { name: cheio.name }).closest("article");
+    expect(within(cartaoCheio).getByText("Evento lotado")).toBeInTheDocument();
+    expect(within(cartaoCheio).getByText("Lotação esgotada")).toBeInTheDocument();
+    expect(within(cartaoCheio).queryByText("Inscrições encerradas")).not.toBeInTheDocument();
+  });
+
   it.each([
     ["uma resposta válida sem eventos", []],
     ["uma resposta só com eventos passados", [

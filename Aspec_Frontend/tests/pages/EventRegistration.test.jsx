@@ -204,8 +204,60 @@ describe("Inscrição no detalhe do evento", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTime(1));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByText("O prazo para gerir a inscrição terminou.")).toBeInTheDocument();
+    expect(screen.getByText("As inscrições terminaram.")).toBeInTheDocument();
+    expect(screen.queryByText("O prazo para gerir a inscrição terminou.")).not.toBeInTheDocument();
     expect(mutations()).toHaveLength(0);
+  });
+
+  it("o membro inscrito depois do prazo continua a ver que o prazo para gerir a inscrição terminou", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-16T09:00:00Z"));
+    data = { ...data, is_registered: true };
+    show();
+    await screen.findByText("O prazo para gerir a inscrição terminou.");
+    expect(screen.queryByText("As inscrições terminaram.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancelar a minha inscrição" })).not.toBeInTheDocument();
+  });
+
+  it("com o evento cheio e o prazo aberto mostra lotação esgotada", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-10T09:00:00Z"));
+    data = { ...data, registration_open: false, available_spots: 0, registrations_count: 20 };
+    show();
+    await screen.findByText("Lotação esgotada.");
+    expect(screen.queryByText("Inscrições encerradas.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Inscrever-me", exact: true })).not.toBeInTheDocument();
+  });
+
+  it("com vagas e as inscrições fechadas antes do prazo continua a mostrar inscrições encerradas", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-10T09:00:00Z"));
+    data = { ...data, registration_open: false, available_spots: 3 };
+    show();
+    await screen.findByText("Inscrições encerradas.");
+    expect(screen.queryByText("Lotação esgotada.")).not.toBeInTheDocument();
+  });
+
+  it("numa série, o cancelamento indica a data da sessão", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-10-10T09:00:00Z"));
+    const seriesId = "019512a1-7777-7123-8123-123456789abc";
+    const session = { ...initial, series_id: seriesId, event_date: "2030-11-11", event_start_time: "10:00", event_end_time: "12:00", is_registered: true };
+    api.defaults.adapter = (config) => {
+      calls.push(config);
+      if (config.url === "/events") return Promise.resolve(response(config, { items: [session], pagination: { current_page: 1, per_page: 9, total: 1, last_page: 1 } }));
+      return Promise.resolve(response(config, session));
+    };
+    show();
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Cancelar a minha inscrição" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Pretende cancelar a sua inscrição nesta sessão (11/11)?");
+  });
+
+  it("num evento avulso, o cancelamento continua a referir o evento", async () => {
+    data = { ...data, is_registered: true };
+    show();
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Cancelar a minha inscrição" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Pretende cancelar a sua inscrição neste evento?");
   });
 
   it("rejeita confirmação tardia mesmo antes do próximo tick do temporizador", async () => {

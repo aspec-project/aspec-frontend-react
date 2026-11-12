@@ -2,6 +2,7 @@ import { useId } from "react";
 import { CheckCircle, Repeat } from "lucide-react";
 import { formatDate, formatRegistrationDeadline, formatTime } from "../../utils/eventFormatting";
 import { validEventSessions } from "../../utils/eventSessions";
+import { getRegistrationState } from "../../utils/eventRegistrationState";
 
 function sessionDate(value) {
   const date = formatDate(value);
@@ -17,7 +18,7 @@ function SessionBadge({ session }) {
   if (session.registration_open === true) {
     return <span className="shrink-0 rounded-full bg-[#f5f2e8] px-2.5 py-1 text-xs text-[#6b5427]">Abertas</span>;
   }
-  return <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500">{session.registration_open === false ? "Encerradas" : "Por confirmar"}</span>;
+  return <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500">{{ full: "Esgotada", closed: "Encerradas" }[getRegistrationState(session)] ?? "Por confirmar"}</span>;
 }
 
 export default function EventSessions({ sessions = null, selectedId = null, onSelect, recurrenceLabel = "", status, error, onRetry }) {

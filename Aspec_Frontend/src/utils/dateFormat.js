@@ -85,6 +85,20 @@ export function formatDate(value) {
 }
 
 /**
+ * Formata uma data como "dd/mm" (sem o ano). Mesmas regras de leitura de formatDate.
+ *
+ * @param {unknown} value Data AAAA-MM-DD ou data e hora ISO 8601 com desvio.
+ * @returns {string} Dia e mês, ou '' se for inválida.
+ */
+export function formatDayMonth(value) {
+  const date = getDateParts(value)
+
+  if (date === null) return ''
+
+  return `${String(date.day).padStart(2, '0')}/${String(date.month).padStart(2, '0')}`
+}
+
+/**
  * Formata uma data com o mês abreviado, como "21 Jan 2025". Datas de calendário (AAAA-MM-DD) são lidas
  * do texto, sem fuso; datas e horas ISO 8601 com desvio são convertidas para a hora de Lisboa.
  *
