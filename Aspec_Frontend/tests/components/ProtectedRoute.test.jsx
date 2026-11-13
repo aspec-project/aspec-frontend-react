@@ -40,6 +40,14 @@ describe('Rotas Member Active', () => {
     act(() => useAuthStore.setState({ status: 'logging-out' }))
     expect(screen.queryByText('Conteúdo privado')).not.toBeInTheDocument()
   })
+
+  it('mostra um estado de carregamento enquanto confirma a sessão', () => {
+    useAuthStore.setState({ user: null, status: 'loading' })
+    show()
+
+    expect(screen.getByRole('status')).toHaveTextContent('A confirmar a sessão…')
+    expect(screen.queryByText('Conteúdo privado')).not.toBeInTheDocument()
+  })
 })
 
 describe('Destino após login válido', () => {

@@ -293,6 +293,34 @@ export default function AccountInformationPage() {
     setIsEditingPersonalData(false)
   }
 
+  /* O Escape equivale a cancelar a edição, mas nunca interrompe um pedido em curso. */
+  useEffect(() => {
+    if (!isEditingPersonalData || isSavingPersonalData) {
+      return undefined
+    }
+
+    const handleEscape = (event) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      event.preventDefault()
+      setPersonalData({
+        name: profile?.name ?? '',
+        email: savedEmail,
+        phone: profile?.phone ?? '',
+        currentPassword: '',
+      })
+      setPersonalErrors({})
+      setPersonalStatus(null)
+      setIsEditingPersonalData(false)
+    }
+
+    window.addEventListener('keydown', handleEscape)
+
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isEditingPersonalData, isSavingPersonalData, profile?.name, profile?.phone, savedEmail])
+
   async function handleNotificationPreferenceChange(preference) {
     const context = getRequestContext()
 

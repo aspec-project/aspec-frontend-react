@@ -48,7 +48,7 @@ function isCount(value) {
  *
  * @param {unknown} stats Totais vindos da API.
  * @returns {{
- *   active_members: {total: number, new_this_month: number, trial: number, active: number, admins: number},
+ *   active_members: {total: number, new_this_month: number},
  *   pending_applications: {total: number},
  *   events: {this_month: number, this_week: number},
  *   reviews: {flagged: number, new_this_week: number},
@@ -63,9 +63,6 @@ function readStats(stats) {
     active_members: {
       total: stats.active_members?.total,
       new_this_month: stats.active_members?.new_this_month,
-      trial: stats.active_members?.trial,
-      active: stats.active_members?.active,
-      admins: stats.active_members?.admins,
     },
     pending_applications: { total: stats.pending_applications?.total },
     events: { this_month: stats.events?.this_month, this_week: stats.events?.this_week },

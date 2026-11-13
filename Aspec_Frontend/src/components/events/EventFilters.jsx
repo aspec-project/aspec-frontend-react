@@ -18,8 +18,8 @@ export default function EventFilters({
 }) {
   return (
     <form onSubmit={onSearch} aria-label="Filtros de eventos" className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="min-w-0 md:col-span-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="min-w-0 md:col-span-2 lg:col-span-2">
           <label htmlFor="event-search" className={publicFilterLabelClass}>Pesquisar eventos</label>
           <PublicFilterSearch
             id="event-search"
