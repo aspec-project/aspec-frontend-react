@@ -174,7 +174,7 @@ describe('Painel do admin', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Resumo' })).toBeInTheDocument()
 
     const expected = [
-      ['Membros Ativos', '320', '300 em trial · 20 ativos'],
+      ['Membros Ativos', '320', 'Em trial ou com subscrição ativa'],
       ['Candidaturas Pendentes', '3', 'Requerem ação'],
       ['Eventos este mês', '8', '2 esta semana'],
       ['Avaliações para moderar', '2', '5 novas esta semana'],
@@ -192,7 +192,7 @@ describe('Painel do admin', () => {
     expect(within(cards[0]).getByText('+12 este mês')).toBeInTheDocument()
   })
 
-  it('o cartão Membros Ativos mostra a divisão com os administradores e o link continua na lista de ativos', async () => {
+  it('o cartão Membros Ativos mostra apenas os dados que a API disponibiliza e o link continua na lista de ativos', async () => {
     getAdminDashboard.mockResolvedValue(dashboard({
       stats: { ...stats, active_members: { total: 15, new_this_month: 3, trial: 10, active: 5, admins: 2 } },
     }))
@@ -202,9 +202,9 @@ describe('Painel do admin', () => {
     const members = within(summaryItems()[0])
     expect(members.getByText('15')).toBeInTheDocument()
     expect(members.getByText('+3 este mês')).toBeInTheDocument()
-    expect(members.getByText('10 em trial · 5 ativos (inclui administradores)')).toBeInTheDocument()
+    expect(members.getByText('Em trial ou com subscrição ativa')).toBeInTheDocument()
     expect(members.getByRole('link', {
-      name: 'Membros Ativos: 15, +3 este mês (10 em trial, 5 ativos (inclui administradores)). Ver utilizadores ativos',
+      name: 'Membros Ativos: 15, +3 este mês (Em trial ou com subscrição ativa). Ver utilizadores ativos',
     })).toHaveAttribute('href', '/admin/utilizadores?estado=active')
   })
 
@@ -733,7 +733,7 @@ describe('Painel da 442: cartões, paginação e linhas', () => {
     const links = within(summary)
 
     const expected = [
-      ['Membros Ativos: 320, +12 este mês (300 em trial, 20 ativos). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
+      ['Membros Ativos: 320, +12 este mês (Em trial ou com subscrição ativa). Ver utilizadores ativos', '/admin/utilizadores?estado=active'],
       ['Candidaturas Pendentes: 3 (Requerem ação). Ver candidaturas pendentes', '/admin/utilizadores?estado=pending'],
       ['Eventos este mês: 8 (2 esta semana). Ver eventos agendados', '/admin/eventos'],
       ['Avaliações para moderar: 2 (5 novas esta semana). Ver avaliações sinalizadas', '/admin/moderacao?estado=flagged'],

@@ -176,12 +176,12 @@ export default function MemberAreaLayout() {
           </div>
         </div>
 
-        {/* A navegação mantém-se horizontal em ecrãs pequenos, sem esconder abas. */}
+        {/* Em ecrãs estreitos as abas passam a várias linhas, sem criar scroll horizontal. */}
         <nav
-          className="overflow-x-auto border-t border-slate-100"
+          className="border-t border-slate-100"
           aria-label="Secções do perfil"
         >
-          <div className="mx-auto flex min-w-max max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-7xl flex-wrap gap-x-1 px-2 py-1 sm:px-6 sm:py-0 lg:px-8">
             {visibleTabs.map((tab) => (
               <NavLink
                 key={tab.to}
@@ -189,10 +189,10 @@ export default function MemberAreaLayout() {
                 end={tab.end}
                 className={({ isActive }) =>
                   [
-                    'border-b-2 px-5 py-4 text-sm font-semibold transition',
+                    'rounded-lg border-b-2 px-3 py-2.5 text-xs font-semibold transition sm:rounded-none sm:px-5 sm:py-4 sm:text-sm',
                     isActive
-                      ? 'border-[#0d1f35] text-[#0d1f35]'
-                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-[#0d1f35]',
+                      ? 'border-[#0d1f35] bg-slate-100 text-[#0d1f35] sm:bg-transparent'
+                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-[#0d1f35] sm:hover:bg-transparent',
                   ].join(' ')
                 }
               >

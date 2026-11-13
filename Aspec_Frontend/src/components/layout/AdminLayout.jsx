@@ -53,7 +53,7 @@ export default function AdminLayout() {
       <Header />
 
       <section className="bg-[linear-gradient(135deg,#0d1f35,#060f1a)]">
-        <div className="max-w-7xl mx-auto px-6 py-10">
+        <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
           {isDashboard ? (
             <>
               <h1 className="text-2xl font-semibold text-[#c9b87a]">Área de Administração</h1>
@@ -68,14 +68,14 @@ export default function AdminLayout() {
         </div>
       </section>
 
-      <nav aria-label="Secções da administração" className="bg-white border-b border-gray-200 overflow-x-auto">
-        <div className="max-w-7xl mx-auto flex gap-2 px-6">
+      <nav aria-label="Secções da administração" className="border-b border-gray-200 bg-white">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-1 px-4 py-2 sm:flex sm:gap-2 sm:px-6 sm:py-0">
           {ADMIN_TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               end={tab.end ?? false}
-              className={({ isActive }) => `whitespace-nowrap px-5 py-4 text-sm ${isActive ? 'border-b-2 border-[#0d1f35] text-[#0d1f35] font-semibold' : 'text-slate-500 hover:text-[#0d1f35]'}`}
+              className={({ isActive }) => `min-w-0 rounded-lg px-3 py-2.5 text-center text-xs leading-4 sm:rounded-none sm:px-5 sm:py-4 sm:text-sm ${isActive ? 'bg-slate-100 font-semibold text-[#0d1f35] sm:border-b-2 sm:border-[#0d1f35] sm:bg-transparent' : 'text-slate-500 hover:bg-slate-50 hover:text-[#0d1f35] sm:hover:bg-transparent'}`}
             >
               {tab.label}
             </NavLink>
@@ -84,7 +84,7 @@ export default function AdminLayout() {
       </nav>
 
       <main className="flex-1 bg-[#f5f5f4]">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
           <Outlet />
         </div>
       </main>

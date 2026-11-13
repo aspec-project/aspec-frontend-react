@@ -6,7 +6,7 @@ import { getAdminDashboard, getDashboardPendingApplications } from '../../src/se
 const FORMAT_ERROR = 'A resposta do painel tem um formato inesperado.'
 
 const stats = {
-  active_members: { total: 320, new_this_month: 12, trial: 300, active: 20, admins: 0 },
+  active_members: { total: 320, new_this_month: 12 },
   pending_applications: { total: 3 },
   events: { this_month: 8, this_week: 2 },
   reviews: { flagged: 2, new_this_week: 5 },
@@ -106,8 +106,8 @@ describe('getAdminDashboard', () => {
     expect(caught.message).toBe(FORMAT_ERROR)
   })
 
-  it('rejeita o painel quando falta ou é inválido trial, active ou admins', async () => {
-    for (const key of ['trial', 'active', 'admins']) {
+  it('rejeita o painel quando falta ou é inválido um total de membros ativos', async () => {
+    for (const key of ['total', 'new_this_month']) {
       for (const value of [undefined, -1, 1.5, '3', null]) {
         mockGet(body({ stats: { ...stats, active_members: { ...stats.active_members, [key]: value } } }))
 
@@ -118,7 +118,7 @@ describe('getAdminDashboard', () => {
       }
     }
 
-    const activeMembers = { total: 15, new_this_month: 3, trial: 10, active: 5, admins: 2 }
+    const activeMembers = { total: 15, new_this_month: 3 }
     mockGet(body({ stats: { ...stats, active_members: { ...activeMembers, extra: 1 } } }))
 
     const result = await getAdminDashboard()

@@ -8,7 +8,13 @@ export function ProtectedRoute({ allowedRoles, allowedStatuses }) {
   const location = useLocation();
 
   if (status === "loading" || status === "logging-out") {
-    return null;
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f7f8fa] px-4">
+        <p role="status" className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm font-medium text-slate-600 shadow-sm">
+          A confirmar a sessão…
+        </p>
+      </main>
+    );
   }
 
   if (!user || status !== 'authenticated') {
