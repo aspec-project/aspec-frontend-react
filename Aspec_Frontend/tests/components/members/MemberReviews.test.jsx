@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MemberReviews from '../../../src/components/members/MemberReviews'
 import { getMemberReviews } from '../../../src/services/members'
@@ -39,7 +40,7 @@ describe('Avaliações públicas de membros', () => {
   it('um membro Active lê avaliações e datas em português sem expor campos adicionais', async () => {
     const adapter = vi.fn((config) => Promise.resolve(response(config)))
     api.defaults.adapter = adapter
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     expect(screen.getByRole('status')).toHaveTextContent('A carregar avaliações')
     await screen.findByText('Santos & Filhos')
     expect(screen.getByText('S')).toBeInTheDocument()
@@ -67,7 +68,7 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, body(1, [
       { ...review, reviewer: { id: null, business_name: 'Empresa anonimizada' } },
     ])))
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     expect(await screen.findByText('Empresa anonimizada')).toBeInTheDocument()
     expect(screen.getByText('E')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -77,14 +78,14 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, {
       success: true, data: { average_rating: 4, reviews_count: 2 },
     }))
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as avaliações')
     expect(screen.queryByText('Ainda não existem avaliações.')).not.toBeInTheDocument()
   })
 
   it.each(['Member', 'Admin'])('não mostra aviso ao %s Active mesmo sem permissão de submissão nem cria formulário', async (role) => {
     useAuthStore.setState({ user: { id, role: { name: role }, account_status: { name: 'Active' } }, status: 'authenticated' })
-    render(<MemberReviews memberId={id} allowReview={false} />)
+    render(<MemberReviews memberId={id} allowReview={false} />, { wrapper: MemoryRouter })
     await screen.findByText('Santos & Filhos')
     expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
@@ -93,7 +94,7 @@ describe('Avaliações públicas de membros', () => {
 
   it('mostra estado vazio numa resposta válida', async () => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, body(1, [], 0)))
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     expect(await screen.findByText('Ainda não existem avaliações.')).toBeInTheDocument()
     expect(screen.queryByText('Para avaliar este membro, é necessário ser membro ASPEC.')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -103,7 +104,7 @@ describe('Avaliações públicas de membros', () => {
     const user = userEvent.setup()
     const adapter = vi.fn((config) => Promise.resolve(response(config, body(config.params.page, [{ ...review, reviewer: { ...review.reviewer, business_name: `Autor página ${config.params.page}` } }], 6))))
     api.defaults.adapter = adapter
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     await screen.findByText('Autor página 1')
     expect(screen.getByRole('button', { name: 'Página anterior' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Página seguinte' }))
@@ -119,7 +120,7 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = (config) => failure
       ? Promise.reject(status === undefined ? new AxiosError('Network Error', AxiosError.ERR_NETWORK) : httpError(config, status))
       : Promise.resolve(response(config))
-    render(<><h1>Perfil disponível</h1><MemberReviews memberId={id} /></>)
+    render(<><h1>Perfil disponível</h1><MemberReviews memberId={id} /></>, { wrapper: MemoryRouter })
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as avaliações')
     expect(screen.getByRole('heading', { name: 'Perfil disponível' })).toBeInTheDocument()
     failure = false
@@ -131,7 +132,7 @@ describe('Avaliações públicas de membros', () => {
   it('cancela pedidos de outro membro e ignora resposta fora de ordem', async () => {
     const pending = []
     api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
-    const view = render(<MemberReviews memberId={id} />)
+    const view = render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     await waitFor(() => expect(pending).toHaveLength(1))
     view.rerender(<MemberReviews memberId={otherId} />)
     await waitFor(() => expect(pending).toHaveLength(2))
@@ -149,7 +150,7 @@ describe('Avaliações públicas de membros', () => {
     api.defaults.adapter = (config) => config.url === `/members/${id}/reviews` && config.params.page === 1
       ? Promise.resolve(response(config, body(1, [review], 6)))
       : new Promise((resolve) => pending.push({ config, resolve }))
-    const view = render(<MemberReviews memberId={id} />)
+    const view = render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     await screen.findByText('Santos & Filhos')
     const next = screen.getByRole('button', { name: 'Página seguinte' })
     next.focus()
@@ -172,7 +173,7 @@ describe('Avaliações públicas de membros', () => {
     let block = false
     const adapter = vi.fn((config) => block ? new Promise((resolve) => pending.push({ config, resolve })) : Promise.resolve(response(config, body(config.params.page, [review], 6))))
     api.defaults.adapter = adapter
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     await screen.findByText('Santos & Filhos')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Página seguinte' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page'))
@@ -189,7 +190,7 @@ describe('Avaliações públicas de membros', () => {
   it('ignora respostas de pedidos pendentes de uma sessão anterior', async () => {
     const pending = []
     api.defaults.adapter = (config) => new Promise((resolve) => pending.push({ config, resolve }))
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     await waitFor(() => expect(pending).toHaveLength(1))
     await act(async () => useAuthStore.setState({ user: { id: otherId, role: { name: 'Member' }, account_status: { name: 'Active' } }, status: 'authenticated' }))
     await waitFor(() => expect(pending).toHaveLength(2))
@@ -205,7 +206,7 @@ describe('Avaliações públicas de membros', () => {
     { reviewer: { id, business_name: ' ' } }, { id: '../privado' },
   ])('trata avaliação malformada como erro: %j', async (change) => {
     api.defaults.adapter = (config) => Promise.resolve(response(config, body(1, [{ ...review, ...change }])))
-    render(<MemberReviews memberId={id} />)
+    render(<MemberReviews memberId={id} />, { wrapper: MemoryRouter })
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as avaliações')
     expect(screen.queryByText('Santos & Filhos')).not.toBeInTheDocument()
   })

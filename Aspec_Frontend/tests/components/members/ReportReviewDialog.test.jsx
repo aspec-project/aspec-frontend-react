@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AxiosError } from 'axios'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MemberReviews from '../../../src/components/members/MemberReviews'
 import { api } from '../../../src/services/api'
@@ -46,7 +47,7 @@ describe('Sinalizar avaliação através do contrato real', () => {
     api.defaults.adapter = adapter
   })
   afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
-  const show = () => render(<MemberReviews memberId={target} />)
+  const show = () => render(<MemberReviews memberId={target} />, { wrapper: MemoryRouter })
   const open = async () => {
     const user = userEvent.setup()
     const trigger = await screen.findByRole('button', { name: /Sinalizar avaliação/ })
@@ -56,7 +57,7 @@ describe('Sinalizar avaliação através do contrato real', () => {
 
   it('ativa o envio com motivo válido e reconcilia lista, média e contagem após 201', async () => {
     const onSummaryChange = vi.fn()
-    render(<MemberReviews memberId={target} onSummaryChange={onSummaryChange} />)
+    render(<MemberReviews memberId={target} onSummaryChange={onSummaryChange} />, { wrapper: MemoryRouter })
     const { user, dialog } = await open()
     expect(within(dialog).getByText(/Empresa avaliadora/)).toBeInTheDocument()
     const reason = within(dialog).getByRole('combobox', { name: /Motivo/ })

@@ -47,7 +47,7 @@ describe('Formulário de avaliação do perfil público', () => {
     api.defaults.adapter = adapter
   })
   afterEach(() => { cleanup(); api.defaults.adapter = original; vi.restoreAllMocks() })
-  const show = (props = {}) => render(<MemberReviews memberId={target} allowReview {...props} />)
+  const show = (props = {}) => render(<MemberReviews memberId={target} allowReview {...props} />, { wrapper: MemoryRouter })
   const openCreate = async () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: 'Avaliar', exact: true }))

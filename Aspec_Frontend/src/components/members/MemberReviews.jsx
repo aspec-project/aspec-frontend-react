@@ -1,11 +1,13 @@
 ﻿import { useEffect, useId, useRef, useState } from 'react'
 import { Flag, MessageSquare, Star, Trash2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { deleteMemberReview, getMemberReviewPage, isMemberProfileId, saveMemberReview } from '../../services/members'
 import { getMemberProfile } from '../../services/memberProfile'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
 import { useAuthStore } from '../../store/authStore'
+import useSearchParamsUpdater from '../../hooks/useSearchParamsUpdater'
 import { canActAsMember, canReportReviews } from '../../utils/memberAccess'
+import { parseAllowedValue, parsePositiveInteger, updateSearchParams } from '../../utils/queryParams'
 import Pagination from '../ui/Pagination'
 import SelectMenu from '../ui/SelectMenu'
 import RatingStars from './RatingStars'
@@ -18,6 +20,21 @@ const sortOptions = [
   { value: 'highest', label: 'Melhor classificação' }, { value: 'lowest', label: 'Pior classificação' },
 ]
 const ratingOptions = [{ value: '', label: 'Todas as estrelas' }, ...[5, 4, 3, 2, 1].map((value) => ({ value: String(value), label: `${value} ${value === 1 ? 'estrela' : 'estrelas'}` }))]
+/* Parâmetros do endereço com prefixo, para não colidirem com outros da página do perfil. */
+const QUERY_DEFAULTS = { reviews_page: 1, reviews_sort: 'newest', reviews_rating: '' }
+
+/**
+ * Lê e valida a página, a ordenação e o filtro de estrelas das avaliações no endereço.
+ * @param {URLSearchParams} searchParams Parâmetros do endereço.
+ * @returns {{ page: number, sort: string, ratingFilter: string }} Valores válidos, ou os padrões.
+ */
+function readReviewsQuery(searchParams) {
+  return {
+    page: parsePositiveInteger(searchParams.get('reviews_page'), QUERY_DEFAULTS.reviews_page),
+    sort: parseAllowedValue(searchParams.get('reviews_sort'), sortOptions.map((option) => option.value), QUERY_DEFAULTS.reviews_sort),
+    ratingFilter: parseAllowedValue(searchParams.get('reviews_rating'), ratingOptions.map((option) => option.value), QUERY_DEFAULTS.reviews_rating),
+  }
+}
 
 function mutationError(error) {
   return ({
@@ -97,31 +114,49 @@ function RatingDistribution({ distribution, total }) {
  * A mudança de contexto remonta o cartão para descartar imediatamente
  * comentários e formulários da identidade ou do perfil anteriores.
  */
+const canSeeReviews = (status, user) => status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
+
 export default function MemberReviews(props) {
   const user = useAuthStore((state) => state.user)
   const status = useAuthStore((state) => state.status)
   const generation = useAuthStore((state) => state.sessionGeneration)
   const sessionChanging = useAuthStore((state) => state.sessionChanging)
-  const [scope, setScope] = useState({ memberId: props.memberId, user, status, generation, revision: 0 })
-  if (scope.memberId !== props.memberId || scope.user !== user || scope.status !== status || scope.generation !== generation) {
-    setScope({ memberId: props.memberId, user, status, generation, revision: scope.revision + 1 })
+  const [searchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const [scope, setScope] = useState({ memberId: props.memberId, user, status, generation, revision: 0, resetQuery: false })
+  const queryInUse = Object.keys(QUERY_DEFAULTS).some((name) => searchParams.has(name))
+  /*
+   * Se o cartão já estava visível, a mudança de contexto também volta à
+   * primeira página e aos filtros padrão. A confirmação da sessão ao
+   * recarregar não conta, para o endereço continuar a valer.
+   */
+  useEffect(() => {
+    if (scope.resetQuery && queryInUse) changeSearchParams((current) => updateSearchParams(current, QUERY_DEFAULTS, QUERY_DEFAULTS), { replace: true })
+  }, [scope.resetQuery, queryInUse, changeSearchParams])
+  if (scope.resetQuery && !queryInUse) {
+    setScope({ ...scope, resetQuery: false })
     return null
   }
-  const active = status === 'authenticated' && !sessionChanging && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
-  if (!active) return null
+  if (scope.memberId !== props.memberId || scope.user !== user || scope.status !== status || scope.generation !== generation) {
+    setScope({ memberId: props.memberId, user, status, generation, revision: scope.revision + 1, resetQuery: scope.resetQuery || canSeeReviews(scope.status, scope.user) })
+    return null
+  }
+  const active = !sessionChanging && canSeeReviews(status, user)
+  if (!active || scope.resetQuery) return null
   return <ReviewPanel key={scope.revision} {...props} user={user} generation={generation} />
 }
 
 /**
  * Cartão de avaliações do perfil público: resumo, lista, formulário da própria avaliação e aviso de moderação.
+ * A página, a ordenação e o filtro ficam no endereço (reviews_page, reviews_sort, reviews_rating).
  * @param {{ memberId: string, allowReview?: boolean, user: object, generation: number, onSummaryChange?: Function }} props Perfil avaliado, sessão atual e callback do resumo.
  * @returns {JSX.Element} Secção "Avaliações".
  */
 function ReviewPanel({ memberId, allowReview = false, user, generation, onSummaryChange }) {
   const formId = useId()
-  const [page, setPage] = useState(1)
-  const [sort, setSort] = useState('newest')
-  const [ratingFilter, setRatingFilter] = useState('')
+  const [searchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const { page, sort, ratingFilter } = readReviewsQuery(searchParams)
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
   const [ownProfile, setOwnProfile] = useState(null)
@@ -168,13 +203,15 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     getMemberReviewPage(memberId, page, controller.signal, { sort, rating: ratingFilter === '' ? '' : Number(ratingFilter) })
       .then((response) => {
         if (controller.signal.aborted) return
-        if (response.pagination.current_page !== page) setPage(response.pagination.current_page)
+        if (response.pagination.current_page !== page) {
+          changeSearchParams((current) => updateSearchParams(current, { reviews_page: response.pagination.current_page }, QUERY_DEFAULTS), { replace: true })
+        }
         setResult({ ...snapshot, page: response.pagination.current_page, status: 'success', data: response })
         summaryCallback.current?.({ average_rating: response.average_rating, reviews_count: response.reviews_count })
       })
       .catch(() => { if (!controller.signal.aborted) setResult((previous) => ({ ...snapshot, status: 'error', data: previous?.data })) })
     return () => controller.abort()
-  }, [memberId, page, sort, ratingFilter, retry])
+  }, [memberId, page, sort, ratingFilter, retry, changeSearchParams])
   useEffect(() => () => mutation.current?.abort(), [])
 
   function openForm() {
@@ -239,8 +276,12 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     }
   }
 
-  function changeFilter(setter, value) { setReportedReview(null); setter(value); setPage(1) }
-  function changePage(value) { setReportedReview(null); setPage(value) }
+  function changeQuery(changes) {
+    setReportedReview(null)
+    changeSearchParams((current) => updateSearchParams(current, changes, QUERY_DEFAULTS))
+  }
+  function changeFilter(name, value) { changeQuery({ [name]: value, reviews_page: 1 }) }
+  function changePage(value) { changeQuery({ reviews_page: value }) }
   function reviewReported({ message }) {
     setReportedReview(null)
     setAwaitingModeration(false)
@@ -287,9 +328,9 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
       {data && <RatingDistribution distribution={data.rating_distribution} total={data.reviews_count} />}
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 [&_button[role=combobox]]:px-2.5 [&_button[role=combobox]]:py-1.5 [&_button[role=combobox]]:text-xs">
         <span id={`${formId}-sort-label`} className="sr-only">Ordenar avaliações</span>
-        <SelectMenu id={`${formId}-sort`} label="Ordenar avaliações" labelId={`${formId}-sort-label`} value={sort} options={sortOptions} onChange={(value) => changeFilter(setSort, value)} variant="public-filter" disabled={busy} />
+        <SelectMenu id={`${formId}-sort`} label="Ordenar avaliações" labelId={`${formId}-sort-label`} value={sort} options={sortOptions} onChange={(value) => changeFilter('reviews_sort', value)} variant="public-filter" disabled={busy} />
         <span id={`${formId}-filter-label`} className="sr-only">Filtrar por estrelas</span>
-        <SelectMenu id={`${formId}-filter`} label="Filtrar por estrelas" labelId={`${formId}-filter-label`} value={ratingFilter} options={ratingOptions} onChange={(value) => changeFilter(setRatingFilter, value)} variant="public-filter" disabled={busy} />
+        <SelectMenu id={`${formId}-filter`} label="Filtrar por estrelas" labelId={`${formId}-filter-label`} value={ratingFilter} options={ratingOptions} onChange={(value) => changeFilter('reviews_rating', value)} variant="public-filter" disabled={busy} />
       </div>
       {!current && <p role="status" className="mt-5 text-sm text-gray-600">A carregar avaliações...</p>}
       {current?.status === 'error' && <div role="alert" className="mt-5 text-sm text-gray-600"><p>Não foi possível carregar as avaliações. {(notice || awaitingModeration) ? 'A alteração foi concluída, mas a lista e o resumo ainda não foram atualizados.' : 'Tente novamente.'}</p><button type="button" className={`${buttonClass} mt-3 border border-gray-300`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button></div>}

@@ -97,6 +97,17 @@
     @apply border-border;
   }
 
+  /* O Tailwind 4 deixou de pôr o cursor de mão nos botões: assim fica claro o que se pode clicar. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;

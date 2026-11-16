@@ -37,7 +37,7 @@ describe('AdminLayout', () => {
   it('mostra o herói, os separadores de secção e o conteúdo da página de utilizadores entre o Header e o Footer', () => {
     show('/admin/utilizadores')
 
-    expect(screen.getByText('Área de Administração')).toBeInTheDocument()
+    expect(screen.getByText('Área de Administração')).toHaveClass('text-primary')
     expect(screen.getByRole('heading', { level: 1, name: 'Gestão de Utilizadores' })).toBeInTheDocument()
     expect(sectionTabs().getAllByRole('link').map((link) => link.textContent.trim())).toEqual(['Dashboard', 'Utilizadores', 'Eventos', 'Tipos de evento', 'Moderação'])
     expect(sectionTabs().getByRole('link', { name: 'Utilizadores' })).toHaveAttribute('aria-current', 'page')
@@ -51,7 +51,7 @@ describe('AdminLayout', () => {
 
     show('/admin')
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Área de Administração' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Área de Administração' })).toHaveClass('text-primary')
     expect(screen.getByText('terça-feira, 13 de outubro de 2026')).toBeInTheDocument()
     expect(sectionTabs().getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
     expect(sectionTabs().getByRole('link', { name: 'Utilizadores' })).not.toHaveAttribute('aria-current')
@@ -89,19 +89,19 @@ describe('AdminLayout', () => {
   it.each([
     ['/admin/utilizadores', 'Gestão de Utilizadores'],
     ['/admin/eventos', 'Gestão de Eventos'],
-  ])('em %s a banda do herói é escura com o eyebrow dourado claro e o título branco', (path, title) => {
+  ])('em %s a banda do herói é escura com o eyebrow no dourado da plataforma e o título branco', (path, title) => {
     show(path)
 
     const heading = screen.getByRole('heading', { level: 1, name: title })
     const hero = heading.closest('section')
     expect(hero).toHaveClass('bg-[linear-gradient(135deg,#0d1f35,#060f1a)]')
     expect(hero).not.toHaveClass('bg-white')
-    expect(within(hero).getByText('Área de Administração')).toHaveClass('text-[#c9b87a]', 'uppercase')
+    expect(within(hero).getByText('Área de Administração')).toHaveClass('text-primary', 'uppercase')
     expect(heading).toHaveClass('text-white')
     expect(screen.getByRole('navigation', { name: 'Secções da administração' })).toHaveClass('bg-white')
   })
 
-  it('no dashboard a banda do herói é escura com o título dourado claro e a data em cinzento claro', () => {
+  it('no dashboard a banda do herói é escura com o título no dourado da plataforma e a data em cinzento claro', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 13, 12))
 
@@ -111,7 +111,7 @@ describe('AdminLayout', () => {
     const hero = heading.closest('section')
     expect(hero).toHaveClass('bg-[linear-gradient(135deg,#0d1f35,#060f1a)]')
     expect(hero).not.toHaveClass('bg-white')
-    expect(heading).toHaveClass('text-[#c9b87a]')
+    expect(heading).toHaveClass('text-primary')
     expect(within(hero).getByText('terça-feira, 13 de outubro de 2026')).toHaveClass('text-gray-300')
   })
 

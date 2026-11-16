@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   BookOpen,
   Briefcase,
@@ -11,11 +11,14 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import useSearchParamsUpdater from '../hooks/useSearchParamsUpdater'
 import Pagination from '../components/ui/Pagination'
 import { normalizeError } from '../services/api'
 import useSessionRequest from '../hooks/useSessionRequest'
 import { isSessionCurrent } from '../services/sessionContext'
 import { getReceivedPrayerCards } from '../services/prayerCards'
+import { parsePositiveInteger, updateSearchParams } from '../utils/queryParams'
 
 const PER_PAGE = 5
 
@@ -75,10 +78,25 @@ function getCacheKey(period, page) {
 /*
  * Mantém a paginação e os resultados de cada período. Ao voltar a uma página
  * já lida, a lista é apresentada de imediato sem repetir o pedido à API.
+ * A página fica no endereço (current_page ou previous_page, conforme o
+ * período), para sobreviver a recarregar e ao botão Voltar.
  */
 function useReceivedPrayerCards(period) {
   const getRequestContext = useSessionRequest()
-  const [page, setPage] = useState(1)
+  const [searchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const pageParam = period + '_page'
+  const page = parsePositiveInteger(searchParams.get(pageParam), 1)
+  const setPage = useCallback(
+    (nextPage, options) => {
+      changeSearchParams(
+        (currentParams) =>
+          updateSearchParams(currentParams, { [pageParam]: nextPage }, { [pageParam]: 1 }),
+        options,
+      )
+    },
+    [pageParam, changeSearchParams],
+  )
   const [cachedPages, setCachedPages] = useState({})
   const [errors, setErrors] = useState({})
   const [retryNonce, setRetryNonce] = useState(0)
@@ -109,6 +127,13 @@ function useReceivedPrayerCards(period) {
         )
 
         if (isMounted && isSessionCurrent(context)) {
+          const lastPage = data.pagination.last_page
+
+          if (data.items.length === 0 && page > lastPage) {
+            setPage(lastPage, { replace: true })
+            return
+          }
+
           setCachedPages((currentPages) => ({
             ...currentPages,
             [cacheKey]: data,
@@ -138,7 +163,7 @@ function useReceivedPrayerCards(period) {
       isMounted = false
       controller.abort()
     }
-  }, [cacheKey, getRequestContext, page, period, requestKey, result])
+  }, [cacheKey, getRequestContext, page, period, requestKey, result, setPage])
 
   function retry() {
     setCachedPages((currentPages) => {
