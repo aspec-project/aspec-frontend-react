@@ -56,12 +56,12 @@ export default function AdminLayout() {
         <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
           {isDashboard ? (
             <>
-              <h1 className="text-2xl font-semibold text-[#c9b87a]">Área de Administração</h1>
+              <h1 className="text-2xl font-semibold text-primary">Área de Administração</h1>
               <p className="mt-2 text-gray-300">{today}</p>
             </>
           ) : (
             <>
-              <p className="uppercase tracking-wider text-[#c9b87a] text-sm font-semibold">Área de Administração</p>
+              <p className="uppercase tracking-wider text-primary text-sm font-semibold">Área de Administração</p>
               <h1 className="mt-2 text-2xl font-semibold text-white">{title}</h1>
             </>
           )}
