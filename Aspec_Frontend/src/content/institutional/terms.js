@@ -56,15 +56,15 @@ export default {
       "paragraphs": [
         "Em eventos com a funcionalidade ativa, os participantes elegíveis podem preencher cartões de oração com pedidos pessoais, de emprego ou de salvação. É necessário preencher pelo menos um pedido e respeitar o limite de 500 caracteres por campo.",
         "O envio exige a aceitação informada relativa à partilha do cartão para a finalidade da iniciativa. A edição do cartão pode exigir nova manifestação de consentimento. O preenchimento e as alterações estão sujeitos à janela temporal e ao estado da distribuição definidos para cada evento.",
-        "Após a distribuição, os pedidos, o nome, o email e o telefone do autor são partilhados com o membro destinatário para a finalidade de oração, conforme informado no formulário. O participante deve evitar incluir dados sensíveis de terceiros sem fundamento adequado e pode consultar a Política de Privacidade para mais informações sobre o tratamento destes dados.",
+        "Após a distribuição, os pedidos podem ser comunicados aos destinatários autorizados para a finalidade de oração. O participante deve evitar incluir dados sensíveis de terceiros sem fundamento adequado e pode consultar a Política de Privacidade para mais informações sobre o tratamento destes dados.",
         "A consulta, edição e eventual retirada do cartão dependem das funcionalidades e das regras efetivamente disponibilizadas pela plataforma; não se promete eliminação imediata de dados que devam continuar a ser conservados por fundamento legal."
       ]
     },
     {
       "title": "8. Quota, pagamentos, renovação e faturação",
       "paragraphs": [
-        "A documentação do projeto indica uma quota de referência de 30 €/ano, sem IVA acrescido. O valor e a periodicidade efetivamente aplicáveis estão por confirmar na operação real, e o enquadramento fiscal está por validar. As condições aplicáveis devem ser exibidas antes da confirmação do pagamento.",
-        "Os pagamentos são processados através da Stripe; a emissão e gestão de faturas utiliza a InvoiceXpress. Os dados necessários são partilhados com estes serviços de acordo com a Política de Privacidade.",
+        "Na configuração atual do projeto, a quota está prevista como anual, no valor de 30 €, sem IVA acrescido, segundo a informação de subscrição e faturação apresentada na plataforma. O valor, a periodicidade e o enquadramento fiscal aplicáveis devem ser exibidos antes da confirmação do pagamento.",
+        "Os pagamentos da quota são processados através da Stripe. A emissão e gestão das respetivas faturas é efetuada através da InvoiceXpress, à qual são comunicados o nome do membro ou denominação da empresa, o NIF, a morada e o email de faturação, bem como os elementos necessários à emissão dos documentos. O tratamento destes dados é descrito na Política de Privacidade.",
         "A área reservada permite consultar o estado da subscrição, período em curso, próximos pagamentos e documentos disponíveis. O acesso, o período experimental quando exista, as renovações, o tratamento de falhas de pagamento e eventuais períodos de carência seguem as condições apresentadas no momento da subscrição e o estado devolvido pelo sistema.",
         "Quando a plataforma permite agendar o cancelamento, este pode produzir efeitos no final do período pago indicado na área de subscrição. Os direitos de resolução, reembolso ou restituição eventualmente aplicáveis por lei não são prejudicados por estes Termos."
       ]
@@ -72,7 +72,7 @@ export default {
     {
       "title": "9. Serviços externos, dados pessoais e cookies",
       "paragraphs": [
-        "A operação do portal envolve serviços externos de pagamentos (Stripe), faturação (InvoiceXpress), email (Brevo), armazenamento de ficheiros (Cloudflare R2), mapas (Google Maps), alojamento da API (Render), base de dados (TiDB Cloud) e frontend (Vercel). O prestador efetivamente utilizado na geocodificação pelo servidor deve ser confirmado.",
+        "A operação do portal envolve serviços externos de pagamentos (Stripe), faturação (InvoiceXpress), email (Brevo), armazenamento de ficheiros (Cloudflare R2), mapas e geocodificação (Google Maps), alojamento da API (Render), base de dados (TiDB Cloud) e frontend (Vercel).",
         "A Política de Privacidade descreve os dados tratados, as finalidades, os destinatários, possíveis transferências internacionais, direitos dos titulares e utilização de cookies ou serviços de terceiros.",
         "Ao seguir ligações externas ou abrir funcionalidades fornecidas por terceiros, o utilizador pode ficar sujeito às práticas e termos do respetivo fornecedor, sem prejuízo das obrigações legais da entidade que gere a plataforma."
       ]
@@ -90,7 +90,7 @@ export default {
       "paragraphs": [
         "A informação sobre funcionalidades, serviços externos e regras de utilização pode ser revista quando existam alterações relevantes. As mudanças devem ser comunicadas de forma adequada à sua natureza, especialmente quando afetem condições relevantes de utilização.",
         "À utilização da plataforma aplica-se a legislação portuguesa e o direito da União Europeia aplicável, incluindo as normas de proteção de dados pessoais. Quaisquer conflitos serão tratados através dos meios legalmente competentes, sem imposição de foro que contrarie direitos imperativos.",
-        "Data de atualização desta redação: 9 de novembro de 2026. Contacto institucional apresentado no portal: aspec@aspec.pt. Esta redação é uma referência para o projeto académico e não constitui uma garantia de conformidade integral. A identificação legal completa da entidade gestora permanece por confirmar e deve ser preenchida com dados oficiais."
+        "Data de atualização desta redação: 9 de novembro de 2026. Contacto institucional apresentado no portal: aspec@aspec.pt. A identificação legal completa da entidade gestora deve ser inserida com base nos dados oficiais antes de considerar estes Termos informação jurídica integral."
       ]
     }
   ]

@@ -16,7 +16,7 @@ export default {
         "Candidatura e conta: nome, endereço de email, telefone, palavra-passe protegida por mecanismos criptográficos, dados de autenticação, estado da candidatura e da conta, empresa ou atividade, distrito, setor e outras informações introduzidas nos formulários. A candidatura pode incluir congregação e função exercida nessa congregação.",
         "Perfil e diretório: nome profissional ou empresarial, descrição, localização, contactos comerciais, website, redes sociais, horários, logótipo e imagens do portefólio, quando disponibilizados pelo membro.",
         "Eventos: identificação do evento e da sessão, inscrições, cancelamentos, datas, participação e dados necessários à gestão dos participantes. Avaliações: classificação, texto, identificação do autor e do perfil avaliado, sinalizações, decisões de moderação e respetivas datas.",
-        "Cartões de oração: pedidos pessoais, de emprego e de salvação, nome, email e telefone do autor, evento, consentimento dado para o envio e dados associados à distribuição. O conteúdo introduzido pode revelar informação religiosa, de saúde ou outras informações especialmente sensíveis; recomenda-se não incluir dados de terceiros sem fundamento adequado.",
+        "Cartões de oração: pedidos pessoais, de emprego e de salvação, informação de autoria e evento, consentimento dado para o envio e dados associados à distribuição. O conteúdo introduzido pode revelar informação religiosa, de saúde ou outras informações especialmente sensíveis; recomenda-se não incluir dados de terceiros sem fundamento adequado.",
         "Subscrição e faturação: nome ou denominação de faturação, NIF, morada, código postal, localidade, email, referências e estados de pagamento, montantes, períodos de subscrição e documentos de faturação. Os dados completos do cartão bancário são tratados pelo prestador de pagamentos, nos termos da integração utilizada.",
         "Dados técnicos: endereço IP, informações do navegador/dispositivo, cookies de sessão, registos de acesso e segurança e informação técnica gerada nas comunicações com a infraestrutura. Os dados têm origem no próprio titular, na utilização da plataforma, na administração do portal e, quando aplicável, nos prestadores integrados."
       ]
@@ -35,8 +35,8 @@ export default {
       "title": "4. Dados de natureza religiosa e cartões de oração",
       "paragraphs": [
         "A congregação, as funções religiosas e determinados pedidos de oração podem revelar convicções religiosas ou dados de saúde. Estes dados estão sujeitos à proteção reforçada prevista no artigo 9.º do RGPD.",
-        "O tratamento de categorias especiais só pode ocorrer quando, além de um fundamento do artigo 6.º, se verifique uma condição do artigo 9.º, como consentimento explícito válido para a finalidade concreta, ou a condição específica aplicável a determinadas associações sem fins lucrativos com objetivos religiosos, desde que cumpridos todos os seus requisitos. A condição concretamente aplicável e o cumprimento dos seus requisitos permanecem por confirmar. A aceitação genérica dos Termos e Condições não é, por si só, consentimento explícito para todas estas utilizações.",
-        "O cartão de oração é associado ao membro e ao evento. Após a distribuição, os pedidos, o nome, o email e o telefone do autor são partilhados com o membro destinatário, conforme informado no formulário. Outros acessos dependem das permissões da plataforma; a lista completa de intervenientes com acesso e os prazos de conservação permanecem por confirmar. O envio exige uma manifestação de consentimento no próprio formulário, o que não demonstra, por si só, a suficiência jurídica desse consentimento. Os pedidos não se destinam a divulgação pública indiscriminada.",
+        "O tratamento de categorias especiais só pode ocorrer quando, além de um fundamento do artigo 6.º, se verifique uma condição do artigo 9.º, como consentimento explícito válido para a finalidade concreta, ou a condição específica aplicável a determinadas associações sem fins lucrativos com objetivos religiosos, desde que cumpridos todos os seus requisitos. A aceitação genérica dos Termos e Condições não é, por si só, consentimento explícito para todas estas utilizações.",
+        "O cartão de oração é associado ao membro e ao evento. A sua disponibilização e distribuição seguem as regras do evento e as permissões da plataforma, incluindo acesso por intervenientes autorizados e destinatários quando o cartão seja distribuído. O envio exige uma manifestação de consentimento no próprio formulário. Os pedidos não se destinam a divulgação pública indiscriminada.",
         "Os membros devem evitar incluir informações sensíveis de terceiros, em especial dados de saúde, sem necessidade e sem base adequada para a sua comunicação."
       ]
     },
@@ -52,10 +52,10 @@ export default {
       "title": "6. Prestadores externos e categorias de dados comunicados",
       "paragraphs": [
         "Stripe — processamento da quota e gestão de pagamentos: nome, email, referências da transação, montantes e elementos de pagamento; os dados completos do cartão são introduzidos e tratados no ambiente do prestador, conforme a integração disponibilizada.",
-        "InvoiceXpress — emissão e gestão de faturas: identificação da empresa ou do titular, NIF, morada e email de faturação, bem como dados dos documentos emitidos.",
+        "InvoiceXpress — emissão e gestão das faturas da quota: nome do membro ou denominação da empresa, NIF, morada e email de faturação, bem como valores e outros elementos necessários aos documentos emitidos.",
         "Brevo — envio de emails operacionais e, se aplicável, comunicações opcionais: nome, email, conteúdo e metadados das mensagens necessários ao envio.",
         "Cloudflare R2 — armazenamento de logótipos, imagens de portefólio e PDFs de faturação; os documentos de faturação estão previstos em armazenamento privado.",
-        "Google Maps — apresentação de mapas de eventos e perfis e, quando utilizada, geocodificação de moradas: moradas e informação de localização; quando um mapa externo é carregado, a Google pode receber o IP e outros dados técnicos do dispositivo do visitante. O prestador efetivamente utilizado na geocodificação pelo servidor deve ser confirmado.",
+        "Google Maps — apresentação de mapas de eventos e geocodificação de moradas: moradas e informação de localização; quando um mapa externo é carregado, a Google pode receber o IP e outros dados técnicos do dispositivo do visitante.",
         "Render — alojamento e execução da API: dados processados nos pedidos à aplicação e registos técnicos de funcionamento e segurança.",
         "TiDB Cloud — alojamento da base de dados da plataforma: dados de contas, perfis, eventos, inscrições, avaliações, cartões de oração, subscrições e demais registos necessários ao funcionamento.",
         "Vercel — alojamento e entrega do frontend: endereço IP, pedidos HTTP, identificadores e registos técnicos necessários à disponibilização do site.",
@@ -65,7 +65,7 @@ export default {
     {
       "title": "7. Localização e transferências internacionais",
       "paragraphs": [
-        "Segundo a configuração técnica comunicada para o projeto, a API no Render e a base de dados TiDB Cloud estão previstas na região europeia de Frankfurt, e o armazenamento Cloudflare R2 foi concebido para alojamento na União Europeia. A configuração efetiva destas regiões e da jurisdição do bucket R2 permanece por confirmar. Uma preferência regional não equivale a uma restrição de jurisdição garantida, e uma região europeia não garante ausência de acesso ou tratamento fora do Espaço Económico Europeu.",
+        "Segundo a configuração técnica comunicada para o projeto, a API no Render e a base de dados TiDB Cloud estão na região europeia de Frankfurt, e o armazenamento Cloudflare R2 foi concebido para alojamento na União Europeia. A residência física exata dos objetos R2 depende da configuração do bucket: uma preferência regional não equivale a uma restrição de jurisdição garantida.",
         "Alguns prestadores internacionais, incluindo Stripe, Brevo, Google e Vercel, podem envolver acesso ou tratamento fora do Espaço Económico Europeu, de acordo com as suas operações, subcontratantes e configurações. Nestes casos, devem ser utilizadas garantias reconhecidas pelo capítulo V do RGPD, como decisões de adequação aplicáveis ou cláusulas contratuais-tipo, quando adequadas.",
         "A referência a mecanismos como as cláusulas contratuais-tipo não significa que tenha sido verificada a celebração de um acordo específico pela ASPEC. Informação sobre as garantias concretamente utilizadas e a forma de obter cópia das mesmas deve poder ser solicitada através do contacto de privacidade indicado."
       ]
@@ -106,7 +106,7 @@ export default {
       "paragraphs": [
         "A plataforma inclui validações técnicas, regras de acesso e mecanismos de sinalização de avaliações. A existência desses mecanismos não implica, por si só, decisões exclusivamente automatizadas com efeitos jurídicos ou impacto igualmente significativo, na aceção do artigo 22.º do RGPD.",
         "Esta política descreve as funcionalidades e serviços identificados no projeto ASPEC e pode ser atualizada quando sejam modificadas as operações de tratamento ou a legislação. Data de atualização desta redação: 9 de novembro de 2026.",
-        "Para questões sobre privacidade, utilize o contacto institucional apresentado na secção 1, cuja utilização para este fim permanece por confirmar. Esta redação é uma referência para o projeto académico; a identificação jurídica, o inventário de cookies e as restantes informações desconhecidas devem ser completados com dados efetivos. O texto não constitui uma garantia de conformidade integral."
+        "Para questões sobre privacidade, utilize o contacto institucional apresentado na secção 1. Os dados de identificação jurídica e o inventário técnico específico de cookies devem ser completados com informação efetiva antes de tratar esta redação como documentação de conformidade integral."
       ]
     }
   ]
