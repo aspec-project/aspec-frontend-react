@@ -581,15 +581,75 @@ export default function MemberProfilePage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           {editingSection === 'congregacao' ? (
             <form noValidate onSubmit={(event) => void saveSection(event, 'congregacao')}>
-              <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0d1f35]"><Church size={20} className="text-[#9b7b45]" aria-hidden="true" />Congregação</h2>
-              <div className="mt-6 grid gap-6"><div><label htmlFor="congregation" className="text-sm font-semibold text-[#0d1f35]">Congregação</label><input id="congregation" name="congregation" type="text" value={activeDraft.congregation} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.congregation} /></div><div><label htmlFor="roleInCongregation" className="text-sm font-semibold text-[#0d1f35]">Cargo na congregação</label><input id="roleInCongregation" name="roleInCongregation" type="text" value={activeDraft.roleInCongregation} onChange={updateDraft} className={inputClassName} /><FieldError message={fieldErrors.role_in_congregation} /></div></div>
+              <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0d1f35]">
+                <Church size={20} className="text-[#9b7b45]" aria-hidden="true" />
+                Congregação
+              </h2>
+
+              <div className="mt-6 grid gap-6">
+                <div>
+                  <label htmlFor="congregation" className="text-sm font-semibold text-[#0d1f35]">
+                    Congregação
+                  </label>
+                  <input
+                    id="congregation"
+                    name="congregation"
+                    type="text"
+                    value={activeDraft.congregation}
+                    onChange={updateDraft}
+                    className={inputClassName}
+                  />
+                  <FieldError message={fieldErrors.congregation} />
+                </div>
+
+                <div>
+                  <label htmlFor="roleInCongregation" className="text-sm font-semibold text-[#0d1f35]">
+                    Cargo na congregação
+                  </label>
+                  <input
+                    id="roleInCongregation"
+                    name="roleInCongregation"
+                    type="text"
+                    value={activeDraft.roleInCongregation}
+                    onChange={updateDraft}
+                    className={inputClassName}
+                  />
+                  <FieldError message={fieldErrors.role_in_congregation} />
+                </div>
+              </div>
+
               <InlineFeedback status={editStatus} />
               <CardActions isSaving={isSaving} onCancel={cancelEditing} />
             </form>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><Church className="text-[#9b7b45]" size={21} aria-hidden="true" /><h2 className="text-xl font-bold text-[#0d1f35]">Congregação</h2></div><EditProfileCardButton label="a congregação" onClick={() => void startEditing('congregacao')} disabled={editingAnotherCard} /></div>
-              <dl className="mt-5 space-y-4 text-sm"><div><dt className="text-slate-500">Nome</dt><dd className="mt-1 font-semibold text-[#0d1f35]">{profile.congregation?.trim() || 'Não indicada'}</dd></div><div><dt className="text-slate-500">Função</dt><dd className="mt-1 font-semibold text-[#0d1f35]">{profile.role_in_congregation?.trim() || 'Não indicada'}</dd></div></dl>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Church className="text-[#9b7b45]" size={21} aria-hidden="true" />
+                  <h2 className="text-xl font-bold text-[#0d1f35]">Congregação</h2>
+                </div>
+                <EditProfileCardButton
+                  label="a congregação"
+                  onClick={() => void startEditing('congregacao')}
+                  disabled={editingAnotherCard}
+                />
+              </div>
+
+              <dl className="mt-5 space-y-4 text-sm">
+                <div>
+                  <dt className="text-slate-500">Nome</dt>
+                  <dd className="mt-1 break-words font-semibold text-[#0d1f35]">
+                    {profile.congregation?.trim() || 'Não indicada'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Função</dt>
+                  <dd className="mt-1 break-words font-semibold text-[#0d1f35]">
+                    {profile.role_in_congregation?.trim() || 'Não indicada'}
+                  </dd>
+                </div>
+              </dl>
+
               {renderSavedNotice('congregacao')}
             </>
           )}
