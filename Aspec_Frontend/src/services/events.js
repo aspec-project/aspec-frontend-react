@@ -224,7 +224,7 @@ export async function getEventsPage(
     pagination.per_page !== perPage ||
     pagination.total < 0 ||
     pagination.last_page < 1 ||
-    pagination.current_page > pagination.last_page ||
+    (pagination.current_page > pagination.last_page && items.length !== 0) ||
     pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
     items.length > pagination.per_page ||
     items.length > pagination.total

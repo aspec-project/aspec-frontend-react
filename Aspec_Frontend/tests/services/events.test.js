@@ -369,3 +369,31 @@ describe("Início das sessões no relógio de Lisboa", () => {
     expect(isFutureEventSession({})).toBe(false);
   });
 });
+
+describe("getEventsPage: página acima da última", () => {
+  let adapterOriginal;
+
+  beforeEach(() => {
+    adapterOriginal = api.defaults.adapter;
+  });
+
+  afterEach(() => {
+    api.defaults.adapter = adapterOriginal;
+    vi.restoreAllMocks();
+  });
+
+  it("aceita a lista vazia que a API devolve para uma página acima da última", async () => {
+    simularResposta(respostaPagina([], { current_page: 999, total: 27, last_page: 3 }));
+
+    await expect(getEventsPage({ page: 999 })).resolves.toEqual({
+      items: [],
+      pagination: { current_page: 999, per_page: 9, total: 27, last_page: 3 },
+    });
+  });
+
+  it("continua a rejeitar uma página acima da última que traga itens", async () => {
+    simularResposta(respostaPagina([{ id: "evento", name: "Evento" }], { current_page: 999, total: 27, last_page: 3 }));
+
+    await expect(getEventsPage({ page: 999 })).rejects.toThrow("A paginação dos eventos tem um formato inesperado.");
+  });
+});

@@ -19,7 +19,7 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * Página do painel do backoffice (/admin): 6 cartões de totais em 3 + 3 (membros ativos, candidaturas
  * pendentes, eventos deste mês, avaliações para moderar, quotas em atraso e inscrições desta semana), todos
  * ligações para a lista respetiva exceto as inscrições; as candidaturas pendentes paginadas de 3 em 3 (a página
- * 1 vem do painel, as outras do hook useDashboardApplications) e as 3 avaliações mais recentes com ligação para
+ * 1 vem do painel, as outras do hook useDashboardApplications; a página fica no endereço) e as 3 avaliações mais recentes com ligação para
  * a moderação, com as linhas dos dois cartões alinhadas. O título (h1) e a data são do AdminLayout.
  * Cada candidatura pode ser aprovada ou recusada na própria linha, com os mesmos diálogos e o mesmo hook
  * (useAdminUserActions) da lista de utilizadores: o resultado aparece numa mensagem no topo da página e o

@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MemberReviews from '../../../src/components/members/MemberReviews'
 import { api } from '../../../src/services/api'
@@ -70,7 +71,7 @@ describe('Avaliações escritas por admins com perfil de membro', () => {
 
   function show(user) {
     useAuthStore.setState({ user, status: 'authenticated' })
-    return render(<MemberReviews memberId={target} allowReview />)
+    return render(<MemberReviews memberId={target} allowReview />, { wrapper: MemoryRouter })
   }
 
   it('o admin com perfil avalia outro membro', async () => {

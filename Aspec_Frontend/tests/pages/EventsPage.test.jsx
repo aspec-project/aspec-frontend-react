@@ -244,6 +244,24 @@ describe("EventsPage", () => {
     expect(pedidosEventos(adapter)[0].params).toEqual({ page: 1, per_page: 9 });
   });
 
+  it.each([
+    [3, "/eventos?category_id=categoria-a&page=3"],
+    [1, "/eventos?category_id=categoria-a"],
+  ])("uma página acima da última (%i) passa para a última no URL sem mostrar erro", async (lastPage, expectedLocation) => {
+    const adapter = instalarAdapter((config) => {
+      const page = config.params.page;
+      const items = page > lastPage ? [] : [criarEvento(`pagina-${page}`, `Evento da página ${page}`)];
+      return respostaPagina(items, page, { total: lastPage * 9, last_page: lastPage });
+    });
+
+    mostrarAgenda("/eventos?category_id=categoria-a&page=999");
+
+    await screen.findByRole("heading", { name: `Evento da página ${lastPage}` });
+    await waitFor(() => expect(screen.getByTestId("agenda-location").textContent).toBe(expectedLocation));
+    expect(pedidosEventos(adapter).map((config) => config.params.page)).toEqual([999, lastPage]);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("alterar ou limpar um filtro regressa à página 1 e preserva o outro", async () => {
     const user = userEvent.setup();
     const adapter = instalarAdapter();

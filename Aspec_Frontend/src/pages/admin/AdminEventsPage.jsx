@@ -37,12 +37,14 @@ const buttonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2 text-sm font-semibold tex
  * O 🗑 de cada evento agendado abre o diálogo de apagar: com inscritos a justificação é obrigatória (segue no
  * email de cancelamento); sem inscritos é uma confirmação simples. Depois de apagar aparece a mensagem da API
  * e a lista recarrega com os mesmos filtros.
+ * Os filtros, o separador e a página ficam no endereço (ver useAdminEvents).
  * A lógica vive nos hooks useAdminEvents (lista), useEventFilterOptions (opções dos filtros e do modal),
  * useAttendeesExport (exportação) e useEventDeletion (apagar).
  *
  * @returns {JSX.Element}
  */
 export default function AdminEventsPage() {
+  const options = useEventFilterOptions()
   const {
     filters,
     selectPeriod,
@@ -55,8 +57,7 @@ export default function AdminEventsPage() {
     data,
     loading,
     error,
-  } = useAdminEvents()
-  const options = useEventFilterOptions()
+  } = useAdminEvents(options)
   const exporter = useAttendeesExport({ onStale: retry })
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)
