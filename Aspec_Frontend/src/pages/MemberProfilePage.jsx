@@ -79,7 +79,7 @@ function ProfileDataRow({ label, value }) {
   return (
     <div className="grid gap-2 border-b border-slate-100 py-5 sm:grid-cols-[minmax(180px,1fr)_minmax(220px,1.4fr)] sm:items-center">
       <dt className="text-sm text-slate-500">{label}</dt>
-      <dd className="break-words text-sm font-semibold text-[#0d1f35] sm:text-right">
+      <dd className="wrap-break-word text-sm font-semibold text-[#0d1f35] sm:text-right">
         {value?.trim?.() || value || '—'}
       </dd>
     </div>
@@ -506,7 +506,7 @@ export default function MemberProfilePage() {
           ) : (
             <>
               <div className="flex items-start justify-between gap-4"><h2 className="text-xl font-semibold text-[#0d1f35]">Descrição Institucional</h2><EditProfileCardButton label="a descrição institucional" onClick={() => void startEditing('descricao')} disabled={editingAnotherCard} /></div>
-              <p className="mt-5 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{profile.description?.trim() || 'Ainda não foi adicionada uma descrição institucional.'}</p>
+              <p className="mt-5 whitespace-pre-wrap wrap-break-word text-sm leading-7 text-slate-600">{profile.description?.trim() || 'Ainda não foi adicionada uma descrição institucional.'}</p>
               {renderSavedNotice('descricao')}
             </>
           )}
@@ -638,13 +638,13 @@ export default function MemberProfilePage() {
               <dl className="mt-5 space-y-4 text-sm">
                 <div>
                   <dt className="text-slate-500">Nome</dt>
-                  <dd className="mt-1 break-words font-semibold text-[#0d1f35]">
+                  <dd className="mt-1 wrap-break-word font-semibold text-[#0d1f35]">
                     {profile.congregation?.trim() || 'Não indicada'}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Função</dt>
-                  <dd className="mt-1 break-words font-semibold text-[#0d1f35]">
+                  <dd className="mt-1 wrap-break-word font-semibold text-[#0d1f35]">
                     {profile.role_in_congregation?.trim() || 'Não indicada'}
                   </dd>
                 </div>
