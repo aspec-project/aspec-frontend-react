@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, FileText } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import useSearchParamsUpdater from '../../hooks/useSearchParamsUpdater'
 import Pagination from '../ui/Pagination'
 import { normalizeError } from '../../services/api'
 import {
   downloadInvoicePdf,
   getInvoices,
 } from '../../services/subscription'
+import { parsePositiveInteger, updateSearchParams } from '../../utils/queryParams'
 
 const PER_PAGE = 5
 
@@ -82,57 +85,58 @@ function getDownloadFilename(invoice) {
 
 /*
  * Cartão de faturas da área de subscrição. Carrega cinco documentos por
- * página, exatamente como a paginação apresentada no protótipo.
+ * página, exatamente como a paginação apresentada no protótipo. A página
+ * fica no endereço (invoices_page), para sobreviver a recarregar e ao botão
+ * Voltar; uma página para lá da última passa para a última.
  */
 export default function InvoiceList() {
-  const [invoices, setInvoices] = useState([])
-  const [pagination, setPagination] = useState(initialPagination)
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const page = parsePositiveInteger(searchParams.get('invoices_page'), 1)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [result, setResult] = useState({ key: '', invoices: [], pagination: initialPagination, error: '' })
   const [downloadError, setDownloadError] = useState('')
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null)
-
-  const loadInvoices = useCallback(async (page = 1) => {
-    setIsLoading(true)
-    setLoadError('')
-
-    try {
-      const invoiceData = await getInvoices(page, PER_PAGE)
-
-      setInvoices(invoiceData.items ?? [])
-      setPagination(invoiceData.pagination ?? initialPagination)
-    } catch (error) {
-      setLoadError(normalizeError(error).message)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  const requestKey = page + ':' + reloadKey
+  const isLoading = result.key !== requestKey
+  const { invoices, pagination } = result
+  const loadError = isLoading ? '' : result.error
 
   useEffect(() => {
     let isCurrent = true
 
-    async function loadInitialInvoices() {
+    async function loadInvoices() {
       try {
-        const invoiceData = await getInvoices(1, PER_PAGE)
+        const invoiceData = await getInvoices(page, PER_PAGE)
 
         if (!isCurrent) return
 
-        setInvoices(invoiceData.items ?? [])
-        setPagination(invoiceData.pagination ?? initialPagination)
-        setLoadError('')
+        const nextPagination = invoiceData.pagination ?? initialPagination
+        const items = invoiceData.items ?? []
+
+        if (items.length === 0 && page > nextPagination.last_page) {
+          changeSearchParams(
+            (currentParams) =>
+              updateSearchParams(currentParams, { invoices_page: nextPagination.last_page }, { invoices_page: 1 }),
+            { replace: true },
+          )
+          return
+        }
+
+        setResult({ key: requestKey, invoices: items, pagination: nextPagination, error: '' })
       } catch (error) {
-        if (isCurrent) setLoadError(normalizeError(error).message)
-      } finally {
-        if (isCurrent) setIsLoading(false)
+        if (isCurrent) {
+          setResult((current) => ({ ...current, key: requestKey, error: normalizeError(error).message }))
+        }
       }
     }
 
-    void loadInitialInvoices()
+    void loadInvoices()
 
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [page, requestKey, changeSearchParams])
 
   async function handleDownload(invoice) {
     setDownloadingInvoiceId(invoice.id)
@@ -156,16 +160,18 @@ export default function InvoiceList() {
     }
   }
 
-  function handlePageChange(page) {
+  function handlePageChange(nextPage) {
     if (
-      page < 1 ||
-      page > pagination.last_page ||
-      page === pagination.current_page
+      nextPage < 1 ||
+      nextPage > pagination.last_page ||
+      nextPage === pagination.current_page
     ) {
       return
     }
 
-    void loadInvoices(page)
+    setSearchParams((currentParams) =>
+      updateSearchParams(currentParams, { invoices_page: nextPage }, { invoices_page: 1 }),
+    )
   }
 
   if (isLoading) {
@@ -186,7 +192,7 @@ export default function InvoiceList() {
         <p className="mt-2 text-sm text-red-800">{loadError}</p>
         <button
           type="button"
-          onClick={() => void loadInvoices()}
+          onClick={() => setReloadKey((key) => key + 1)}
           className="mt-5 rounded-xl bg-[#0d1f35] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#193451]"
         >
           Tentar novamente

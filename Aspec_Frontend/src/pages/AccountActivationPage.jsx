@@ -227,6 +227,20 @@ function AccountActivationPage() {
     }
   }, [userId, rawSearch, requestAttempt])
 
+  /*
+   * Ao regressar da página de pagamento do Stripe pelo histórico, o browser pode
+   * restaurar esta página com o botão em "A encaminhar…". O pageshow desbloqueia-o.
+   */
+  useEffect(() => {
+    function resetSubmitting() {
+      setSubmitting(false)
+    }
+
+    window.addEventListener('pageshow', resetSubmitting)
+
+    return () => window.removeEventListener('pageshow', resetSubmitting)
+  }, [])
+
   function retryLoading() {
     setLoading(true)
     setLoadError(null)

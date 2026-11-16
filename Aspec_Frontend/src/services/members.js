@@ -40,7 +40,7 @@ export async function getMembers(filters, references, signal) {
     !positiveInteger(pagination.last_page) || pagination.current_page !== page ||
     pagination.per_page !== per_page ||
     pagination.last_page !== Math.max(1, Math.ceil(pagination.total / pagination.per_page)) ||
-    pagination.current_page > pagination.last_page ||
+    (pagination.current_page > pagination.last_page && items.length !== 0) ||
     items.length > pagination.per_page || items.length > pagination.total ||
     (pagination.total === 0 && items.length !== 0) ||
     new Set(items.map((item) => item?.id)).size !== items.length ||

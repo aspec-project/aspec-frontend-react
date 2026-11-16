@@ -7,6 +7,7 @@ import EventOnlineAccess from "./EventOnlineAccess";
 import EventTypeBadges from "./EventTypeBadges";
 import EventSessions from "./EventSessions";
 import EventPrayerCardBlock from "./EventPrayerCardBlock";
+import { CLOSED_SPOTS_LABEL, getRegistrationState } from "../../utils/eventRegistrationState";
 
 function HeaderInformation({ icon: Icon, label, children }) {
   return (
@@ -29,7 +30,8 @@ export default function EventDetail({ event, onEventUpdate, onReconcile, onRefre
   const available = event.available_spots;
   const hasOccupancy = event.max_attendees > 0 && event.registrations_count !== null;
   const occupancyCritical = hasOccupancy && isOccupancyCritical(event.max_attendees, event.registrations_count);
-  const fewSpots = available > 0 && occupancyCritical;
+  const registrationClosed = getRegistrationState(event) === "closed";
+  const fewSpots = available > 0 && occupancyCritical && !registrationClosed;
   const occupancy = hasOccupancy ? Math.min(100, Math.round(event.registrations_count / event.max_attendees * 100)) : null;
 
   return (
@@ -117,7 +119,7 @@ export default function EventDetail({ event, onEventUpdate, onReconcile, onRefre
             <p className="mt-2 text-xs text-gray-500">{event.max_attendees === null ? "Lotação por confirmar" : "Ocupação por confirmar"}</p>
           ) : null}
           <p className={`mt-3 text-xs ${fewSpots ? "font-medium text-red-700" : "text-gray-600"}`}>
-            {available === null ? "Vagas por confirmar" : available === 0 ? "Evento lotado" : `${fewSpots ? "Apenas " : ""}${available} ${available === 1 ? "vaga disponível" : "vagas disponíveis"}${fewSpots ? "!" : ""}`}
+            {available === null ? "Vagas por confirmar" : registrationClosed ? CLOSED_SPOTS_LABEL : available === 0 ? "Evento lotado" : `${fewSpots ? "Apenas " : ""}${available} ${available === 1 ? "vaga disponível" : "vagas disponíveis"}${fewSpots ? "!" : ""}`}
           </p>
           <EventRegistrantsModal event={event} />
           {deadline && (

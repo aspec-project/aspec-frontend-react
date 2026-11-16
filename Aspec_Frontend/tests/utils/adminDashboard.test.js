@@ -133,9 +133,9 @@ describe('getDashboardStatCards', () => {
       label: 'Membros Ativos',
       value: '15',
       delta: '+3 este mês',
-      hint: '10 em trial · 5 ativos (inclui administradores)',
+        hint: '10 em trial · 5 ativos (inclui administradores)',
       to: '/admin/utilizadores?estado=active',
-      linkLabel: 'Membros Ativos: 15, +3 este mês (10 em trial, 5 ativos (inclui administradores)). Ver utilizadores ativos',
+        linkLabel: 'Membros Ativos: 15, +3 este mês (10 em trial, 5 ativos (inclui administradores)). Ver utilizadores ativos',
     })
   })
 

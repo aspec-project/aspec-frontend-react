@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { formatDate, formatDayMonthTime, formatRelativeDateTime, formatShortDate, formatShortDateTime, isIsoDateTime } from '../../src/utils/dateFormat'
+import { formatDate, formatDayMonth, formatDayMonthTime, formatRelativeDateTime, formatShortDate, formatShortDateTime, isIsoDateTime } from '../../src/utils/dateFormat'
 
 describe('formatDate', () => {
   it('formata datas de calendário como dd/mm/aaaa', () => {
@@ -79,6 +79,24 @@ describe('formatDayMonthTime', () => {
   it('devolve texto vazio para valores inválidos ou sem hora', () => {
     for (const value of ['2025-02-03', null, 'lixo']) {
       expect(formatDayMonthTime(value)).toBe('')
+    }
+  })
+})
+
+describe('formatDayMonth', () => {
+  it('formata datas de calendário como dd/mm, sem o ano', () => {
+    expect(formatDayMonth('2026-11-11')).toBe('11/11')
+    expect(formatDayMonth('2026-03-05')).toBe('05/03')
+  })
+
+  it('mostra o dia de Lisboa nas datas e horas com desvio', () => {
+    expect(formatDayMonth('2026-10-31T23:30:00Z')).toBe('31/10')
+    expect(formatDayMonth('2026-07-31T23:30:00Z')).toBe('01/08')
+  })
+
+  it('devolve texto vazio para valores inválidos', () => {
+    for (const value of ['2026-02-30', '', null]) {
+      expect(formatDayMonth(value)).toBe('')
     }
   })
 })

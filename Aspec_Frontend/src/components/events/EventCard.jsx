@@ -3,6 +3,7 @@ import { CalendarDays, Clock, MapPin, Users, ChevronRight, Video, Repeat } from 
 
 import { formatDate, formatTime, categoryColor, softCategoryColor, isOccupancyCritical, OCCUPANCY_WARNING_COLOR } from "../../utils/eventFormatting";
 import EventTypeBadges from "./EventTypeBadges";
+import { CLOSED_SPOTS_LABEL, REGISTRATION_STATE_LABELS, getRegistrationState } from "../../utils/eventRegistrationState";
 
 export default function EventCard({ event, sessionLabel = "" }) {
   const isOnline = event.is_online === true;
@@ -21,11 +22,14 @@ export default function EventCard({ event, sessionLabel = "" }) {
   const occupancy = hasOccupancy
     ? Math.min(100, Math.max(0, Math.round((registrationsCount / maxAttendees) * 100)))
     : null;
+  const registrationState = getRegistrationState(event);
   const availability = !Number.isInteger(availableSpots) || availableSpots < 0
     ? "Vagas por confirmar"
-    : availableSpots === 0
-      ? "Evento lotado"
-      : `${availableSpots} ${availableSpots === 1 ? "vaga disponível" : "vagas disponíveis"}`;
+    : registrationState === "closed"
+      ? CLOSED_SPOTS_LABEL
+      : availableSpots === 0
+        ? "Evento lotado"
+        : `${availableSpots} ${availableSpots === 1 ? "vaga disponível" : "vagas disponíveis"}`;
 
   return (
     <article className="row-span-11 grid min-w-0 grid-rows-subgrid gap-y-0 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-shadow hover:shadow-md">
@@ -95,8 +99,7 @@ export default function EventCard({ event, sessionLabel = "" }) {
           <p className="mt-4 self-end text-xs text-gray-500">Lotação por confirmar.</p>
         )}
         <div className="mt-4 min-h-4 text-xs font-medium text-gray-500">
-          {event.registration_open === true && <p>Inscrições abertas</p>}
-          {event.registration_open === false && <p>Inscrições encerradas</p>}
+          {registrationState && <p>{REGISTRATION_STATE_LABELS[registrationState]}</p>}
         </div>
         <div className="self-end pt-4">
           <Link

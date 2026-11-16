@@ -4,7 +4,7 @@ import {
   ExternalLink,
   XCircle,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { normalizeError } from '../services/api'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Pagination from '../components/ui/Pagination'
@@ -15,8 +15,12 @@ import {
 } from '../services/eventRegistrations'
 import { isSessionCurrent } from '../services/sessionContext'
 import useSessionRequest from '../hooks/useSessionRequest'
+import { parsePositiveInteger, updateSearchParams } from '../utils/queryParams'
 
 const REGISTRATIONS_PER_SECTION = 4
+
+/* Página de cada lista no endereço; a 1 não é escrita. */
+const PAGE_DEFAULTS = { upcoming_page: 1, past_page: 1 }
 
 function formatEventDate(value) {
   if (!value) {
@@ -111,6 +115,9 @@ function EventRegistrationRow({
 /*
  * Lista as inscrições reais do membro autenticado. Não mostra dados
  * inventados enquanto o endpoint ainda está a carregar ou não devolve itens.
+ * A página de cada lista fica no endereço (upcoming_page e past_page), para
+ * sobreviver a recarregar e ao botão Voltar; uma página para lá da última
+ * mostra a última.
  */
 export default function MemberRegistrationsPage() {
   const getRequestContext = useSessionRequest()
@@ -121,8 +128,13 @@ export default function MemberRegistrationsPage() {
   const [cancellingRegistrationId, setCancellingRegistrationId] = useState(null)
   const [registrationToCancel, setRegistrationToCancel] = useState(null)
   const [referenceTime, setReferenceTime] = useState(0)
-  const [upcomingPage, setUpcomingPage] = useState(1)
-  const [pastPage, setPastPage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedUpcomingPage = parsePositiveInteger(searchParams.get('upcoming_page'), 1)
+  const requestedPastPage = parsePositiveInteger(searchParams.get('past_page'), 1)
+
+  function changePages(pages, options) {
+    setSearchParams((currentParams) => updateSearchParams(currentParams, pages, PAGE_DEFAULTS), options)
+  }
 
   useEffect(() => {
     const context = getRequestContext()
@@ -208,8 +220,7 @@ export default function MemberRegistrationsPage() {
         message: 'Inscrição cancelada com sucesso.',
       })
       setRegistrationToCancel(null)
-      setUpcomingPage(1)
-      setPastPage(1)
+      changePages(PAGE_DEFAULTS, { replace: true })
       setReloadKey((currentKey) => currentKey + 1)
     } catch (error) {
       if (!isSessionCurrent(context)) {
@@ -236,14 +247,6 @@ export default function MemberRegistrationsPage() {
     (registration) =>
       getEventStartTimestamp(registration.event) < referenceTime,
   )
-  const visibleUpcomingRegistrations = upcomingRegistrations.slice(
-    (upcomingPage - 1) * REGISTRATIONS_PER_SECTION,
-    upcomingPage * REGISTRATIONS_PER_SECTION,
-  )
-  const visiblePastRegistrations = pastRegistrations.slice(
-    (pastPage - 1) * REGISTRATIONS_PER_SECTION,
-    pastPage * REGISTRATIONS_PER_SECTION,
-  )
   const upcomingLastPage = Math.max(
     1,
     Math.ceil(upcomingRegistrations.length / REGISTRATIONS_PER_SECTION),
@@ -252,10 +255,19 @@ export default function MemberRegistrationsPage() {
     1,
     Math.ceil(pastRegistrations.length / REGISTRATIONS_PER_SECTION),
   )
+  const upcomingPage = Math.min(requestedUpcomingPage, upcomingLastPage)
+  const pastPage = Math.min(requestedPastPage, pastLastPage)
+  const visibleUpcomingRegistrations = upcomingRegistrations.slice(
+    (upcomingPage - 1) * REGISTRATIONS_PER_SECTION,
+    upcomingPage * REGISTRATIONS_PER_SECTION,
+  )
+  const visiblePastRegistrations = pastRegistrations.slice(
+    (pastPage - 1) * REGISTRATIONS_PER_SECTION,
+    pastPage * REGISTRATIONS_PER_SECTION,
+  )
 
   function retryLoading() {
-    setUpcomingPage(1)
-    setPastPage(1)
+    changePages(PAGE_DEFAULTS, { replace: true })
     setReloadKey((currentKey) => currentKey + 1)
   }
 
@@ -348,7 +360,7 @@ export default function MemberRegistrationsPage() {
                   <Pagination
                     currentPage={upcomingPage}
                     lastPage={upcomingLastPage}
-                    onChange={setUpcomingPage}
+                    onChange={(page) => changePages({ upcoming_page: page })}
                     label="Paginação dos próximos eventos"
                   />
                 </div>
@@ -387,7 +399,7 @@ export default function MemberRegistrationsPage() {
                   <Pagination
                     currentPage={pastPage}
                     lastPage={pastLastPage}
-                    onChange={setPastPage}
+                    onChange={(page) => changePages({ past_page: page })}
                     label="Paginação dos eventos anteriores"
                   />
                 </div>

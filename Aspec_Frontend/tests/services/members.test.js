@@ -88,3 +88,21 @@ describe('Serviço do diretório', () => {
     await expect(load()).rejects.toThrow('A lista de filtros tem um formato inesperado.')
   })
 })
+
+describe('Serviço do diretório: página acima da última', () => {
+  let original
+  beforeEach(() => { original = api.defaults.adapter })
+  afterEach(() => { api.defaults.adapter = original; vi.restoreAllMocks() })
+
+  const outOfRange = (items) => ({ success: true, data: { items, pagination: { current_page: 999, per_page: 12, total: 25, last_page: 3 } } })
+
+  it('aceita a lista vazia que a API devolve para uma página acima da última', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(outOfRange([]), config))
+    await expect(getMembers({ page: 999 }, references)).resolves.toEqual({ items: [], pagination: { current_page: 999, per_page: 12, total: 25, last_page: 3 } })
+  })
+
+  it('continua a rejeitar uma página acima da última que traga itens', async () => {
+    api.defaults.adapter = (config) => Promise.resolve(response(outOfRange([member]), config))
+    await expect(getMembers({ page: 999 }, references)).rejects.toThrow('A resposta do diretório tem um formato inesperado.')
+  })
+})

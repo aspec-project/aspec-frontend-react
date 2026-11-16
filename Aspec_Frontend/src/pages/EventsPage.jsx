@@ -5,6 +5,8 @@ import EventCard from "../components/events/EventCard";
 import ListPagination from "../components/ui/ListPagination";
 import { getEventsPage, getEventsCapabilities, getEventsErrorMessage } from "../services/events";
 import { getEventCategories, getLocations } from "../services/referenceLists";
+import useSearchParamsUpdater from "../hooks/useSearchParamsUpdater";
+import { parsePositiveInteger, updateSearchParams } from "../utils/queryParams";
 
 function useFilterOptions(loadOptions) {
   const [attempt, setAttempt] = useState(0);
@@ -60,13 +62,6 @@ const DEFAULT_QUERY = {
   perPage: 9,
 };
 
-function parsePositiveInteger(value, fallback) {
-  if (!/^\d+$/.test(value ?? "")) return fallback;
-
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function readAgendaQuery(searchParams) {
   const perPageCandidate = parsePositiveInteger(searchParams.get("per_page"), DEFAULT_QUERY.perPage);
   const search = searchParams.get("search") ?? "";
@@ -96,6 +91,7 @@ function agendaSearchParams(query) {
 
 export default function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const changeSearchParams = useSearchParamsUpdater();
   const query = readAgendaQuery(searchParams);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState({ key: "", data: null, error: "" });
@@ -120,7 +116,15 @@ export default function EventsPage() {
         if (controller.signal.aborted) return;
         const data = await getEventsPage({ categoryId, locationId, search, page, perPage }, controller.signal);
 
-        if (!controller.signal.aborted) {
+        if (controller.signal.aborted) return;
+
+        /* Uma página acima da última vem vazia: o endereço passa para a última e repete o pedido. */
+        if (data.items.length === 0 && data.pagination.current_page > data.pagination.last_page) {
+          changeSearchParams(
+            (current) => updateSearchParams(current, { page: data.pagination.last_page }, { page: DEFAULT_QUERY.page }),
+            { replace: true }
+          );
+        } else {
           setResult({ key: queryKey, data, error: "" });
         }
       } catch (error) {
@@ -134,7 +138,7 @@ export default function EventsPage() {
     queueMicrotask(load);
 
     return () => controller.abort();
-  }, [categoryId, locationId, search, page, perPage, queryKey]);
+  }, [categoryId, locationId, search, page, perPage, queryKey, changeSearchParams]);
 
   /*
    * Uma resposta pertence à consulta que a originou. Durante a mudança de

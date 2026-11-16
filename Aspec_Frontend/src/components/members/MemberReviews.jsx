@@ -1,11 +1,13 @@
 ﻿import { useEffect, useId, useRef, useState } from 'react'
 import { Flag, MessageSquare, Star, Trash2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { deleteMemberReview, getMemberReviewPage, isMemberProfileId, saveMemberReview } from '../../services/members'
 import { getMemberProfile } from '../../services/memberProfile'
 import { getSessionContext, isSessionCurrent } from '../../services/sessionContext'
 import { useAuthStore } from '../../store/authStore'
+import useSearchParamsUpdater from '../../hooks/useSearchParamsUpdater'
 import { canActAsMember, canReportReviews } from '../../utils/memberAccess'
+import { parseAllowedValue, parsePositiveInteger, updateSearchParams } from '../../utils/queryParams'
 import Pagination from '../ui/Pagination'
 import SelectMenu from '../ui/SelectMenu'
 import RatingStars from './RatingStars'
@@ -18,6 +20,21 @@ const sortOptions = [
   { value: 'highest', label: 'Melhor classificação' }, { value: 'lowest', label: 'Pior classificação' },
 ]
 const ratingOptions = [{ value: '', label: 'Todas as estrelas' }, ...[5, 4, 3, 2, 1].map((value) => ({ value: String(value), label: `${value} ${value === 1 ? 'estrela' : 'estrelas'}` }))]
+/* Parâmetros do endereço com prefixo, para não colidirem com outros da página do perfil. */
+const QUERY_DEFAULTS = { reviews_page: 1, reviews_sort: 'newest', reviews_rating: '' }
+
+/**
+ * Lê e valida a página, a ordenação e o filtro de estrelas das avaliações no endereço.
+ * @param {URLSearchParams} searchParams Parâmetros do endereço.
+ * @returns {{ page: number, sort: string, ratingFilter: string }} Valores válidos, ou os padrões.
+ */
+function readReviewsQuery(searchParams) {
+  return {
+    page: parsePositiveInteger(searchParams.get('reviews_page'), QUERY_DEFAULTS.reviews_page),
+    sort: parseAllowedValue(searchParams.get('reviews_sort'), sortOptions.map((option) => option.value), QUERY_DEFAULTS.reviews_sort),
+    ratingFilter: parseAllowedValue(searchParams.get('reviews_rating'), ratingOptions.map((option) => option.value), QUERY_DEFAULTS.reviews_rating),
+  }
+}
 
 function mutationError(error) {
   return ({
@@ -97,31 +114,49 @@ function RatingDistribution({ distribution, total }) {
  * A mudança de contexto remonta o cartão para descartar imediatamente
  * comentários e formulários da identidade ou do perfil anteriores.
  */
+const canSeeReviews = (status, user) => status === 'authenticated' && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
+
 export default function MemberReviews(props) {
   const user = useAuthStore((state) => state.user)
   const status = useAuthStore((state) => state.status)
   const generation = useAuthStore((state) => state.sessionGeneration)
   const sessionChanging = useAuthStore((state) => state.sessionChanging)
-  const [scope, setScope] = useState({ memberId: props.memberId, user, status, generation, revision: 0 })
-  if (scope.memberId !== props.memberId || scope.user !== user || scope.status !== status || scope.generation !== generation) {
-    setScope({ memberId: props.memberId, user, status, generation, revision: scope.revision + 1 })
+  const [searchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const [scope, setScope] = useState({ memberId: props.memberId, user, status, generation, revision: 0, resetQuery: false })
+  const queryInUse = Object.keys(QUERY_DEFAULTS).some((name) => searchParams.has(name))
+  /*
+   * Se o cartão já estava visível, a mudança de contexto também volta à
+   * primeira página e aos filtros padrão. A confirmação da sessão ao
+   * recarregar não conta, para o endereço continuar a valer.
+   */
+  useEffect(() => {
+    if (scope.resetQuery && queryInUse) changeSearchParams((current) => updateSearchParams(current, QUERY_DEFAULTS, QUERY_DEFAULTS), { replace: true })
+  }, [scope.resetQuery, queryInUse, changeSearchParams])
+  if (scope.resetQuery && !queryInUse) {
+    setScope({ ...scope, resetQuery: false })
     return null
   }
-  const active = status === 'authenticated' && !sessionChanging && ['Member', 'Admin'].includes(user?.role?.name) && user?.account_status?.name === 'Active'
-  if (!active) return null
+  if (scope.memberId !== props.memberId || scope.user !== user || scope.status !== status || scope.generation !== generation) {
+    setScope({ memberId: props.memberId, user, status, generation, revision: scope.revision + 1, resetQuery: scope.resetQuery || canSeeReviews(scope.status, scope.user) })
+    return null
+  }
+  const active = !sessionChanging && canSeeReviews(status, user)
+  if (!active || scope.resetQuery) return null
   return <ReviewPanel key={scope.revision} {...props} user={user} generation={generation} />
 }
 
 /**
  * Cartão de avaliações do perfil público: resumo, lista, formulário da própria avaliação e aviso de moderação.
+ * A página, a ordenação e o filtro ficam no endereço (reviews_page, reviews_sort, reviews_rating).
  * @param {{ memberId: string, allowReview?: boolean, user: object, generation: number, onSummaryChange?: Function }} props Perfil avaliado, sessão atual e callback do resumo.
  * @returns {JSX.Element} Secção "Avaliações".
  */
 function ReviewPanel({ memberId, allowReview = false, user, generation, onSummaryChange }) {
   const formId = useId()
-  const [page, setPage] = useState(1)
-  const [sort, setSort] = useState('newest')
-  const [ratingFilter, setRatingFilter] = useState('')
+  const [searchParams] = useSearchParams()
+  const changeSearchParams = useSearchParamsUpdater()
+  const { page, sort, ratingFilter } = readReviewsQuery(searchParams)
   const [retry, setRetry] = useState(0)
   const [result, setResult] = useState(null)
   const [ownProfile, setOwnProfile] = useState(null)
@@ -168,13 +203,15 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     getMemberReviewPage(memberId, page, controller.signal, { sort, rating: ratingFilter === '' ? '' : Number(ratingFilter) })
       .then((response) => {
         if (controller.signal.aborted) return
-        if (response.pagination.current_page !== page) setPage(response.pagination.current_page)
+        if (response.pagination.current_page !== page) {
+          changeSearchParams((current) => updateSearchParams(current, { reviews_page: response.pagination.current_page }, QUERY_DEFAULTS), { replace: true })
+        }
         setResult({ ...snapshot, page: response.pagination.current_page, status: 'success', data: response })
         summaryCallback.current?.({ average_rating: response.average_rating, reviews_count: response.reviews_count })
       })
       .catch(() => { if (!controller.signal.aborted) setResult((previous) => ({ ...snapshot, status: 'error', data: previous?.data })) })
     return () => controller.abort()
-  }, [memberId, page, sort, ratingFilter, retry])
+  }, [memberId, page, sort, ratingFilter, retry, changeSearchParams])
   useEffect(() => () => mutation.current?.abort(), [])
 
   function openForm() {
@@ -239,8 +276,12 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
     }
   }
 
-  function changeFilter(setter, value) { setReportedReview(null); setter(value); setPage(1) }
-  function changePage(value) { setReportedReview(null); setPage(value) }
+  function changeQuery(changes) {
+    setReportedReview(null)
+    changeSearchParams((current) => updateSearchParams(current, changes, QUERY_DEFAULTS))
+  }
+  function changeFilter(name, value) { changeQuery({ [name]: value, reviews_page: 1 }) }
+  function changePage(value) { changeQuery({ reviews_page: value }) }
   function reviewReported({ message }) {
     setReportedReview(null)
     setAwaitingModeration(false)
@@ -265,7 +306,8 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
         </fieldset>
         {errors.rating && <p id={`${formId}-rating-error`} className="mt-1 text-xs text-red-700">{errors.rating}</p>}
         <label htmlFor={`${formId}-comment`} className="sr-only">Comentário obrigatório</label>
-        <textarea id={`${formId}-comment`} name="comment" rows={3} maxLength={2000} required disabled={busy} value={comment} onChange={(event) => setComment(event.target.value)} aria-invalid={!!errors.comment} aria-describedby={errors.comment ? `${formId}-comment-error` : undefined} className={`mt-3 block w-full resize-y rounded-xl border bg-transparent px-3 py-2 text-sm leading-relaxed disabled:opacity-60 ${errors.comment ? 'border-red-400' : 'border-gray-200'} ${focusClass}`} />
+        <textarea id={`${formId}-comment`} name="comment" rows={3} maxLength={2000} required disabled={busy} value={comment} onChange={(event) => setComment(event.target.value)} aria-invalid={!!errors.comment} aria-describedby={errors.comment ? `${formId}-comment-counter ${formId}-comment-error` : `${formId}-comment-counter`} className={`mt-3 block w-full resize-y rounded-xl border bg-transparent px-3 py-2 text-sm leading-relaxed disabled:opacity-60 ${errors.comment ? 'border-red-400' : 'border-gray-200'} ${focusClass}`} />
+        <p id={`${formId}-comment-counter`} className={`mt-1 text-right text-xs ${comment.length >= 2000 ? 'text-amber-800' : 'text-gray-500'}`}>{comment.length}/2000</p>
         {errors.comment && <p id={`${formId}-comment-error`} className="mt-1 text-xs text-red-700">{errors.comment}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {requestStatus === 409 && <button type="button" className={`mt-2 rounded text-sm underline ${focusClass}`} disabled={busy || !current} onClick={() => setRetry((value) => value + 1)}>Atualizar avaliações</button>}
@@ -280,15 +322,15 @@ function ReviewPanel({ memberId, allowReview = false, user, generation, onSummar
       {awaitingModeration && (
         <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <p>A sua avaliação ficou a aguardar moderação e só fica visível depois de aprovada.</p>
-          <Link to="/perfil/avaliacoes" className={`mt-1 inline-block rounded font-medium underline ${focusClass}`}>As minhas avaliações</Link>
+          <Link to="/perfil/avaliacoes?separador=written" className={`mt-1 inline-block rounded font-medium underline ${focusClass}`}>As minhas avaliações</Link>
         </div>
       )}
       {data && <RatingDistribution distribution={data.rating_distribution} total={data.reviews_count} />}
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 [&_button[role=combobox]]:px-2.5 [&_button[role=combobox]]:py-1.5 [&_button[role=combobox]]:text-xs">
         <span id={`${formId}-sort-label`} className="sr-only">Ordenar avaliações</span>
-        <SelectMenu id={`${formId}-sort`} label="Ordenar avaliações" labelId={`${formId}-sort-label`} value={sort} options={sortOptions} onChange={(value) => changeFilter(setSort, value)} variant="public-filter" disabled={busy} />
+        <SelectMenu id={`${formId}-sort`} label="Ordenar avaliações" labelId={`${formId}-sort-label`} value={sort} options={sortOptions} onChange={(value) => changeFilter('reviews_sort', value)} variant="public-filter" disabled={busy} />
         <span id={`${formId}-filter-label`} className="sr-only">Filtrar por estrelas</span>
-        <SelectMenu id={`${formId}-filter`} label="Filtrar por estrelas" labelId={`${formId}-filter-label`} value={ratingFilter} options={ratingOptions} onChange={(value) => changeFilter(setRatingFilter, value)} variant="public-filter" disabled={busy} />
+        <SelectMenu id={`${formId}-filter`} label="Filtrar por estrelas" labelId={`${formId}-filter-label`} value={ratingFilter} options={ratingOptions} onChange={(value) => changeFilter('reviews_rating', value)} variant="public-filter" disabled={busy} />
       </div>
       {!current && <p role="status" className="mt-5 text-sm text-gray-600">A carregar avaliações...</p>}
       {current?.status === 'error' && <div role="alert" className="mt-5 text-sm text-gray-600"><p>Não foi possível carregar as avaliações. {(notice || awaitingModeration) ? 'A alteração foi concluída, mas a lista e o resumo ainda não foram atualizados.' : 'Tente novamente.'}</p><button type="button" className={`${buttonClass} mt-3 border border-gray-300`} onClick={() => setRetry((value) => value + 1)}>Tentar carregar avaliações novamente</button></div>}

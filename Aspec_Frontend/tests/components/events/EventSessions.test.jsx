@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import EventSessions from "../../../src/components/events/EventSessions";
 
 /*
@@ -25,6 +25,26 @@ describe("EventSessions", () => {
     expect(screen.getByText("Abertas")).toBeInTheDocument();
     expect(screen.getByText("Encerradas")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  describe("estado das inscrições por sessão", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("distingue a sessão esgotada da sessão com o prazo terminado", () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2030-10-15T09:00:00Z"));
+      const sessions = [
+        { id: "019512a1-9999-7123-8123-123456789abc", event_date: "2030-10-14", event_start_time: "08:00", event_end_time: "09:30", registration_deadline: "2030-10-12T23:59:00+01:00", is_registered: false, registration_open: false, available_spots: 5 },
+        { id: "019512a1-9998-7123-8123-123456789abc", event_date: "2030-10-21", event_start_time: "09:00", event_end_time: "10:30", registration_deadline: "2030-10-19T23:59:00+01:00", is_registered: false, registration_open: false, available_spots: 0 },
+        { id: "019512a1-9997-7123-8123-123456789abc", event_date: "2030-10-28", event_start_time: "10:00", event_end_time: "11:30", registration_deadline: "2030-10-26T23:59:00+01:00", is_registered: false, registration_open: true, available_spots: 8 },
+      ];
+      render(<EventSessions sessions={sessions} onSelect={vi.fn()} />);
+      const [past, full, open] = screen.getAllByRole("listitem");
+      expect(within(past).getByText("Encerradas")).toBeInTheDocument();
+      expect(within(full).getByText("Esgotada")).toBeInTheDocument();
+      expect(within(full).queryByText("Encerradas")).not.toBeInTheDocument();
+      expect(within(open).getByText("Abertas")).toBeInTheDocument();
+    });
   });
 
   it("seleciona pelo ID real através do teclado e reflete a seleção controlada", async () => {

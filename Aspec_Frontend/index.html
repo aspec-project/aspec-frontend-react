@@ -10,7 +10,11 @@
     <title>ASPEC</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main role="status" aria-live="polite" style="display:grid;min-height:100vh;place-items:center;margin:0;padding:1rem;background:#f7f8fa;color:#334155;font-family:Inter,system-ui,sans-serif">
+        <p style="margin:0;border:1px solid #e2e8f0;border-radius:0.75rem;background:#fff;padding:1rem 1.25rem;font-size:0.875rem;font-weight:500;box-shadow:0 1px 3px rgb(15 23 42 / 0.08)">A carregar a plataforma…</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

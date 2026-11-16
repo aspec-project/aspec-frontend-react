@@ -8,6 +8,8 @@ import { getEventDetail } from "../../services/events";
 import { changeEventRegistration, getRegistrationErrorMessage } from "../../services/eventRegistrations";
 import { getSessionContext, isSessionCurrent } from "../../services/sessionContext";
 import { formatRegistrationDeadline } from "../../utils/eventFormatting";
+import { formatDayMonth } from "../../utils/dateFormat";
+import { getRegistrationState } from "../../utils/eventRegistrationState";
 import { isFutureEventSession } from "../../utils/eventSessions";
 import { canActAsMember, hasMemberProfile } from "../../utils/memberAccess";
 
@@ -49,6 +51,7 @@ function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, 
   const canCancel = eligible && seriesReady && event.is_registered === true && openDeadline;
   const cancelledAwaitingRefresh = operation.success && operation.action === "cancel" && operation.stale;
   const registered = (operation.success && operation.action === "register" && operation.stale) || (event.is_registered === true && !cancelledAwaitingRefresh);
+  const sessionDay = event.series_id ? formatDayMonth(event.event_date) : "";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -181,12 +184,18 @@ function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, 
         )}
         {!openDeadline && (
           <p className="mt-3 text-sm text-gray-600">
-            {formatRegistrationDeadline(event.registration_deadline) ? "O prazo para gerir a inscrição terminou." : "Prazo de inscrição por confirmar."}
+            {!formatRegistrationDeadline(event.registration_deadline)
+              ? "Prazo de inscrição por confirmar."
+              : event.is_registered === false && !registered
+                ? "As inscrições terminaram."
+                : "O prazo para gerir a inscrição terminou."}
           </p>
         )}
         {openDeadline && event.is_registered === false && event.registration_open !== true && (
           <p className="mt-3 text-sm text-gray-600">
-            {event.registration_open === false ? "Inscrições encerradas." : "Disponibilidade de inscrição por confirmar."}
+            {event.registration_open !== false
+              ? "Disponibilidade de inscrição por confirmar."
+              : getRegistrationState(event) === "full" ? "Lotação esgotada." : "Inscrições encerradas."}
           </p>
         )}
       </>
@@ -214,7 +223,7 @@ function RegistrationControls({ event, onEventUpdate, onReconcile, seriesReady, 
       <ConfirmDialog
         open={dialog !== null}
         title={dialog === "cancel" ? "Cancelar inscrição" : "Confirmar inscrição?"}
-        description={dialog === "cancel" ? "Pretende cancelar a sua inscrição neste evento?" : "Reveja o resumo do evento antes de confirmar."}
+        description={dialog === "cancel" ? (sessionDay ? `Pretende cancelar a sua inscrição nesta sessão (${sessionDay})?` : "Pretende cancelar a sua inscrição neste evento?") : "Reveja o resumo do evento antes de confirmar."}
         confirmLabel={dialog === "cancel" ? "Confirmar cancelamento" : "Confirmar inscrição"}
         tone={dialog === "cancel" ? "danger" : "gold"}
         showClose={dialog === "register"}

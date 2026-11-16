@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountInformationPage from '../../src/pages/AccountInformationPage'
@@ -76,5 +76,17 @@ describe('Informações de conta', () => {
     expect(screen.getByRole('button', { name: 'Alterar dados' })).toBeInTheDocument()
     expect(screen.queryByText(noProfileNote)).not.toBeInTheDocument()
     await waitFor(() => expect(getNotificationPreferences).toHaveBeenCalled())
+  })
+
+  it('fecha a edição dos dados pessoais com Escape sem guardar', async () => {
+    show(member, { ...member.member_profile, email: 'maria@example.pt', phone: '+351912345678' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alterar dados' }))
+    expect(screen.getByRole('dialog', { name: 'Alterar dados pessoais' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Alterar dados pessoais' })).not.toBeInTheDocument()
+    expect(updateMemberProfile).not.toHaveBeenCalled()
   })
 })

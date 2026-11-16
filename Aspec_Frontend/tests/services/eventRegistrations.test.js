@@ -76,4 +76,25 @@ describe("Contrato de inscrições", () => {
   it.each([409, 500, 422])("não expõe mensagens internas de HTTP %s", (status) => {
     expect(getRegistrationErrorMessage({ response: { status, data: { message: "segredo interno" } } })).not.toContain("segredo");
   });
+  it.each([
+    "Já está inscrito na sessão de 18/11/2026.",
+    "A sessão de 25/11/2026 atingiu a lotação máxima.",
+    "O prazo de inscrição da sessão de 11/11/2026 terminou.",
+  ])("apresenta o conflito da série com a data da sessão: %s", (message) => {
+    expect(getRegistrationErrorMessage({ response: { status: 409, data: { message } } })).toBe(message);
+  });
+  it.each([
+    [409, "Já está inscrito na sessão de 18/11/26."],
+    [409, "Já está inscrito na sessão de 18-11-2026."],
+    [409, "Já está inscrito na sessão de aa/bb/cccc."],
+    [409, "Atenção: Já está inscrito na sessão de 18/11/2026."],
+    [409, "Já está inscrito na sessão de 18/11/2026. <b>x</b>"],
+    [409, "A sessão de 25/11/2026 atingiu a lotação máxima.\nDetalhe interno"],
+    [422, "Já está inscrito na sessão de 18/11/2026."],
+    [500, "O prazo de inscrição da sessão de 11/11/2026 terminou."],
+  ])("não aceita imitações do conflito da série (HTTP %s): %s", (status, message) => {
+    expect(getRegistrationErrorMessage({ response: { status, data: { message } } })).toBe(
+      "Não foi possível confirmar o resultado da operação. Consulte o estado atualizado da inscrição.",
+    );
+  });
 });

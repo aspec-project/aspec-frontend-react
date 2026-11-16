@@ -6,8 +6,8 @@ export const directoryButtonClass = 'rounded-lg bg-[#0d1f35] px-4 py-2.5 text-sm
 export default function MemberFilters({ filters, draftSearch, changeSearch, changeFilter, onSearch, clearFilters, references, loading, fieldErrors }) {
   return (
     <form onSubmit={onSearch} className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm" aria-label="Pesquisar membros">
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="min-w-0 md:col-span-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="min-w-0 md:col-span-2 lg:col-span-2">
           <label htmlFor="member-search" className={publicFilterLabelClass}>Pesquisar</label>
           <PublicFilterSearch iconSize={15} id="member-search" value={draftSearch} onChange={(event) => changeSearch(event.target.value)} placeholder="Nome, nome comercial ou descrição" aria-invalid={!!fieldErrors.search} aria-describedby={fieldErrors.search ? 'member-search-error' : undefined} />
           {fieldErrors.search && <p id="member-search-error" className="mt-1 text-sm text-red-700">{fieldErrors.search}</p>}

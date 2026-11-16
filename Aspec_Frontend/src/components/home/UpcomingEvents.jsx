@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getEvents, getEventsErrorMessage } from "../../services/events";
 import { softCategoryColor } from "../../utils/eventFormatting";
+import { CLOSED_SPOTS_LABEL, REGISTRATION_STATE_LABELS, getRegistrationState } from "../../utils/eventRegistrationState";
 import {
   CalendarDays,
   Clock,
@@ -184,11 +185,14 @@ export default function UpcomingEvents() {
               const LocationIcon = isOnline ? Video : MapPin;
               const cor = obterCor(evento.category);
               const vagas = evento.available_spots;
+              const estadoInscricoes = getRegistrationState(evento);
 
               const textoVagas =
                 typeof vagas !== "number"
                   ? "Vagas por confirmar"
-                  : vagas <= 0
+                  : estadoInscricoes === "closed"
+                    ? CLOSED_SPOTS_LABEL
+                    : vagas <= 0
                     ? "Evento lotado"
                     : `${vagas} ${
                         vagas === 1
@@ -270,9 +274,9 @@ export default function UpcomingEvents() {
                       </div>
                     </div>
 
-                    {evento.registration_open === false && (
+                    {(estadoInscricoes === "full" || estadoInscricoes === "closed") && (
                       <p className="mt-4 text-xs font-medium text-gray-500">
-                        Inscrições encerradas
+                        {REGISTRATION_STATE_LABELS[estadoInscricoes]}
                       </p>
                     )}
 

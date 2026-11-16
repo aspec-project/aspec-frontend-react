@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Outlet, Route, RouterProvider, Routes, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MemberReviewsPage from '../../src/pages/MemberReviewsPage'
 import { api } from '../../src/services/api'
@@ -80,6 +80,14 @@ describe('As minhas avaliações', () => {
         </Routes>
       </MemoryRouter>,
     )
+  }
+
+  function showAt(entry, profile = { average_rating: 3.5, reviews_count: 12 }) {
+    const router = createMemoryRouter([
+      { element: <Outlet context={{ profile }} />, children: [{ path: '/perfil/avaliacoes', element: <MemberReviewsPage /> }] },
+    ], { initialEntries: [entry] })
+    render(<RouterProvider router={router} />)
+    return router
   }
 
   const tab = (name) => screen.getByRole('tab', { name })
@@ -224,5 +232,40 @@ describe('As minhas avaliações', () => {
     await user.click(within(card('escrita')).getByRole('button', { name: 'Ver motivo' }))
 
     await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('Spam ou publicidade')).toBeInTheDocument())
+  })
+
+  it('com ?separador=written abre logo nas avaliações feitas por mim', async () => {
+    showAt('/perfil/avaliacoes?separador=written')
+    await screen.findByText('escrita')
+
+    expect(tab(/^Feitas por mim/)).toHaveAttribute('aria-selected', 'true')
+    expect(tab(/^Feitas ao meu perfil/)).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Avaliações feitas por mim')
+    expect(adapter.mock.calls[0][0].params.direction).toBe('written')
+  })
+
+  it.each(['/perfil/avaliacoes', '/perfil/avaliacoes?separador=xpto'])('sem um separador válido no URL abre nas avaliações feitas ao meu perfil: %s', async (entry) => {
+    showAt(entry)
+    await loaded()
+
+    expect(tab(/^Feitas ao meu perfil/)).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Avaliações ao meu perfil')
+    expect(adapter.mock.calls[0][0].params.direction).toBe('received')
+  })
+
+  it('escolher o separador atualiza o URL sem acrescentar entradas ao histórico', async () => {
+    const user = userEvent.setup()
+    const router = showAt('/perfil/avaliacoes')
+    await loaded()
+
+    await user.click(tab(/^Feitas por mim/))
+    await screen.findByText('escrita')
+    expect(router.state.location.search).toBe('?separador=written')
+    expect(router.state.historyAction).toBe('REPLACE')
+
+    await user.click(tab(/^Feitas ao meu perfil/))
+    await loaded()
+    expect(router.state.location.search).toBe('')
+    expect(router.state.historyAction).toBe('REPLACE')
   })
 })
