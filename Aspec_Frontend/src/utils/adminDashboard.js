@@ -36,17 +36,20 @@ export function formatCount(value) {
 }
 
 /**
- * Linha de baixo do cartão dos membros ativos. A API não divide este total entre
- * trial, ativos e administradores, por isso a interface não inventa números.
+ * Linha de baixo do cartão dos membros ativos: a divisão entre trial e ativos.
  *
- * @param {{total: number}} activeMembers Membros ativos devolvidos
+ * @param {{total: number, trial: number, active: number, admins: number}} activeMembers Membros ativos devolvidos
  *   pela API.
- * @returns {string} Explicação factual do total ou "Nenhum membro ativo" quando o total é 0.
+ * @returns {string} "N em trial · M ativos" (as duas partes sempre presentes), com " (inclui administradores)"
+ *   só quando há administradores, ou "Nenhum membro ativo" quando o total é 0.
  */
 function getActiveMembersHint(activeMembers) {
   if (activeMembers.total === 0) return DASHBOARD_TEXTS.noActiveMembers
 
-  return 'Em trial ou com subscrição ativa'
+  const active = activeMembers.active === 1 ? 'ativo' : 'ativos'
+  const admins = activeMembers.admins > 0 ? ' (inclui administradores)' : ''
+
+  return `${formatCount(activeMembers.trial)} em trial · ${formatCount(activeMembers.active)} ${active}${admins}`
 }
 
 /**
@@ -138,7 +141,7 @@ function linkedCard(key, label, count, hint, to, action, delta) {
  * exatamente esse número.
  *
  * @param {{
- *   active_members: {total: number, new_this_month: number},
+ *   active_members: {total: number, new_this_month: number, trial: number, active: number, admins: number},
  *   pending_applications: {total: number},
  *   events: {this_month: number, this_week: number},
  *   reviews: {flagged: number, new_this_week: number},
