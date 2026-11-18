@@ -70,7 +70,7 @@ export default function PortfolioPage() {
           type: 'success',
           message: 'Imagem removida do portefólio com sucesso.',
         })
-            } catch (error) {
+      } catch (error) {
         if (!isSessionCurrent(context)) {
           return
         }
