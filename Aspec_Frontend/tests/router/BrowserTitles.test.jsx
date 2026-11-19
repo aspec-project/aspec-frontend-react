@@ -57,7 +57,7 @@ describe('Títulos do separador por rota', () => {
     ['/login', 'Iniciar sessão'], ['/esqueci-password', 'Recuperar palavra-passe'],
     ['/reset-password', 'Redefinir palavra-passe'], ['/registo', 'Candidatura'],
     ['/ativacao/sucesso', 'Conta ativada'], ['/ativacao/novo-link', 'Novo link de ativação'],
-    ['/ativacao/conta', 'Ativar conta'], ['/pendente', 'Conta pendente'],
+    ['/ativacao/conta', 'Ativar conta'], ['/pendente', 'Pedido recebido'],
     ['/nao-existe', 'Página não encontrada'], ['/admin/nao-existe', 'Página não encontrada'],
   ])('%s identifica a página pública', (path, title) => {
     show(path)
