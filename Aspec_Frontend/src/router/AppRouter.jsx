@@ -73,7 +73,7 @@ function AppRouter() {
       <Route path="/ativacao/:user" element={<PageTitle title="Ativar conta"><AccountActivationPage /></PageTitle>} />
       <Route
         path="/pendente"
-        element={<PageTitle title="Conta pendente"><PendingAccountPage /></PageTitle>}
+        element={<PageTitle title="Pedido recebido"><PendingAccountPage /></PageTitle>}
       />
 
       {/* Área privada do membro (membros e admins com conta ativa): mostra o layout do Figma. */}
