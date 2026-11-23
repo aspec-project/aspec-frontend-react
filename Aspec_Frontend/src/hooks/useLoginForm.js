@@ -2,22 +2,17 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
-const PENDING_ACCOUNT_MESSAGE = 'A sua conta está pendente de aprovação pelo administrador.'
-const APPROVED_ACCOUNT_MESSAGE = 'A sua conta foi aprovada. Ative-a através do link enviado por email.'
-const EXPIRED_SUBSCRIPTION_MESSAGES = [
-  'A sua conta está inativa por falta de pagamento. Use o link de reativação enviado por email.',
-  'A sua subscrição terminou. Use o link de reativação enviado por email para reativar a conta.',
-]
-/* Atualmente, esta é a resposta devolvida pelo backend para Inactive/blocked. */
-const BLOCKED_ACCOUNT_MESSAGE = 'A sua conta não está ativa.'
+const ACCOUNT_STATE_NOTICES = {
+  pending: 'pending',
+  approved: 'activation',
+  inactive_unpaid: 'expired',
+  inactive_cancelled: 'expired',
+  inactive: 'blocked',
+}
 
-function getAccountNotice(status, message) {
+function getAccountNotice(status, accountState) {
   if (status !== 403) return 'error'
-  if (message === PENDING_ACCOUNT_MESSAGE) return 'pending'
-  if (message === APPROVED_ACCOUNT_MESSAGE) return 'activation'
-  if (EXPIRED_SUBSCRIPTION_MESSAGES.includes(message)) return 'expired'
-  if (message === BLOCKED_ACCOUNT_MESSAGE) return 'blocked'
-  return 'error'
+  return ACCOUNT_STATE_NOTICES[accountState] ?? 'error'
 }
 
 /*
@@ -86,7 +81,7 @@ export function useLoginForm() {
       const memberDestination = getReturnPath(location) ?? '/perfil'
       navigate(isMember ? memberDestination : isAdmin ? '/admin' : '/', { replace: true });
     } else {
-      const notice = getAccountNotice(result.error.status, result.error.message)
+      const notice = getAccountNotice(result.error.status, result.error.accountState)
       const canRequestLink = ['activation', 'expired'].includes(notice)
 
       setFormError(result.error.message);
