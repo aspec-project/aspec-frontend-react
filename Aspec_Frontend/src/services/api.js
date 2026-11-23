@@ -157,6 +157,7 @@ export function normalizeError(error) {
         ? `Erro do servidor (${status}).`
         : "Não foi possível contactar o servidor."),
     fieldErrors,
+    accountState: body?.account_state,
   };
 }
 

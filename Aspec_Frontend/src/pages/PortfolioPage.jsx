@@ -77,6 +77,32 @@ export default function PortfolioPage() {
 
         const normalisedError = normalizeError(error)
 
+        if (normalisedError.status === 404) {
+          setSavedPortfolio((currentPortfolio) =>
+            currentPortfolio.filter((image) => image.id !== portfolioImageId),
+          )
+
+          try {
+            await reloadProfile()
+            setStatus({
+              type: 'success',
+              message: 'A imagem já tinha sido removida. A galeria foi atualizada.',
+            })
+          } catch (reloadError) {
+            if (!isSessionCurrent(context)) {
+              return
+            }
+
+            const normalisedReloadError = normalizeError(reloadError)
+            setStatus({
+              type: 'error',
+              message: `A imagem já tinha sido removida, mas não foi possível atualizar o perfil: ${normalisedReloadError.message}`,
+            })
+          }
+
+          return
+        }
+
         setStatus({
           type: 'error',
           message:

@@ -14,16 +14,16 @@ export default function PendingAccountPage() {
         </div>
 
         <h1 className="mt-6 text-2xl font-bold text-[#0d1f35]">
-          Candidatura pendente
+          Pedido recebido
         </h1>
 
         <p className="mt-4 text-sm leading-6 text-slate-600">
-          Recebemos a sua candidatura. A conta será revista por um administrador
-          e receberá um email quando estiver pronta para ativação.
+          Se o endereço puder ser usado para uma candidatura, esta será analisada por um administrador.
+          Quando aplicável, receberá um email com os próximos passos.
         </p>
 
         <p className="mt-4 text-sm leading-6 text-slate-600">
-          Enquanto a conta estiver pendente, ainda não poderá iniciar sessão.
+          Se já tiver uma conta, utilize o início de sessão ou a opção de recuperação da palavra-passe.
         </p>
 
         <Link

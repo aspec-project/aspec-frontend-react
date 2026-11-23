@@ -11,7 +11,7 @@ export default function SuccessView() {
           <CheckCircle size={40} style={{ color: "#2d8e5a" }} />
         </div>
         <h2 style={{ color: "#0d1f35" }} className="mb-3 text-2xl font-bold">
-          Candidatura enviada!
+          Pedido recebido
         </h2>
         <p className="text-sm text-gray-500">A redirecionar para a confirmação...</p>
       </div>
