@@ -17,13 +17,13 @@ export default function InstitutionalPage({ content }) {
           {content.sections.map((section) => (
             <section key={section.title}>
               <h2 className="mb-4 text-xl font-semibold text-[#0d1f35]">{section.title}</h2>
-              <div className="space-y-4 leading-relaxed">
+              <div className="space-y-4 leading-relaxed text-justify">
                 {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
               </div>
               {section.subsections?.map((subsection) => (
                 <div key={subsection.title} className="mt-6">
                   <h3 className="mb-3 text-lg font-semibold text-[#0d1f35]">{subsection.title}</h3>
-                  <div className="space-y-4 leading-relaxed">
+                  <div className="space-y-4 leading-relaxed text-justify">
                     {subsection.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                   </div>
                 </div>
